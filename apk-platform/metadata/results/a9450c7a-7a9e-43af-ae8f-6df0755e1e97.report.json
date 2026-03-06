@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "job_id": "a9450c7a-7a9e-43af-ae8f-6df0755e1e97",
+  "status": "success",
+  "started_at": "2026-03-06T05:00:49.299318+00:00",
+  "finished_at": "2026-03-06T05:00:49.547405+00:00",
+  "summary": {
+    "schema_version": "1.0",
+    "risk_score": 100,
+    "counts": {
+      "critical": 0,
+      "high": 1,
+      "medium": 0,
+      "low": 4,
+      "info": 2
+    }
+  },
+  "findings": [
+    {
+      "id": "RULE-TelephonyManager",
+      "severity": "low",
+      "title": "Suspicious token detected: TelephonyManager",
+      "description": "Detected token 'TelephonyManager' 10 time(s) in APK content.",
+      "evidence": {
+        "token": "TelephonyManager",
+        "count": 10
+      }
+    },
+    {
+      "id": "RULE-LocationManager",
+      "severity": "low",
+      "title": "Suspicious token detected: LocationManager",
+      "description": "Detected token 'LocationManager' 96 time(s) in APK content.",
+      "evidence": {
+        "token": "LocationManager",
+        "count": 96
+      }
+    },
+    {
+      "id": "RULE-AccessibilityService",
+      "severity": "high",
+      "title": "Suspicious token detected: AccessibilityService",
+      "description": "Detected token 'AccessibilityService' 72 time(s) in APK content.",
+      "evidence": {
+        "token": "AccessibilityService",
+        "count": 72
+      }
+    },
+    {
+      "id": "RULE-getDeviceId",
+      "severity": "low",
+      "title": "Suspicious token detected: getDeviceId",
+      "description": "Detected token 'getDeviceId' 2 time(s) in APK content.",
+      "evidence": {
+        "token": "getDeviceId",
+        "count": 2
+      }
+    },
+    {
+      "id": "RULE-getLastKnownLocation",
+      "severity": "low",
+      "title": "Suspicious token detected: getLastKnownLocation",
+      "description": "Detected token 'getLastKnownLocation' 1 time(s) in APK content.",
+      "evidence": {
+        "token": "getLastKnownLocation",
+        "count": 1
+      }
+    },
+    {
+      "id": "RULE-NATIVE-LIB",
+      "severity": "info",
+      "title": "Native library present",
+      "description": "APK contains native .so libraries. Manual review may be needed.",
+      "evidence": {
+        "native_libs": [
+          "lib/x86/libandroidx.graphics.path.so",
+          "lib/arm64-v8a/libandroidx.graphics.path.so",
+          "lib/x86_64/libandroidx.graphics.path.so",
+          "lib/armeabi-v7a/libandroidx.graphics.path.so"
+        ]
+      }
+    },
+    {
+      "id": "RULE-MULTI-DEX",
+      "severity": "info",
+      "title": "Multi-dex APK detected",
+      "description": "APK contains multiple dex files.",
+      "evidence": {
+        "dex_files": [
+          "classes4.dex",
+          "classes2.dex",
+          "classes3.dex",
+          "classes5.dex",
+          "classes.dex"
+        ]
+      }
+    }
+  ],
+  "artifacts": {
+    "logs_path": null,
+    "extracted_path": null,
+    "features_path": "C:\\Users\\USER\\Desktop\\apk-platform\\metadata\\artifacts\\a9450c7a-7a9e-43af-ae8f-6df0755e1e97\\a9450c7a-7a9e-43af-ae8f-6df0755e1e97.features.json"
+  },
+  "errors": []
+}
