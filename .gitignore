@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Databases
+*.db
+*.sqlite3
+
+# APK files
+*.apk
+*.aab
+
+# Backend generated data
+apk-platform/storage/objects/apks/
+apk-platform/metadata/results/
+apk-platform/metadata/artifacts/
+apk-platform/metadata/requests/
+
+# Android build
+.gradle/
+build/
+app/build/
+
+# Temporary files
+tmp/
+temp/
