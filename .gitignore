@@ -2,12 +2,19 @@
 __pycache__/
 *.pyc
 *.pyo
+<<<<<<< HEAD
 *.pyd
 
 # Virtual environments
 .venv/
 venv/
 env/
+=======
+
+# Virtual environment
+.venv/
+venv/
+>>>>>>> b8f38d3 (Add gitignore)
 
 # IDE
 .vscode/
@@ -20,6 +27,7 @@ Thumbs.db
 # Logs
 *.log
 
+<<<<<<< HEAD
 # Databases
 *.db
 *.sqlite3
@@ -42,3 +50,18 @@ app/build/
 # Temporary files
 tmp/
 temp/
+=======
+# Database
+*.db
+*.sqlite3
+
+# APK
+*.apk
+*.aab
+
+# Backend generated files
+apk-platform/storage/objects/apks/
+apk-platform/metadata/results/
+apk-platform/metadata/artifacts/
+apk-platform/metadata/requests/
+>>>>>>> b8f38d3 (Add gitignore)
