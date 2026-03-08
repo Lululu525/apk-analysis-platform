@@ -1,22 +1,39 @@
-from __future__ import annotations
 import argparse
+import json
 from pathlib import Path
-from .pipeline import run_cli
+
+from app.pipeline import run_pipeline
+
 
 def main():
-    parser = argparse.ArgumentParser(description="AI Firmware Analyzer (CLI)")
-    parser.add_argument("--in", dest="input_json", required=True, help="Path to analyze request JSON")
-    parser.add_argument("--out", dest="report_json", required=True, help="Path to output report JSON")
-    parser.add_argument("--artifacts", dest="artifacts_dir", default=None, help="Directory to store artifacts/features")
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--in", dest="input_path", required=True)
+    parser.add_argument("--out", dest="output_path", required=True)
+    parser.add_argument("--artifacts", dest="artifacts_dir", required=True)
+
     args = parser.parse_args()
 
-    input_json = Path(args.input_json)
-    report_json = Path(args.report_json)
-    artifacts_dir = Path(args.artifacts_dir) if args.artifacts_dir else None
+    input_path = Path(args.input_path)
+    output_path = Path(args.output_path)
+    artifacts_dir = Path(args.artifacts_dir)
 
-    report, out_path = run_cli(input_json, report_json, output_dir=artifacts_dir)
-    print(f"[OK] report written: {out_path}")
-    print(f"status={report.status} risk_score={report.summary.risk_score} findings={len(report.findings)}")
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    # 讀 request.json
+    with open(input_path, "r", encoding="utf-8") as f:
+        request_data = json.load(f)
+
+    # 執行 pipeline
+    report = run_pipeline(
+        request_data=request_data,
+        artifacts_dir=artifacts_dir
+    )
+
+    # 寫 report.json
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2)
+
 
 if __name__ == "__main__":
     main()
