@@ -1,0 +1,30 @@
+{
+  "job_id": "demo-001",
+  "firmware": {
+    "name": "fw.bin",
+    "sha256": "ee9376c7a1814d16c051e5929f37b5c591ed95492c5306638e401f7919a55b4c",
+    "size_bytes": 105299221
+  },
+  "device_meta": {
+    "vendor": "ACME",
+    "model": "X1",
+    "firmware_version": "1.2.3",
+    "arch_hint": "arm"
+  },
+  "options": {
+    "run_static_scan": true,
+    "run_behavior_analysis": false,
+    "severity_threshold": "medium"
+  },
+  "stats": {
+    "entropy_head_2mb": 7.9999,
+    "strings_count_head_2mb": 3000,
+    "suspicious_hits_head_2mb": {
+      "password": 0,
+      "api_key": 0,
+      "private_key": 0,
+      "telnetd": 0,
+      "dropbear": 0
+    }
+  }
+}

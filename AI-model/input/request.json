@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "job_id": "demo-001",
+  "firmware": {
+    "name": "fw.bin",
+    "file_path": "/Users/linzhixuan/Downloads/6.0.3.1.pkg",
+    "uri": null
+  },
+  "device_meta": {
+    "vendor": "ACME",
+    "model": "X1",
+    "firmware_version": "1.2.3",
+    "arch_hint": "arm"
+  },
+  "options": {
+    "run_static_scan": true,
+    "run_behavior_analysis": false,
+    "severity_threshold": "medium"
+  }
+}

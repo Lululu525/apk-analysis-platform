@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "job_id": "demo-001",
+  "status": "success",
+  "started_at": "2026-03-08T12:54:16.265466+08:00",
+  "finished_at": "2026-03-08T12:54:16.466700+08:00",
+  "summary": {
+    "schema_version": "1.0",
+    "risk_score": 0,
+    "counts": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0,
+      "info": 0
+    }
+  },
+  "findings": [],
+  "artifacts": {
+    "logs_path": null,
+    "extracted_path": null,
+    "features_path": "artifacts/demo-001.features.json"
+  },
+  "errors": []
+}
