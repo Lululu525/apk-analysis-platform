@@ -20,36 +20,58 @@ APK Analysis Platform 是一個 **Android APK 安全分析平台原型
 # Project Structure
 
 ```
+# Project Structure
+
+```text
 apk-analysis-platform
 │
 ├─ apk-platform
-│ ├─ apps
-│ │ └─ api
-│ │ ├─ main.py
-│ │ └─ db.py
-│ │
-│ ├─ metadata
-│ │ ├─ requests
-│ │ ├─ results
-│ │ └─ artifacts
-│ │
-│ └─ storage
-│ └─ objects
-│ └─ apks
+│   ├─ apps
+│   │   └─ api
+│   │       ├─ main.py
+│   │       └─ db.py
+│   │
+│   ├─ metadata
+│   │   ├─ requests
+│   │   ├─ results
+│   │   └─ artifacts
+│   │
+│   └─ storage
+│       └─ objects
+│           └─ apks
 │
 ├─ AI-model
-│ ├─ app
-│ │ ├─ init.py
-│ │ ├─ main.py
-│ │ ├─ pipeline.py
-│ │ └─ schemas.py
-│ │
-│ ├─ artifacts
-│ └─ output
+│   ├─ app
+│   │   ├─ __init__.py
+│   │   ├─ main.py
+│   │   ├─ pipeline.py
+│   │   ├─ schemas.py
+│   │   ├─ schema_validation.py
+│   │   │
+│   │   ├─ detectors
+│   │   │   ├─ __init__.py
+│   │   │   └─ rules.py
+│   │   │
+│   │   └─ report
+│   │       ├─ __init__.py
+│   │       └─ builder.py
+│   │
+│   ├─ input
+│   │   └─ request.json
+│   ├─ output
+│   │   └─ report.json
+│   ├─ artifacts
+│   ├─ models
+│   ├─ tests
+│   ├─ requirements.txt
+│   └─ README.md
 │
+├─ .gitignore
+├─ requirements.txt
 ├─ setup.bat
 ├─ run.bat
 └─ README.md
+```
 ```
 
 ------------------------------------------------------------------------
