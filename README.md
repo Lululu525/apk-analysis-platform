@@ -19,11 +19,36 @@ APK Analysis Platform 是一個 **Android APK 安全分析平台原型
 
 # Project Structure
 
-apk-analysis-platform │ ├─ apk-platform │ ├─ apps │ │ └─ api │ │ ├─
-main.py │ │ └─ db.py │ ├─ metadata │ │ ├─ requests │ │ ├─ results │ │ └─
-artifacts │ └─ storage │ └─ objects │ └─ apks │ ├─ AI-model │ ├─ app │ │
-├─ **init**.py │ │ ├─ main.py │ │ ├─ pipeline.py │ │ └─ schemas.py │ ├─
-artifacts │ └─ output │ ├─ setup.bat ├─ run.bat └─ README.md
+apk-analysis-platform
+│
+├─ apk-platform
+│ ├─ apps
+│ │ └─ api
+│ │ ├─ main.py
+│ │ └─ db.py
+│ │
+│ ├─ metadata
+│ │ ├─ requests
+│ │ ├─ results
+│ │ └─ artifacts
+│ │
+│ └─ storage
+│ └─ objects
+│ └─ apks
+│
+├─ AI-model
+│ ├─ app
+│ │ ├─ init.py
+│ │ ├─ main.py
+│ │ ├─ pipeline.py
+│ │ └─ schemas.py
+│ │
+│ ├─ artifacts
+│ └─ output
+│
+├─ setup.bat
+├─ run.bat
+└─ README.md
 
 ------------------------------------------------------------------------
 
