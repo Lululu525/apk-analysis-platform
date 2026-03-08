@@ -11,14 +11,12 @@ from app.pipeline import run_pipeline
 def normalize_request(raw: dict) -> dict:
     """
     將 backend 的 APK request schema
-    轉成目前 AI-model pipeline 可接受的 firmware schema。
+    轉換為目前 pipeline 使用的 firmware schema
     """
 
-    # 已經是 firmware schema，直接回傳
     if "firmware" in raw:
         return raw
 
-    # backend 的 apk-platform schema
     if "sample" in raw:
         sample = raw.get("sample", {})
         apk_meta = raw.get("apk_meta", {})
@@ -51,34 +49,29 @@ def normalize_request(raw: dict) -> dict:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="AI-model CLI entrypoint")
-    parser.add_argument("--in", dest="input_path", required=True, help="Path to request.json")
-    parser.add_argument("--out", dest="output_path", required=True, help="Path to report.json")
-    parser.add_argument("--artifacts", dest="artifacts_dir", required=True, help="Artifacts directory")
+    parser.add_argument("--in", dest="input_json", required=True, help="Path to request.json")
+    parser.add_argument("--out", dest="report_json", required=True, help="Path to report.json")
+    parser.add_argument("--artifacts", dest="artifacts_dir", default=None, help="Artifacts directory")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
 
-    input_path = Path(args.input_path)
-    output_path = Path(args.output_path)
-    artifacts_dir = Path(args.artifacts_dir)
+    input_json = Path(args.input_json)
+    report_json = Path(args.report_json)
+    artifacts_dir = Path(args.artifacts_dir) if args.artifacts_dir else None
 
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    raw = json.loads(input_path.read_text(encoding="utf-8"))
+    raw = json.loads(input_json.read_text(encoding="utf-8"))
     normalized = normalize_request(raw)
 
     req = AnalyzeRequest.model_validate(normalized)
     report = run_pipeline(req, output_dir=artifacts_dir)
 
-    output_path.write_text(
-        report.model_dump_json(indent=2),
-        encoding="utf-8"
-    )
+    report_json.parent.mkdir(parents=True, exist_ok=True)
+    report_json.write_text(report.model_dump_json(indent=2), encoding="utf-8")
 
-    print(f"[OK] report written: {output_path}")
+    print(f"[OK] report written: {report_json}")
     print(
         f"status={report.status} "
         f"risk_score={report.summary.risk_score} "
