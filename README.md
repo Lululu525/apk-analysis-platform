@@ -20,9 +20,6 @@ APK Analysis Platform 是一個 **Android APK 安全分析平台原型
 # Project Structure
 
 ```
-# Project Structure
-
-```text
 apk-analysis-platform
 │
 ├─ apk-platform
@@ -72,8 +69,6 @@ apk-analysis-platform
 ├─ run.bat
 └─ README.md
 ```
-```
-
 ------------------------------------------------------------------------
 
 # Requirements
