@@ -11,8 +11,16 @@ python -m venv .venv
 echo Activating virtual environment...
 call .venv\Scripts\activate
 
-echo Installing dependencies...
+echo Installing backend dependencies...
 pip install fastapi uvicorn pydantic python-multipart
 
+cd ..
+
+echo Installing AI-model dependencies...
+pip install androguard
+
+echo ================================
 echo Setup complete!
+echo ================================
+
 pause
