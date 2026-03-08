@@ -14,11 +14,11 @@ def normalize_request(raw: dict) -> dict:
     轉成目前 AI-model pipeline 可接受的 firmware schema。
     """
 
-    # 1. 已經是 firmware schema，直接回傳
+    # 已經是 firmware schema，直接回傳
     if "firmware" in raw:
         return raw
 
-    # 2. backend 的 apk-platform schema
+    # backend 的 apk-platform schema
     if "sample" in raw:
         sample = raw.get("sample", {})
         apk_meta = raw.get("apk_meta", {})
@@ -78,7 +78,12 @@ def main():
         encoding="utf-8"
     )
 
-    print(f"[OK] report written to: {output_path}")
+    print(f"[OK] report written: {output_path}")
+    print(
+        f"status={report.status} "
+        f"risk_score={report.summary.risk_score} "
+        f"findings={len(report.findings)}"
+    )
 
 
 if __name__ == "__main__":
