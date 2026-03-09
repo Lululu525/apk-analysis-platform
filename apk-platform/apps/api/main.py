@@ -22,10 +22,15 @@ REQUEST_DIR = APP_ROOT / "metadata" / "requests"
 RESULT_DIR = APP_ROOT / "metadata" / "results"
 ARTIFACTS_DIR = APP_ROOT / "metadata" / "artifacts"
 
+<<<<<<< HEAD
 # AI-model 專案根目錄
 AI_MODEL_ROOT = APP_ROOT.parent / "AI-model"
 
 # 預設使用目前啟動 FastAPI 的 Python
+=======
+AI_MODEL_ROOT = APP_ROOT.parent / "AI-model"
+
+>>>>>>> 8725b20 (Fix analyzer invocation using python -m app.main)
 MODEL_PYTHON = os.getenv("MODEL_PYTHON", "python")
 
 # 使用 module 模式執行 AI-model
