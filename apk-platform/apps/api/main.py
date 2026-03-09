@@ -29,6 +29,7 @@ AI_MODEL_ROOT = APP_ROOT.parent / "AI-model"
 
 
 # 使用 module 模式執行 AI-model
+MODEL_PYTHON = os.getenv("MODEL_PYTHON", "python")
 MODEL_MODULE = os.getenv("MODEL_MODULE", "app.main")
 
 app = FastAPI(title="APK Analysis Platform API")
