@@ -22,9 +22,14 @@ REQUEST_DIR = APP_ROOT / "metadata" / "requests"
 RESULT_DIR = APP_ROOT / "metadata" / "results"
 ARTIFACTS_DIR = APP_ROOT / "metadata" / "artifacts"
 
+# AI-model 專案根目錄
+AI_MODEL_ROOT = APP_ROOT.parent / "AI-model"
+
+# 預設使用目前啟動 FastAPI 的 Python
 MODEL_PYTHON = os.getenv("MODEL_PYTHON", "python")
+
+# 使用 module 模式執行 AI-model
 MODEL_MODULE = os.getenv("MODEL_MODULE", "app.main")
-MODEL_SCRIPT = os.getenv("MODEL_SCRIPT", r"C:\Users\USER\Desktop\AI-model\app\main.py")
 
 app = FastAPI(title="APK Analysis Platform API")
 
@@ -248,7 +253,8 @@ def run_analysis(sample_id: str):
 
     cmd = [
         MODEL_PYTHON,
-        MODEL_SCRIPT,
+        "-m",
+        MODEL_MODULE,
         "--in",
         str(request_path),
         "--out",
@@ -263,6 +269,7 @@ def run_analysis(sample_id: str):
             capture_output=True,
             text=True,
             check=True,
+            cwd=str(AI_MODEL_ROOT),
         )
         update_sample_status(sample_id, "finished")
         return {
