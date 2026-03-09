@@ -3,8 +3,6 @@ echo ================================
 echo APK Analysis Platform Setup
 echo ================================
 
-cd apk-platform
-
 echo Creating Python virtual environment...
 python -m venv .venv
 
@@ -14,13 +12,8 @@ call .venv\Scripts\activate
 echo Installing backend dependencies...
 pip install fastapi uvicorn pydantic python-multipart
 
-cd ..
-
 echo Installing AI-model dependencies...
-pip install androguard
+pip install androguard networkx scikit-learn
 
-echo ================================
 echo Setup complete!
-echo ================================
-
 pause

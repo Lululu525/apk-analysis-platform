@@ -45,4 +45,8 @@ app/build/
 
 # Temporary files
 tmp/
+<<<<<<< HEAD
 temp/
+=======
+temp/
+>>>>>>> ab793ca (Update setup scripts, gitignore and requirements)
