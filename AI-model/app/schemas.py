@@ -22,6 +22,7 @@ class FirmwareInfo(ExtensibleSchema):
     uri: Optional[str] = None
     file_path: Optional[str] = None
     size_bytes: Optional[int] = None
+    file_type: Optional[str] = None   # "apk" | "firmware" | "elf" | "unknown" — auto-detected if omitted
 
 
 class DeviceMeta(ExtensibleSchema):
@@ -55,6 +56,8 @@ class Finding(ExtensibleSchema):
     category: str
     evidence: Dict[str, Any] = Field(default_factory=dict)
     remediation: Optional[str] = None
+    cwe: List[str] = Field(default_factory=list)
+    cve_examples: List[str] = Field(default_factory=list)
 
 
 # 核心 summary 結構，禁止亂加欄位（後端要加欄位要改 schema 版本）
