@@ -9,11 +9,6 @@ from app.pipeline import run_pipeline
 
 
 def normalize_request(raw: dict) -> dict:
-    """
-    將 backend 的 APK request schema
-    轉換為目前 pipeline 使用的 firmware schema
-    """
-
     if "firmware" in raw:
         return raw
 
@@ -47,16 +42,12 @@ def normalize_request(raw: dict) -> dict:
     raise ValueError("Unsupported request schema: expected 'firmware' or 'sample'")
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="AI-model CLI entrypoint")
-    parser.add_argument("--in", dest="input_json", required=True, help="Path to request.json")
-    parser.add_argument("--out", dest="report_json", required=True, help="Path to report.json")
-    parser.add_argument("--artifacts", dest="artifacts_dir", default=None, help="Artifacts directory")
-    return parser.parse_args()
-
-
 def main():
-    args = parse_args()
+    parser = argparse.ArgumentParser(description="AI-model CLI entrypoint")
+    parser.add_argument("--in", dest="input_json", required=True)
+    parser.add_argument("--out", dest="report_json", required=True)
+    parser.add_argument("--artifacts", dest="artifacts_dir", default=None)
+    args = parser.parse_args()
 
     input_json = Path(args.input_json)
     report_json = Path(args.report_json)
