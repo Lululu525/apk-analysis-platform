@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Databases
+*.db
+*.sqlite3
+
+# APK files
+*.apk
+*.aab
+
+# Backend generated files
+apk-platform/storage/objects/apks/
+apk-platform/metadata/results/
+apk-platform/metadata/artifacts/
+apk-platform/metadata/requests/
+
+# AI model output
+AI-model/artifacts/
+AI-model/output/
+
+# Android build
+.gradle/
+build/
+app/build/
+
+# Temporary files
+tmp/
+<<<<<<< HEAD
+temp/
+=======
+temp/
+>>>>>>> ab793ca (Update setup scripts, gitignore and requirements)
