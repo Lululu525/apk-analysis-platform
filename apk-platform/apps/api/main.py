@@ -1,3 +1,4 @@
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
@@ -22,18 +23,26 @@ REQUEST_DIR = APP_ROOT / "metadata" / "requests"
 RESULT_DIR = APP_ROOT / "metadata" / "results"
 ARTIFACTS_DIR = APP_ROOT / "metadata" / "artifacts"
 
-
-
-# 預設使用目前啟動 FastAPI 的 Python
 AI_MODEL_ROOT = APP_ROOT.parent / "AI-model"
 
+# 預設使用目前啟動 FastAPI 的 Python
+MODEL_PYTHON = os.getenv("MODEL_PYTHON", "python")
 
 # 使用 module 模式執行 AI-model
-MODEL_PYTHON = os.getenv("MODEL_PYTHON", "python")
 MODEL_MODULE = os.getenv("MODEL_MODULE", "app.main")
 
 app = FastAPI(title="APK Analysis Platform API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class UploadResponse(BaseModel):
     sample_id: str
@@ -252,17 +261,18 @@ def run_analysis(sample_id: str):
 
     update_sample_status(sample_id, "running")
 
+    # 用 script 路徑執行 AI-model
     cmd = [
         MODEL_PYTHON,
         "-m",
         MODEL_MODULE,
         "--in",
         str(request_path),
-        "--out",
+         "--out",
         str(result_path),
         "--artifacts",
         str(artifacts_path),
-    ]
+]
 
     try:
         completed = subprocess.run(
