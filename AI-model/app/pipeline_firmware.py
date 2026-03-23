@@ -201,6 +201,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
 
         strings_path = output_dir / f"{req.job_id}.strings.txt"
         strings_path.write_text("\n".join(strings_list[:2000]), errors="ignore")
+        artifacts.strings_path = str(strings_path)
 
         if extracted_dir:
             artifacts.extracted_path = str(extracted_dir)

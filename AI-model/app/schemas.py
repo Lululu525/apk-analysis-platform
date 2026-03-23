@@ -70,6 +70,7 @@ class Artifacts(ExtensibleSchema):
     logs_path: Optional[str] = None
     extracted_path: Optional[str] = None
     features_path: Optional[str] = None
+    strings_path: Optional[str] = None
 
 
 # report 本體可擴充（未來加 capabilities / metrics）
