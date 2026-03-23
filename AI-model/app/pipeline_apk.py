@@ -27,6 +27,9 @@ from .detectors.rules import scan_text_for_rules
 from .detectors.strings_detector import extract_strings, extract_strings_from_dir
 from .detectors.network_detector import scan_strings as net_scan_strings
 from .extractors.dex_parser import extract_strings_from_dex
+from .extractors.androguard_analyzer import (
+    analyze_apk, to_findings as ag_to_findings, ANDROGUARD_AVAILABLE,
+)
 from .report.builder import build_report
 
 
@@ -151,6 +154,23 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
 
     # ── 4. Network indicators ────────────────────────────────────────────────
     findings.extend(net_scan_strings(strings_list))
+
+    # ── 5. Androguard: manifest + component + permission analysis ─────────────
+    if ANDROGUARD_AVAILABLE:
+        ag_result = analyze_apk(apk_path)
+        findings.extend(ag_to_findings(ag_result))
+        if not ag_result.success:
+            errors.extend(ag_result.errors or [])
+    else:
+        findings.append(Finding(
+            finding_id="TOOL_ANDROGUARD_MISSING",
+            title="androguard 未安裝 — manifest / 權限 / 元件分析略過",
+            severity="info",
+            confidence=1.0,
+            category="analysis_limitation",
+            evidence={"hint": "pip install androguard>=4.0"},
+            remediation="安裝 androguard 以啟用 AndroidManifest 權限與元件越權分析。",
+        ))
 
     # ── Artifacts ────────────────────────────────────────────────────────────
     artifacts = Artifacts()
