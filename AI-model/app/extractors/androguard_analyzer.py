@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from ..schemas import Finding
 
 try:
-    from androguard.misc import AnalyzedAPK
+    from androguard.misc import AnalyzeAPK
     ANDROGUARD_AVAILABLE = True
 except ImportError:
     ANDROGUARD_AVAILABLE = False
@@ -161,7 +161,7 @@ def analyze_apk(apk_path: Path) -> AnalysisResult:
         )
 
     try:
-        apk = AnalyzedAPK(str(apk_path))
+        apk, dexes, _ = AnalyzeAPK(str(apk_path))
     except Exception as e:
         return AnalysisResult(
             success=False,
@@ -171,11 +171,15 @@ def analyze_apk(apk_path: Path) -> AnalysisResult:
     # ── Basic metadata ────────────────────────────────────────────────────
     result = AnalysisResult(success=True)
     result.package_name = apk.get_package()
-    result.version_code = int(apk.get_android_manifest_axml().manifest.attrib.get("android:versionCode", "0") or "0")
-    result.version_name = apk.get_manifest().findtext(".//{http://schemas.android.com/apk/res/android}versionName")
+    manifest_xml = apk.get_android_manifest_axml().get_xml_obj()
+    _NS = "{http://schemas.android.com/apk/res/android}"
+    result.version_name = manifest_xml.get(f"{_NS}versionName")
+    try:
+        result.version_code = int(manifest_xml.get(f"{_NS}versionCode", "0") or "0")
+    except (ValueError, TypeError):
+        result.version_code = 0
 
     # ── SDK levels ────────────────────────────────────────────────────────
-    manifest_xml = apk.get_android_manifest_axml().xml
     uses_sdk = manifest_xml.find(".//uses-sdk")
     if uses_sdk is not None:
         result.min_sdk = int(uses_sdk.get("{http://schemas.android.com/apk/res/android}minSdkVersion", "0"))
@@ -188,7 +192,7 @@ def analyze_apk(apk_path: Path) -> AnalysisResult:
     result.components = _extract_components(apk)
 
     # ── Sensitive API detection ───────────────────────────────────────────
-    result.sensitive_api_calls = _find_sensitive_apis(apk)
+    result.sensitive_api_calls = _find_sensitive_apis(dexes)
 
     # ── Risk assessment ──────────────────────────────────────────────────
     result.risk_findings = _assess_risks(result)
@@ -217,7 +221,7 @@ def _extract_permissions(apk) -> Dict[str, PermissionInfo]:
 def _extract_components(apk) -> List[ComponentInfo]:
     """Extract activities, services, content providers, broadcast receivers"""
     components: List[ComponentInfo] = []
-    manifest_xml = apk.get_android_manifest_axml().xml
+    manifest_xml = apk.get_android_manifest_axml().get_xml_obj()
 
     # ── Activities ────────────────────────────────────────────────────────
     for activity in manifest_xml.findall(".//activity"):
@@ -324,12 +328,12 @@ def _extract_intent_filters(component_elem) -> List[Dict[str, str]]:
     return filters
 
 
-def _find_sensitive_apis(apk) -> List[str]:
+def _find_sensitive_apis(dexes) -> List[str]:
     """Scan bytecode for sensitive API calls"""
     sensitive_calls = []
 
     try:
-        for dex in apk.get_dex():
+        for dex in dexes:
             # Enumerate all method calls
             for method in dex.get_methods():
                 code = method.get_code()

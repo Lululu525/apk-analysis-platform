@@ -160,7 +160,16 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         ag_result = analyze_apk(apk_path)
         findings.extend(ag_to_findings(ag_result))
         if not ag_result.success:
-            errors.extend(ag_result.errors or [])
+            # 解析失敗（例如 manifest 非 binary XML）→ info finding，不讓整個 job 失敗
+            findings.append(Finding(
+                finding_id="ANDROGUARD_PARSE_ERROR",
+                title="androguard 無法解析此 APK 的 manifest",
+                severity="info",
+                confidence=1.0,
+                category="analysis_limitation",
+                evidence={"errors": (ag_result.errors or [])[:3]},
+                remediation="確認 APK 為合法格式；混淆或加固的 APK 可能導致解析失敗。",
+            ))
     else:
         findings.append(Finding(
             finding_id="TOOL_ANDROGUARD_MISSING",
