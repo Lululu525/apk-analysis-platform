@@ -1,1323 +1,637 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronRight,
-  Download,
-  FileCode2,
-  Loader2,
-  RefreshCw,
-  Search,
-  Shield,
-  Upload,
-  X,
-} from "lucide-react";
-import jsPDF from "jspdf";
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from pathlib import Path
+from datetime import datetime, timezone
+import hashlib
+import uuid
+import json
+import subprocess
+import os
+import math
+from typing import Any
 
-const API_BASE = "http://127.0.0.1:8000";
-const SELECTED_SAMPLE_KEY = "apk-dashboard:selected-sample-id";
+from .db import (
+    init_db,
+    insert_sample,
+    get_sample_by_id,
+    update_sample_status,
+    count_samples,
+    list_samples_paginated,
+)
 
-const statusToProgress: Record<string, number> = {
-  received: 10,
-  queued: 25,
-  running: 70,
-  finished: 100,
-  failed: 100,
-};
+APP_ROOT = Path(__file__).resolve().parents[2]
+STORAGE_DIR = APP_ROOT / "storage" / "objects" / "apks"
+REQUEST_DIR = APP_ROOT / "metadata" / "requests"
+RESULT_DIR = APP_ROOT / "metadata" / "results"
+ARTIFACTS_DIR = APP_ROOT / "metadata" / "artifacts"
+PDF_DIR = APP_ROOT / "metadata" / "pdfs"
 
-type SampleItem = {
-  sample_id: string;
-  filename?: string;
-  uploaded_at?: string;
-  status?: string;
-};
+AI_MODEL_ROOT = APP_ROOT.parent / "AI-model"
+MODEL_PYTHON = os.getenv("MODEL_PYTHON", "python")
+MODEL_MODULE = os.getenv("MODEL_MODULE", "app.main")
 
-type Finding = {
-  id?: string;
-  finding_id?: string;
-  severity?: string;
-  title?: string;
-  description?: string;
-  remediation?: string;
-};
+app = FastAPI(title="APK Analysis Platform API")
 
-type ResultPayload = {
-  sample_id: string;
-  status: string;
-  result_ready: boolean;
-  result?: {
-    summary?: {
-      risk_score?: number;
-      counts?: Record<string, number>;
-    };
-    findings?: Finding[];
-    started_at?: string;
-    finished_at?: string;
-  };
-  message?: string;
-};
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-function severityFromScore(score: number) {
-  if (score >= 80) return "Critical";
-  if (score >= 60) return "High";
-  if (score >= 30) return "Medium";
-  if (score > 0) return "Low";
-  return "Info";
-}
 
-function humanReadableStatus(status: string) {
-  switch (status) {
-    case "received":
-      return "APK received";
-    case "queued":
-      return "Queued for analysis";
-    case "running":
-      return "Analysis in progress";
-    case "finished":
-      return "Analysis completed";
-    case "failed":
-      return "Analysis failed";
-    default:
-      return status;
-  }
-}
+class UploadResponse(BaseModel):
+    sample_id: str
+    sha256: str
+    filename: str
+    status: str
 
-function statusBadgeStyle(status: string): React.CSSProperties {
-  switch (status) {
-    case "finished":
-      return { background: "#dcfce7", color: "#15803d" };
-    case "running":
-      return { background: "#dbeafe", color: "#1d4ed8" };
-    case "failed":
-      return { background: "#fee2e2", color: "#b91c1c" };
-    case "received":
-    case "queued":
-      return { background: "#fef3c7", color: "#b45309" };
-    default:
-      return { background: "#e2e8f0", color: "#475569" };
-  }
-}
 
-function riskBadgeStyle(severity: string): React.CSSProperties {
-  switch ((severity || "info").toLowerCase()) {
-    case "critical":
-      return { background: "#fee2e2", color: "#b91c1c" };
-    case "high":
-      return { background: "#ffedd5", color: "#c2410c" };
-    case "medium":
-      return { background: "#fef3c7", color: "#b45309" };
-    case "low":
-      return { background: "#dbeafe", color: "#1d4ed8" };
-    default:
-      return { background: "#e2e8f0", color: "#475569" };
-  }
-}
+class StatusUpdateRequest(BaseModel):
+    status: str
 
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
-  if (!res.ok) {
-    throw new Error(`GET ${path} failed: ${res.status}`);
-  }
-  return res.json();
-}
 
-async function apiPost<T>(path: string, body?: BodyInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    body,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`POST ${path} failed: ${res.status} ${text}`);
-  }
-  return res.json();
-}
+ALLOWED_STATUSES = {"received", "queued", "running", "finished", "failed"}
 
-export default function App() {
-  const [samples, setSamples] = useState<SampleItem[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
-  const [result, setResult] = useState<ResultPayload | null>(null);
-  const [status, setStatus] = useState("");
-  const [search, setSearch] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState("");
-  const [showProgressModal, setShowProgressModal] = useState(false);
-  const [showCompleteModal, setShowCompleteModal] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const resultSectionRef = useRef<HTMLDivElement | null>(null);
 
-  const selectedSample = useMemo(
-    () => samples.find((s) => s.sample_id === selectedSampleId) ?? null,
-    [samples, selectedSampleId]
-  );
+@app.on_event("startup")
+def on_startup():
+    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    REQUEST_DIR.mkdir(parents=True, exist_ok=True)
+    RESULT_DIR.mkdir(parents=True, exist_ok=True)
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    PDF_DIR.mkdir(parents=True, exist_ok=True)
+    init_db()
 
-  const filteredSamples = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return samples;
-    return samples.filter((s) =>
-      [s.filename, s.sample_id, s.status].some((v) =>
-        String(v ?? "").toLowerCase().includes(q)
-      )
-    );
-  }, [samples, search]);
 
-  const stats = useMemo(() => {
+def sha256_bytes(data: bytes) -> str:
+    h = hashlib.sha256()
+    h.update(data)
+    return h.hexdigest()
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _row_or_404(sample_id: str):
+    row = get_sample_by_id(sample_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return row
+
+
+def _request_path(sample_id: str) -> Path:
+    return REQUEST_DIR / f"{sample_id}.request.json"
+
+
+def _result_path(sample_id: str) -> Path:
+    return RESULT_DIR / f"{sample_id}.report.json"
+
+
+def _artifacts_path(sample_id: str) -> Path:
+    return ARTIFACTS_DIR / sample_id
+
+
+def _pdf_path(sample_id: str) -> Path:
+    return PDF_DIR / f"{sample_id}.report.pdf"
+
+
+def _build_request_payload(row) -> dict:
+    sample_id, sha256, filename, uploaded_at, storage_path, status = row
     return {
-      total: samples.length,
-      finished: samples.filter((s) => s.status === "finished").length,
-      running: samples.filter((s) => s.status === "running").length,
-      failed: samples.filter((s) => s.status === "failed").length,
-    };
-  }, [samples]);
-
-  const effectiveStatus = result?.status || status || selectedSample?.status || "";
-  const progress =
-    statusToProgress[effectiveStatus] ?? statusToProgress[status] ?? 0;
-  const riskScore = result?.result?.summary?.risk_score ?? 0;
-  const riskLevel = severityFromScore(riskScore);
-  const findings = result?.result?.findings ?? [];
-
-  async function loadSamples() {
-    const data = await apiGet<SampleItem[]>("/v1/samples");
-    setSamples(data);
-  }
-
-  async function loadResult(sampleId: string) {
-    const data = await apiGet<ResultPayload>(`/v1/samples/${sampleId}/result`);
-    setResult(data);
-    setStatus(data.status);
-    setSelectedSampleId(sampleId);
-    return data;
-  }
-
-  function hardRefresh() {
-    window.location.reload();
-  }
-
-  function openUploadPicker() {
-    fileInputRef.current?.click();
-  }
-
-  function saveSelectedSampleToSession(sampleId: string) {
-    sessionStorage.setItem(SELECTED_SAMPLE_KEY, sampleId);
-  }
-
-  function clearSelectedSampleFromSession() {
-    sessionStorage.removeItem(SELECTED_SAMPLE_KEY);
-  }
-
-  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    setSelectedFile(file);
-    if (!file) return;
-    await uploadAndAnalyze(file);
-    e.target.value = "";
-  }
-
-  async function uploadAndAnalyze(file: File) {
-    try {
-      setError("");
-      setResult(null);
-      setStatus("received");
-      setShowProgressModal(true);
-      setShowCompleteModal(false);
-      setIsUploading(true);
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const uploadRes = await apiPost<{ sample_id: string; status: string }>(
-        "/v1/samples/upload",
-        formData
-      );
-      setSelectedSampleId(uploadRes.sample_id);
-      setStatus(uploadRes.status ?? "received");
-      await loadSamples();
-
-      setIsUploading(false);
-      setIsAnalyzing(true);
-      setStatus("running");
-
-      await apiPost(`/v1/samples/${uploadRes.sample_id}/run-analysis`);
-      const finalResult = await loadResult(uploadRes.sample_id);
-      await loadSamples();
-      setIsAnalyzing(false);
-
-      if (finalResult.result_ready) {
-        saveSelectedSampleToSession(uploadRes.sample_id);
-        setShowProgressModal(false);
-        setShowCompleteModal(true);
-      }
-    } catch (e) {
-      setIsUploading(false);
-      setIsAnalyzing(false);
-      setStatus("failed");
-      setError(e instanceof Error ? e.message : "Unknown error");
+        "schema_version": "1.0",
+        "job_id": sample_id,
+        "sample": {
+            "sample_id": sample_id,
+            "name": filename,
+            "file_path": storage_path,
+            "sha256": sha256,
+            "uploaded_at": uploaded_at,
+        },
+        "apk_meta": {
+            "package_name": None,
+            "version_name": None,
+            "version_code": None,
+            "arch_hint": "unknown",
+        },
+        "options": {
+            "run_static_scan": True,
+            "run_behavior_analysis": False,
+            "severity_threshold": "medium",
+        },
     }
-  }
 
-  async function viewResult(sampleId: string) {
-    try {
-      setError("");
-      setSelectedSampleId(sampleId);
-      saveSelectedSampleToSession(sampleId);
 
-      const sampleMeta = samples.find((s) => s.sample_id === sampleId);
-      if (sampleMeta?.status) {
-        setStatus(sampleMeta.status);
-      }
+def _save_json(path: Path, obj: dict):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
-      const data = await loadResult(sampleId);
 
-      setTimeout(() => {
-        resultSectionRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, 100);
+def _load_json_or_500(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Invalid JSON file: {path.name}") from exc
 
-      return data;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
-      return null;
+
+def _serialize_sample_row(row) -> dict:
+    return {
+        "sample_id": row[0],
+        "sha256": row[1],
+        "filename": row[2],
+        "uploaded_at": row[3],
+        "storage_path": row[4],
+        "status": row[5],
     }
-  }
 
-  function goToResultAfterReload() {
-    setShowCompleteModal(false);
-    hardRefresh();
-  }
 
-  function downloadPdfReport() {
-    if (!selectedSampleId || !result) return;
+def _safe_text(value: Any) -> str:
+    if value is None:
+        return "-"
+    return str(value)
 
-    const pdf = new jsPDF();
-    let y = 20;
 
-    pdf.setFontSize(18);
-    pdf.text("APK Security Analysis Report", 14, y);
-    y += 12;
+def _escape_pdf_text(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
-    pdf.setFontSize(11);
-    pdf.text(`Sample ID: ${selectedSampleId}`, 14, y);
-    y += 7;
-    pdf.text(
-      `Filename: ${selectedSample?.filename ?? selectedFile?.name ?? "-"}`,
-      14,
-      y
-    );
-    y += 7;
-    pdf.text(`Status: ${result.status}`, 14, y);
-    y += 7;
-    pdf.text(`Risk Score: ${riskScore}`, 14, y);
-    y += 7;
-    pdf.text(`Risk Level: ${riskLevel}`, 14, y);
-    y += 10;
 
-    pdf.setFontSize(14);
-    pdf.text("Findings", 14, y);
-    y += 8;
+def _write_minimal_pdf(path: Path, title: str, lines: list[str]):
+    content_lines = []
+    y = 800
 
-    if (findings.length === 0) {
-      pdf.setFontSize(11);
-      pdf.text("No findings in current prototype ruleset.", 14, y);
-    } else {
-      findings.forEach((finding, index) => {
-        const title = `${index + 1}. ${finding.title ?? "Untitled Finding"}`;
-        const severity = `Severity: ${(finding.severity ?? "info").toUpperCase()}`;
-        const description = finding.description ?? "No description available.";
-        const remediation = finding.remediation
-          ? `Remediation: ${finding.remediation}`
-          : "";
+    content_lines.append("BT")
+    content_lines.append("/F1 18 Tf")
+    content_lines.append(f"50 {y} Td")
+    content_lines.append(f"({_escape_pdf_text(title)}) Tj")
+    content_lines.append("ET")
 
-        if (y > 250) {
-          pdf.addPage();
-          y = 20;
+    y -= 30
+    for line in lines:
+        if y < 50:
+            break
+        content_lines.append("BT")
+        content_lines.append("/F1 11 Tf")
+        content_lines.append(f"50 {y} Td")
+        content_lines.append(f"({_escape_pdf_text(line)}) Tj")
+        content_lines.append("ET")
+        y -= 16
+
+    stream = "\n".join(content_lines).encode("latin-1", errors="replace")
+
+    objects = []
+
+    def add_obj(obj_bytes: bytes):
+        objects.append(obj_bytes)
+
+    add_obj(b"<< /Type /Catalog /Pages 2 0 R >>")
+    add_obj(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+    add_obj(
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>"
+    )
+    add_obj(
+        b"<< /Length "
+        + str(len(stream)).encode("ascii")
+        + b" >>\nstream\n"
+        + stream
+        + b"\nendstream"
+    )
+    add_obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+
+    pdf = bytearray()
+    pdf.extend(b"%PDF-1.4\n")
+
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{index} 0 obj\n".encode("ascii"))
+        pdf.extend(obj)
+        pdf.extend(b"\nendobj\n")
+
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+
+    pdf.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_offset}\n%%EOF"
+        ).encode("ascii")
+    )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(pdf)
+
+
+def _generate_pdf_report(sample_row, report: dict, pdf_path: Path):
+    sample_id, sha256, filename, uploaded_at, storage_path, status = sample_row
+
+    summary = report.get("summary", {}) or {}
+    counts = summary.get("counts", {}) or {}
+    findings = report.get("findings", []) or []
+    errors = report.get("errors", []) or []
+
+    lines = [
+        f"Sample ID: {sample_id}",
+        f"Filename: {filename}",
+        f"Uploaded At: {uploaded_at}",
+        f"Status: {_safe_text(report.get('status', status))}",
+        f"Risk Score: {_safe_text(summary.get('risk_score'))}",
+        "",
+        f"Critical: {_safe_text(counts.get('critical', 0))}",
+        f"High: {_safe_text(counts.get('high', 0))}",
+        f"Medium: {_safe_text(counts.get('medium', 0))}",
+        f"Low: {_safe_text(counts.get('low', 0))}",
+        f"Info: {_safe_text(counts.get('info', 0))}",
+        "",
+        "Findings:",
+    ]
+
+    if findings:
+        for index, finding in enumerate(findings, start=1):
+            lines.append(
+                f"{index}. [{_safe_text(finding.get('severity', 'info')).upper()}] "
+                f"{_safe_text(finding.get('title', 'Untitled Finding'))}"
+            )
+            lines.append(f"   ID: {_safe_text(finding.get('id'))}")
+            lines.append(f"   Desc: {_safe_text(finding.get('description'))}")
+    else:
+        lines.append("No findings.")
+
+    lines.append("")
+    lines.append("Errors:")
+    if errors:
+        for index, error in enumerate(errors, start=1):
+            lines.append(f"{index}. {_safe_text(error)}")
+    else:
+        lines.append("No errors.")
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+
+        c = canvas.Canvas(str(pdf_path), pagesize=A4)
+        _, height = A4
+        x = 50
+        y = height - 50
+
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(x, y, "APK Analysis Report")
+        y -= 28
+
+        c.setFont("Helvetica", 11)
+        for line in lines:
+            if y < 50:
+                c.showPage()
+                c.setFont("Helvetica", 11)
+                y = height - 50
+
+            c.drawString(x, y, line[:110])
+            y -= 16
+
+        c.save()
+
+    except Exception:
+        _write_minimal_pdf(pdf_path, "APK Analysis Report", lines)
+
+
+def _ensure_pdf_for_sample(sample_row) -> Path:
+    sample_id = sample_row[0]
+    result_path = _result_path(sample_id)
+    pdf_path = _pdf_path(sample_id)
+
+    if pdf_path.exists():
+        return pdf_path
+
+    if not result_path.exists():
+        raise HTTPException(status_code=404, detail="Result not generated yet, PDF unavailable")
+
+    report = _load_json_or_500(result_path)
+    _generate_pdf_report(sample_row, report, pdf_path)
+    return pdf_path
+
+
+@app.post("/v1/samples/upload", response_model=UploadResponse)
+async def upload_apk(file: UploadFile = File(...)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+
+    if not file.filename.lower().endswith(".apk"):
+        raise HTTPException(status_code=400, detail="Only .apk is allowed")
+
+    data = await file.read()
+    if len(data) < 1024:
+        raise HTTPException(status_code=400, detail="File too small to be a valid APK")
+
+    sha256 = sha256_bytes(data)
+    sample_id = str(uuid.uuid4())
+    storage_path = STORAGE_DIR / f"{sample_id}.apk"
+    storage_path.write_bytes(data)
+    uploaded_at = utc_now_iso()
+
+    insert_sample(
+        sample_id=sample_id,
+        sha256=sha256,
+        filename=file.filename,
+        uploaded_at=uploaded_at,
+        storage_path=str(storage_path),
+        status="received",
+    )
+
+    return UploadResponse(
+        sample_id=sample_id,
+        sha256=sha256,
+        filename=file.filename,
+        status="received",
+    )
+
+
+@app.get("/v1/samples/{sample_id}")
+def get_sample(sample_id: str):
+    row = _row_or_404(sample_id)
+    return _serialize_sample_row(row)
+
+
+@app.get("/v1/samples")
+def get_samples(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    query: str = Query(default="", description="Search keyword for filename"),
+):
+    normalized_query = query.strip()
+    total = count_samples(normalized_query if normalized_query else None)
+    offset = (page - 1) * page_size
+
+    rows = list_samples_paginated(
+        limit=page_size,
+        offset=offset,
+        query=normalized_query if normalized_query else None,
+    )
+
+    items = [_serialize_sample_row(row) for row in rows]
+    total_pages = math.ceil(total / page_size) if total > 0 else 1
+
+    return {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1,
+        "query": normalized_query,
+    }
+
+
+@app.get("/v1/samples/{sample_id}/status")
+def get_sample_status(sample_id: str):
+    row = _row_or_404(sample_id)
+    return {
+        "sample_id": row[0],
+        "status": row[5],
+        "uploaded_at": row[3],
+        "filename": row[2],
+    }
+
+
+@app.get("/v1/samples/{sample_id}/request")
+def get_sample_request(sample_id: str):
+    row = _row_or_404(sample_id)
+    path = _request_path(sample_id)
+
+    if not path.exists():
+        payload = _build_request_payload(row)
+        _save_json(path, payload)
+
+    return _load_json_or_500(path)
+
+
+@app.get("/v1/samples/{sample_id}/result")
+def get_sample_result(sample_id: str):
+    row = _row_or_404(sample_id)
+    path = _result_path(sample_id)
+    pdf_path = _pdf_path(sample_id)
+
+    if not path.exists():
+        return {
+            "sample_id": row[0],
+            "status": row[5],
+            "result_ready": False,
+            "message": "Result not generated yet.",
         }
 
-        pdf.setFontSize(12);
-        pdf.text(title, 14, y);
-        y += 6;
+    report = _load_json_or_500(path)
+    artifacts = report.get("artifacts", {}) or {}
+    artifacts["pdf_path"] = str(pdf_path) if pdf_path.exists() else None
+    report["artifacts"] = artifacts
 
-        pdf.setFontSize(10);
-        pdf.text(severity, 14, y);
-        y += 6;
-
-        const descLines = pdf.splitTextToSize(description, 180);
-        pdf.text(descLines, 14, y);
-        y += descLines.length * 5 + 3;
-
-        if (remediation) {
-          const remediationLines = pdf.splitTextToSize(remediation, 180);
-          pdf.text(remediationLines, 14, y);
-          y += remediationLines.length * 5 + 5;
-        }
-      });
+    return {
+        "sample_id": row[0],
+        "status": row[5],
+        "result_ready": True,
+        "result": report,
     }
 
-    pdf.save(`${selectedSampleId}-analysis-report.pdf`);
-  }
 
-  useEffect(() => {
-    loadSamples().catch((e) =>
-      setError(e instanceof Error ? e.message : "Failed to load samples")
-    );
+@app.get("/v1/samples/{sample_id}/report.pdf")
+def download_sample_pdf(sample_id: str):
+    row = _row_or_404(sample_id)
+    pdf_path = _ensure_pdf_for_sample(row)
 
-    const rememberedSampleId = sessionStorage.getItem(SELECTED_SAMPLE_KEY);
-    if (rememberedSampleId) {
-      loadResult(rememberedSampleId)
-        .then((data) => {
-          setSelectedSampleId(rememberedSampleId);
-          if (data?.status) {
-            setStatus(data.status);
-          }
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="PDF file not found")
 
-          setTimeout(() => {
-            resultSectionRef.current?.scrollIntoView({
-              behavior: "smooth",
-              block: "start",
-            });
-          }, 200);
-        })
-        .catch(() => {
-          clearSelectedSampleFromSession();
-        });
-    }
-  }, []);
+    download_name = f"{row[2]}.report.pdf"
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename=download_name,
+    )
 
-  useEffect(() => {
-    if (!selectedSampleId || !showProgressModal || (!isAnalyzing && !isUploading)) return;
 
-    const timer = setInterval(async () => {
-      try {
-        const statusRes = await apiGet<{ status: string }>(
-          `/v1/samples/${selectedSampleId}/status`
-        );
-        setStatus(statusRes.status);
+@app.post("/v1/samples/{sample_id}/run-analysis")
+def run_analysis(sample_id: str):
+    row = _row_or_404(sample_id)
 
-        if (statusRes.status === "finished" || statusRes.status === "failed") {
-          clearInterval(timer);
-          const resultRes = await loadResult(selectedSampleId);
-          await loadSamples();
-          setIsAnalyzing(false);
-          setIsUploading(false);
+    request_path = _request_path(sample_id)
+    result_path = _result_path(sample_id)
+    artifacts_path = _artifacts_path(sample_id)
+    pdf_path = _pdf_path(sample_id)
 
-          if (resultRes.result_ready) {
-            saveSelectedSampleToSession(selectedSampleId);
-            setShowProgressModal(false);
-            setShowCompleteModal(true);
-          }
+    request_payload = _build_request_payload(row)
+    _save_json(request_path, request_payload)
+    artifacts_path.mkdir(parents=True, exist_ok=True)
+
+    update_sample_status(sample_id, "running")
+
+    cmd = [
+        MODEL_PYTHON,
+        "-m",
+        MODEL_MODULE,
+        "--in",
+        str(request_path),
+        "--out",
+        str(result_path),
+        "--artifacts",
+        str(artifacts_path),
+    ]
+
+    try:
+        completed = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=str(AI_MODEL_ROOT),
+        )
+
+        update_sample_status(sample_id, "finished")
+
+        if result_path.exists():
+            report = _load_json_or_500(result_path)
+            _generate_pdf_report(row, report, pdf_path)
+
+        return {
+            "sample_id": sample_id,
+            "status": "finished",
+            "request_path": str(request_path),
+            "result_path": str(result_path),
+            "artifacts_path": str(artifacts_path),
+            "pdf_path": str(pdf_path) if pdf_path.exists() else None,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+            "command": cmd,
         }
-      } catch (e) {
-        console.error(e);
-      }
-    }, 1500);
 
-    return () => clearInterval(timer);
-  }, [selectedSampleId, isAnalyzing, isUploading, showProgressModal]);
+    except subprocess.CalledProcessError as exc:
+        update_sample_status(sample_id, "failed")
+        return {
+            "sample_id": sample_id,
+            "status": "failed",
+            "request_path": str(request_path),
+            "result_path": str(result_path),
+            "artifacts_path": str(artifacts_path),
+            "pdf_path": None,
+            "stdout": exc.stdout,
+            "stderr": exc.stderr,
+            "command": cmd,
+        }
+    except FileNotFoundError as exc:
+        update_sample_status(sample_id, "failed")
+        return {
+            "sample_id": sample_id,
+            "status": "failed",
+            "request_path": str(request_path),
+            "result_path": str(result_path),
+            "artifacts_path": str(artifacts_path),
+            "pdf_path": None,
+            "stdout": "",
+            "stderr": str(exc),
+            "command": cmd,
+        }
 
-  return (
-    <div style={{ minHeight: "100vh", background: "#f8fafc", padding: 24 }}>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".apk"
-        hidden
-        onChange={handleFileSelected}
-      />
 
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 16,
-            alignItems: "center",
-            flexWrap: "wrap",
-            marginBottom: 24,
-          }}
-        >
-          <button onClick={hardRefresh} style={titleButton}>
-            <div
-              style={{
-                borderRadius: 24,
-                background: "#0f172a",
-                padding: 12,
-                color: "white",
-              }}
-            >
-              <Shield size={24} />
-            </div>
-            <div style={{ textAlign: "left" }}>
-              <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700 }}>
-                APK Security Dashboard
-              </h1>
-              <p style={{ margin: "6px 0 0", color: "#475569", fontSize: 14 }}>
-                使用者版 APK 分析平台，專注於分析結果與風險摘要。
-              </p>
-            </div>
-          </button>
+@app.post("/v1/samples/{sample_id}/run-mock")
+def run_mock(sample_id: str):
+    row = _row_or_404(sample_id)
 
-          <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={hardRefresh} style={buttonOutline}>
-              <RefreshCw size={16} />
-              <span>Refresh</span>
-            </button>
-            <button onClick={openUploadPicker} style={buttonPrimary}>
-              <Upload size={16} />
-              <span>Upload APK</span>
-            </button>
-          </div>
-        </motion.div>
+    request_path = _request_path(sample_id)
+    result_path = _result_path(sample_id)
+    artifacts_path = _artifacts_path(sample_id)
+    pdf_path = _pdf_path(sample_id)
 
-        {error && (
-          <div
-            style={{
-              border: "1px solid #fecaca",
-              background: "#fef2f2",
-              color: "#b91c1c",
-              borderRadius: 24,
-              padding: 16,
-              marginBottom: 20,
-            }}
-          >
-            <div style={{ fontWeight: 700 }}>Analysis Error</div>
-            <div style={{ marginTop: 6, fontSize: 14 }}>{error}</div>
-          </div>
-        )}
+    artifacts_path.mkdir(parents=True, exist_ok=True)
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 16,
-            marginBottom: 24,
-          }}
-        >
-          <StatCard title="Total Analyses" value={stats.total} icon={<FileCode2 size={20} />} />
-          <StatCard title="Finished" value={stats.finished} icon={<CheckCircle2 size={20} />} />
-          <StatCard title="Running" value={stats.running} icon={<Loader2 size={20} />} />
-          <StatCard title="Failed" value={stats.failed} icon={<AlertTriangle size={20} />} />
-        </div>
+    request_payload = _build_request_payload(row)
+    _save_json(request_path, request_payload)
 
-        <section style={panelStyle}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 16,
-              flexWrap: "wrap",
-              marginBottom: 18,
-            }}
-          >
-            <div>
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-                Recent Analyses
-              </h2>
-              <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 14 }}>
-                最近分析紀錄與目前狀態。
-              </p>
-            </div>
-            <div style={{ position: "relative", width: 320, maxWidth: "100%" }}>
-              <Search
-                size={16}
-                style={{
-                  position: "absolute",
-                  left: 12,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#94a3b8",
-                }}
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search"
-                style={{
-                  width: "100%",
-                  borderRadius: 16,
-                  border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  padding: "10px 12px 10px 36px",
-                }}
-              />
-            </div>
-          </div>
+    update_sample_status(sample_id, "running")
 
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr
-                  style={{
-                    borderBottom: "1px solid #e2e8f0",
-                    color: "#64748b",
-                    fontSize: 14,
-                  }}
-                >
-                  <th style={thStyle}>Filename</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Uploaded</th>
-                  <th style={{ ...thStyle, textAlign: "right" }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSamples.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      style={{ padding: 28, textAlign: "center", color: "#64748b" }}
-                    >
-                      No analysis records yet.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSamples.map((sample) => (
-                    <tr
-                      key={sample.sample_id}
-                      style={{ borderBottom: "1px solid #f1f5f9" }}
-                    >
-                      <td style={tdStyle}>{sample.filename ?? sample.sample_id}</td>
-                      <td style={tdStyle}>
-                        <span
-                          style={{
-                            ...badgeStyle,
-                            ...statusBadgeStyle(sample.status ?? "unknown"),
-                          }}
-                        >
-                          {sample.status ?? "unknown"}
-                        </span>
-                      </td>
-                      <td style={{ ...tdStyle, color: "#64748b", fontSize: 14 }}>
-                        {sample.uploaded_at
-                          ? new Date(sample.uploaded_at).toLocaleString()
-                          : "-"}
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button
-                          onClick={() => viewResult(sample.sample_id)}
-                          style={ghostButton}
-                        >
-                          <span>View</span>
-                          <ChevronRight size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+    report_payload = {
+        "schema_version": "1.0",
+        "job_id": sample_id,
+        "status": "success",
+        "started_at": utc_now_iso(),
+        "finished_at": utc_now_iso(),
+        "summary": {
+            "schema_version": "1.0",
+            "risk_score": 72,
+            "counts": {
+                "critical": 0,
+                "high": 1,
+                "medium": 2,
+                "low": 0,
+                "info": 1,
+            },
+        },
+        "findings": [
+            {
+                "id": "DEMO-001",
+                "severity": "high",
+                "title": "Mock suspicious permission usage",
+                "description": "This is a mock finding for end-to-end demo.",
+                "remediation": "Review the requested permissions and verify whether they are necessary.",
+            }
+        ],
+        "artifacts": {
+            "logs_path": None,
+            "extracted_path": None,
+            "features_path": str(artifacts_path / f"{sample_id}.features.json"),
+            "pdf_path": str(pdf_path),
+        },
+        "errors": [],
+    }
 
-        <div ref={resultSectionRef} style={{ marginTop: 24 }}>
-          {selectedSampleId && !result?.result_ready && (
-            <section style={panelStyle}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-                    Analysis Status
-                  </h2>
-                  <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 14 }}>
-                    顯示目前選取紀錄的狀態與基本資訊。所有 View 都可以開啟這裡。
-                  </p>
-                </div>
+    _save_json(result_path, report_payload)
+    _save_json(
+        artifacts_path / f"{sample_id}.features.json",
+        {
+            "sample_id": sample_id,
+            "permissions": ["READ_SMS", "ACCESS_FINE_LOCATION"],
+            "api_calls": [
+                "SmsManager.sendTextMessage",
+                "LocationManager.getLastKnownLocation",
+            ],
+        },
+    )
 
-                <span
-                  style={{
-                    ...badgeStyle,
-                    ...statusBadgeStyle(effectiveStatus || "unknown"),
-                  }}
-                >
-                  {effectiveStatus || "unknown"}
-                </span>
-              </div>
+    _generate_pdf_report(row, report_payload, pdf_path)
+    update_sample_status(sample_id, "finished")
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                  gap: 16,
-                  marginTop: 24,
-                }}
-              >
-                <InfoCard
-                  label="Filename"
-                  value={selectedSample?.filename ?? selectedFile?.name ?? "-"}
-                />
-                <InfoCard label="Sample ID" value={selectedSampleId} />
-                <InfoCard
-                  label="Uploaded"
-                  value={
-                    selectedSample?.uploaded_at
-                      ? new Date(selectedSample.uploaded_at).toLocaleString()
-                      : "-"
-                  }
-                />
-                <InfoCard
-                  label="Current Status"
-                  value={humanReadableStatus(effectiveStatus || "unknown")}
-                />
-              </div>
+    return {
+        "sample_id": sample_id,
+        "status": "finished",
+        "request_path": str(request_path),
+        "result_path": str(result_path),
+        "artifacts_path": str(artifacts_path),
+        "pdf_path": str(pdf_path),
+    }
 
-              <div
-                style={{
-                  marginTop: 24,
-                  borderRadius: 24,
-                  border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  padding: 24,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    marginBottom: 16,
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    {effectiveStatus === "finished" ? (
-                      <CheckCircle2 size={24} color="#059669" />
-                    ) : effectiveStatus === "failed" ? (
-                      <AlertTriangle size={24} color="#dc2626" />
-                    ) : (
-                      <Loader2 size={24} color="#2563eb" />
-                    )}
 
-                    <div>
-                      <div style={{ fontWeight: 700 }}>
-                        {humanReadableStatus(effectiveStatus || "unknown")}
-                      </div>
-                      <div style={{ fontSize: 14, color: "#64748b" }}>
-                        {effectiveStatus === "failed"
-                          ? "This analysis did not generate a report result."
-                          : effectiveStatus === "received"
-                          ? "This sample has been uploaded and is waiting for analysis."
-                          : effectiveStatus === "running"
-                          ? "This sample is currently being analyzed."
-                          : effectiveStatus === "queued"
-                          ? "This sample is queued and waiting to run."
-                          : "This sample is available for review."}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+@app.patch("/v1/samples/{sample_id}/status")
+def patch_sample_status(sample_id: str, body: StatusUpdateRequest):
+    new_status = body.status.strip().lower()
 
-                <div
-                  style={{
-                    height: 14,
-                    width: "100%",
-                    overflow: "hidden",
-                    borderRadius: 9999,
-                    background: "#e2e8f0",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${progress}%`,
-                      borderRadius: 9999,
-                      background: "#0f172a",
-                      transition: "width 0.5s ease",
-                    }}
-                  />
-                </div>
+    if new_status not in ALLOWED_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status. Allowed: {sorted(ALLOWED_STATUSES)}",
+        )
 
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: 12,
-                    color: "#64748b",
-                  }}
-                >
-                  <span>Upload</span>
-                  <span>Queue</span>
-                  <span>Analysis</span>
-                  <span>Finish</span>
-                </div>
-              </div>
-            </section>
-          )}
+    updated = update_sample_status(sample_id, new_status)
+    if updated == 0:
+        raise HTTPException(status_code=404, detail="Sample not found")
 
-          {result?.result_ready && (
-            <>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  gap: 16,
-                  marginBottom: 24,
-                }}
-              >
-                <StatCard title="Risk Score" value={riskScore} icon={<Shield size={20} />} />
-                <StatCard title="Risk Level" value={riskLevel} icon={<AlertTriangle size={20} />} />
-                <StatCard title="Findings" value={findings.length} icon={<FileCode2 size={20} />} />
-                <StatCard title="Status" value={result?.status ?? effectiveStatus ?? "-"} icon={<CheckCircle2 size={20} />} />
-              </div>
-
-              <section style={panelStyle}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-                      Analysis Summary
-                    </h2>
-                    <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 14 }}>
-                      顯示目前選取分析紀錄的摘要結果與 findings。
-                    </p>
-                  </div>
-                  <button onClick={downloadPdfReport} style={buttonPrimary}>
-                    <Download size={16} />
-                    <span>Download PDF</span>
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                    gap: 16,
-                    marginTop: 24,
-                  }}
-                >
-                  <InfoCard
-                    label="Filename"
-                    value={selectedSample?.filename ?? selectedFile?.name ?? "-"}
-                  />
-                  <InfoCard label="Sample ID" value={selectedSampleId ?? "-"} />
-                  <InfoCard
-                    label="Started"
-                    value={
-                      result?.result?.started_at
-                        ? new Date(result.result.started_at).toLocaleString()
-                        : "-"
-                    }
-                  />
-                  <InfoCard
-                    label="Finished"
-                    value={
-                      result?.result?.finished_at
-                        ? new Date(result.result.finished_at).toLocaleString()
-                        : "-"
-                    }
-                  />
-                </div>
-              </section>
-
-              <section style={{ ...panelStyle, marginTop: 24 }}>
-                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-                  Findings
-                </h2>
-                <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 14 }}>
-                  偵測到的安全風險與建議處置。
-                </p>
-
-                <div
-                  style={{
-                    marginTop: 24,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 16,
-                  }}
-                >
-                  {findings.length === 0 ? (
-                    <div
-                      style={{
-                        borderRadius: 16,
-                        border: "1px solid #e2e8f0",
-                        background: "#f8fafc",
-                        padding: 32,
-                        textAlign: "center",
-                        color: "#64748b",
-                      }}
-                    >
-                      No findings. This sample currently shows no flagged issues.
-                    </div>
-                  ) : (
-                    findings.map((finding, index) => (
-                      <div
-                        key={`${finding.id ?? finding.finding_id ?? "finding"}-${index}`}
-                        style={{
-                          borderRadius: 24,
-                          border: "1px solid #e2e8f0",
-                          background: "white",
-                          padding: 20,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 12,
-                            alignItems: "center",
-                            flexWrap: "wrap",
-                            marginBottom: 12,
-                          }}
-                        >
-                          <div style={{ fontSize: 18, fontWeight: 700 }}>
-                            {finding.title ?? "Untitled Finding"}
-                          </div>
-                          <span
-                            style={{
-                              ...badgeStyle,
-                              ...riskBadgeStyle(finding.severity ?? "info"),
-                            }}
-                          >
-                            {(finding.severity ?? "info").toUpperCase()}
-                          </span>
-                        </div>
-
-                        <p
-                          style={{
-                            margin: 0,
-                            fontSize: 14,
-                            lineHeight: 1.7,
-                            color: "#475569",
-                          }}
-                        >
-                          {finding.description ?? "No description available."}
-                        </p>
-
-                        {finding.remediation && (
-                          <div
-                            style={{
-                              marginTop: 16,
-                              borderRadius: 16,
-                              background: "#f8fafc",
-                              padding: 16,
-                            }}
-                          >
-                            <div
-                              style={{
-                                marginBottom: 6,
-                                fontSize: 14,
-                                fontWeight: 700,
-                              }}
-                            >
-                              Suggested remediation
-                            </div>
-                            <div style={{ fontSize: 14, color: "#475569" }}>
-                              {finding.remediation}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            </>
-          )}
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {showProgressModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={overlayStyle}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              style={modalStyle}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 16,
-                }}
-              >
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>
-                    Analysis Progress
-                  </h2>
-                  <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 14 }}>
-                    分析進行中，完成後會自動帶到結果區塊。
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowProgressModal(false)}
-                  style={iconButtonStyle}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gap: 16,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                }}
-              >
-                <InfoCard label="Sample ID" value={selectedSampleId ?? "-"} />
-                <InfoCard
-                  label="Filename"
-                  value={selectedSample?.filename ?? selectedFile?.name ?? "-"}
-                />
-              </div>
-
-              <div
-                style={{
-                  marginTop: 20,
-                  borderRadius: 24,
-                  border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  padding: 24,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    marginBottom: 16,
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    {effectiveStatus === "finished" ? (
-                      <CheckCircle2 size={24} color="#059669" />
-                    ) : effectiveStatus === "failed" ? (
-                      <AlertTriangle size={24} color="#dc2626" />
-                    ) : (
-                      <Loader2 size={24} color="#2563eb" />
-                    )}
-                    <div>
-                      <div style={{ fontWeight: 700 }}>
-                        {humanReadableStatus(effectiveStatus || "received")}
-                      </div>
-                      <div style={{ fontSize: 14, color: "#64748b" }}>
-                        Current analysis status
-                      </div>
-                    </div>
-                  </div>
-                  <span
-                    style={{
-                      ...badgeStyle,
-                      ...statusBadgeStyle(effectiveStatus || "received"),
-                    }}
-                  >
-                    {effectiveStatus || "received"}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    height: 14,
-                    width: "100%",
-                    overflow: "hidden",
-                    borderRadius: 9999,
-                    background: "#e2e8f0",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${progress}%`,
-                      borderRadius: 9999,
-                      background: "#0f172a",
-                      transition: "width 0.5s ease",
-                    }}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: 12,
-                    color: "#64748b",
-                  }}
-                >
-                  <span>Upload</span>
-                  <span>Queue</span>
-                  <span>Analysis</span>
-                  <span>Finish</span>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showCompleteModal && result?.result_ready && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={overlayStyle}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              style={{ ...modalStyle, maxWidth: 560 }}
-            >
-              <div style={{ textAlign: "center" }}>
-                <div
-                  style={{
-                    display: "inline-flex",
-                    borderRadius: 9999,
-                    background: "#dcfce7",
-                    padding: 16,
-                    color: "#15803d",
-                    marginBottom: 16,
-                  }}
-                >
-                  <CheckCircle2 size={28} />
-                </div>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>
-                  Analysis Completed
-                </h2>
-                <p style={{ margin: "10px 0 0", color: "#64748b", fontSize: 14 }}>
-                  分析完成，重整後會自動跳到結果區塊。你也可以直接下載 PDF。
-                </p>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 24,
-                  display: "grid",
-                  gap: 16,
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                }}
-              >
-                <InfoCard label="Risk Score" value={riskScore} />
-                <InfoCard label="Risk Level" value={riskLevel} />
-              </div>
-
-              <div
-                style={{
-                  marginTop: 24,
-                  display: "flex",
-                  justifyContent: "center",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <button
-                  onClick={() => setShowCompleteModal(false)}
-                  style={buttonOutline}
-                >
-                  Close
-                </button>
-                <button onClick={goToResultAfterReload} style={buttonPrimary}>
-                  Reload to Result
-                </button>
-                <button onClick={downloadPdfReport} style={buttonPrimary}>
-                  <Download size={16} />
-                  <span>Download PDF</span>
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-}: {
-  title: string;
-  value: React.ReactNode;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div style={panelStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: 14, color: "#64748b" }}>{title}</div>
-          <div style={{ marginTop: 8, fontSize: 32, fontWeight: 700 }}>{value}</div>
-        </div>
-        <div style={{ borderRadius: 16, background: "#f1f5f9", padding: 12, color: "#334155" }}>
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InfoCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        borderRadius: 16,
-        border: "1px solid #e2e8f0",
-        background: "#f8fafc",
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: 1,
-          textTransform: "uppercase",
-          color: "#64748b",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: 8,
-          wordBreak: "break-all",
-          fontSize: 14,
-          fontWeight: 600,
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-const panelStyle: React.CSSProperties = {
-  borderRadius: 24,
-  background: "white",
-  padding: 24,
-  boxShadow: "0 1px 3px rgba(15,23,42,0.08)",
-};
-
-const buttonPrimary: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  borderRadius: 16,
-  background: "#0f172a",
-  color: "white",
-  border: "none",
-  padding: "10px 16px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const buttonOutline: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  borderRadius: 16,
-  background: "white",
-  color: "#334155",
-  border: "1px solid #e2e8f0",
-  padding: "10px 16px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const ghostButton: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  borderRadius: 16,
-  background: "transparent",
-  color: "#334155",
-  border: "none",
-  padding: "8px 12px",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const titleButton: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 16,
-  background: "transparent",
-  border: "none",
-  padding: 0,
-  cursor: "pointer",
-};
-
-const badgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  borderRadius: 9999,
-  padding: "6px 12px",
-  fontSize: 12,
-  fontWeight: 700,
-};
-
-const thStyle: React.CSSProperties = {
-  paddingBottom: 12,
-  fontWeight: 600,
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "16px 0",
-};
-
-const overlayStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15, 23, 42, 0.45)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 24,
-  zIndex: 999,
-};
-
-const modalStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 760,
-  borderRadius: 28,
-  background: "white",
-  padding: 24,
-  boxShadow: "0 20px 50px rgba(15,23,42,0.18)",
-};
-
-const iconButtonStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: 40,
-  height: 40,
-  borderRadius: 9999,
-  border: "1px solid #e2e8f0",
-  background: "white",
-  cursor: "pointer",
-};
+    row = _row_or_404(sample_id)
+    return _serialize_sample_row(row)

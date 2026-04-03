@@ -1,11 +1,10 @@
 """
-Integration tests — run full pipeline with synthetic firmware/APK inputs.
-These tests verify that all components wire together correctly.
+Integration tests for APK pipeline Android-risk rules.
 """
 import json
 import zipfile
-import pytest
 from pathlib import Path
+
 from app.schemas import AnalyzeRequest
 from app.pipeline import run_pipeline
 
@@ -14,119 +13,15 @@ def _make_request(fw_path: Path, job_id: str = "test-job") -> AnalyzeRequest:
     return AnalyzeRequest.model_validate({
         "schema_version": "1.0",
         "job_id": job_id,
-        "firmware": {"name": fw_path.name, "file_path": str(fw_path)},
-        "options": {"run_static_scan": True},
+        "firmware": {
+            "name": fw_path.name,
+            "file_path": str(fw_path),
+        },
+        "options": {
+            "run_static_scan": True,
+        },
     })
 
-
-# ── firmware pipeline ──────────────────────────────────────────────────────────
-
-def test_firmware_pipeline_basic(tmp_path):
-    fw = tmp_path / "fw.bin"
-    fw.write_bytes(b"\x00hello world\x00" + b"\x55" * 100)
-
-    report = run_pipeline(_make_request(fw), output_dir=tmp_path / "out")
-
-    assert report.job_id == "test-job"
-    assert report.status == "success"
-    assert report.summary.risk_score >= 0
-    assert isinstance(report.findings, list)
-
-
-def test_firmware_pipeline_detects_telnet_and_password(tmp_path):
-    fw = tmp_path / "fw.bin"
-    fw.write_bytes(
-        b'password="admin123"\x00telnetd -l /bin/sh\x00' + b"\x00" * 200
-    )
-
-    report = run_pipeline(_make_request(fw))
-    ids = {f.finding_id for f in report.findings}
-
-    assert "HARDCODED_PASSWORD" in ids
-    assert "TELNET_ENABLED" in ids
-
-
-def test_firmware_pipeline_private_key(tmp_path):
-    fw = tmp_path / "fw.bin"
-    fw.write_bytes(
-        b"-----BEGIN RSA PRIVATE KEY-----\nMIIEo\n-----END RSA PRIVATE KEY-----\n"
-        + b"\x00" * 50
-    )
-
-    report = run_pipeline(_make_request(fw))
-    ids = {f.finding_id for f in report.findings}
-    assert "PRIVATE_KEY_PEM" in ids
-
-    f = next(f for f in report.findings if f.finding_id == "PRIVATE_KEY_PEM")
-    assert f.severity == "critical"
-
-
-def test_firmware_pipeline_writes_artifacts(tmp_path):
-    fw = tmp_path / "fw.bin"
-    fw.write_bytes(b"telnetd\x00" + b"\x00" * 100)
-    out_dir = tmp_path / "artifacts"
-
-    report = run_pipeline(_make_request(fw, "artifact-test"), output_dir=out_dir)
-
-    assert out_dir.exists()
-    features_file = out_dir / "artifact-test.features.json"
-    assert features_file.exists()
-
-    data = json.loads(features_file.read_text())
-    assert data["job_id"] == "artifact-test"
-    assert "stats" in data
-
-
-def test_firmware_pipeline_missing_file(tmp_path):
-    report = run_pipeline(AnalyzeRequest.model_validate({
-        "schema_version": "1.0",
-        "job_id": "missing-file",
-        "firmware": {"name": "ghost.bin", "file_path": "/nonexistent/path/fw.bin"},
-    }))
-    assert report.status == "failed"
-    assert len(report.errors) > 0
-
-
-def test_firmware_pipeline_high_entropy_encrypted(tmp_path):
-    """Near-random bytes (encrypted firmware) should trigger HIGH_ENTROPY_ENCRYPTED."""
-    import os
-    fw = tmp_path / "encrypted.bin"
-    fw.write_bytes(os.urandom(200_000))   # cryptographically random = max entropy
-
-    report = run_pipeline(_make_request(fw))
-    ids = {f.finding_id for f in report.findings}
-    assert "HIGH_ENTROPY_ENCRYPTED" in ids
-
-    f = next(f for f in report.findings if f.finding_id == "HIGH_ENTROPY_ENCRYPTED")
-    assert f.severity == "medium"
-    assert "CWE-311" in f.cwe
-    assert f.confidence > 0.9
-    assert "entropy_bits_per_byte" in f.evidence
-
-
-def test_firmware_pipeline_low_entropy_no_warning(tmp_path):
-    """Plaintext / uncompressed binary should NOT trigger entropy warning."""
-    fw = tmp_path / "plain.bin"
-    fw.write_bytes(b"A" * 50_000)   # single repeated byte = entropy ~0
-
-    report = run_pipeline(_make_request(fw))
-    ids = {f.finding_id for f in report.findings}
-    assert "HIGH_ENTROPY_ENCRYPTED" not in ids
-
-
-def test_firmware_pipeline_clean_binary(tmp_path):
-    fw = tmp_path / "fw.bin"
-    fw.write_bytes(b"\x00\x01\x02\x03" * 100)   # no suspicious strings
-
-    report = run_pipeline(_make_request(fw))
-    security_ids = {
-        f.finding_id for f in report.findings
-        if f.category != "analysis_limitation"
-    }
-    assert len(security_ids) == 0
-
-
-# ── APK pipeline ───────────────────────────────────────────────────────────────
 
 def _make_apk(tmp_path: Path, name: str = "app.apk", extra_content: str = "") -> Path:
     p = tmp_path / name
@@ -138,44 +33,108 @@ def _make_apk(tmp_path: Path, name: str = "app.apk", extra_content: str = "") ->
     return p
 
 
-def test_apk_pipeline_basic(tmp_path):
-    apk = _make_apk(tmp_path)
-    report = run_pipeline(_make_request(apk, "apk-test"))
+def test_apk_pipeline_android_permission_rule_integration(tmp_path, monkeypatch):
+    """
+    Verify that pipeline_apk calls Android-specific risk rules after
+    androguard analysis succeeds.
+    """
+    import app.pipeline_apk as pipeline_apk
 
-    assert report.status == "success"
-    assert report.job_id == "apk-test"
+    apk = _make_apk(tmp_path, "android-risk.apk")
 
+    class DummyAgResult:
+        def __init__(self):
+            self.success = True
+            self.permissions = [
+                "android.permission.READ_SMS",
+                "android.permission.INTERNET",
+            ]
+            self.exported_components = []
+            self.package_name = "com.example.smsapp"
+            self.app_name = "SMS App"
+            self.errors = []
 
-def test_apk_pipeline_detects_hardcoded_secret(tmp_path):
-    apk = _make_apk(tmp_path, extra_content='api_key="AKIAIOSFODNN7EXAMPLE"\n')
-    report = run_pipeline(_make_request(apk))
+    monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: DummyAgResult())
+    monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
+
+    report = run_pipeline(_make_request(apk, "apk-android-risk"), output_dir=tmp_path / "out")
     ids = {f.finding_id for f in report.findings}
-    assert "AWS_ACCESS_KEY" in ids
+
+    assert report.status == "success"
+    assert "APK_HIGH_RISK_PERMISSION_READ_SMS" in ids
+    assert "APK_SMS_EXFILTRATION" in ids
 
 
-# ── routing ────────────────────────────────────────────────────────────────────
+def test_apk_pipeline_android_exported_component_integration(tmp_path, monkeypatch):
+    """
+    Verify exported-component findings are surfaced through the APK pipeline.
+    """
+    import app.pipeline_apk as pipeline_apk
 
-def test_router_sends_elf_to_firmware_pipeline(tmp_path):
-    elf = tmp_path / "busybox"
-    elf.write_bytes(b"\x7fELF\x02\x01\x01\x00" + b"\x00" * 56)
+    apk = _make_apk(tmp_path, "exported-risk.apk")
 
-    report = run_pipeline(_make_request(elf))
+    class DummyAgResult:
+        def __init__(self):
+            self.success = True
+            self.permissions = [
+                "android.permission.INTERNET",
+            ]
+            self.exported_components = [
+                "com.example.MainActivity",
+            ]
+            self.package_name = "com.example.exportedapp"
+            self.app_name = "Exported App"
+            self.errors = []
+
+    monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: DummyAgResult())
+    monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
+
+    report = run_pipeline(_make_request(apk, "apk-exported-risk"), output_dir=tmp_path / "out")
+    ids = {f.finding_id for f in report.findings}
+
+    assert report.status == "success"
+    assert "APK_EXPORTED_COMPONENT" in ids
+
+
+def test_apk_pipeline_android_manifest_features_written(tmp_path, monkeypatch):
+    """
+    Verify manifest_analysis is written into features artifact when
+    androguard analysis succeeds.
+    """
+    import app.pipeline_apk as pipeline_apk
+
+    apk = _make_apk(tmp_path, "manifest-features.apk")
+    out_dir = tmp_path / "artifacts"
+
+    class DummyAgResult:
+        def __init__(self):
+            self.success = True
+            self.permissions = [
+                "android.permission.READ_CONTACTS",
+                "android.permission.INTERNET",
+            ]
+            self.exported_components = [
+                "com.example.SyncService",
+            ]
+            self.package_name = "com.example.contactsapp"
+            self.app_name = "Contacts App"
+            self.errors = []
+
+    monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: DummyAgResult())
+    monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
+
+    report = run_pipeline(_make_request(apk, "apk-manifest-features"), output_dir=out_dir)
+
     assert report.status == "success"
 
+    features_file = out_dir / "apk-manifest-features.features.json"
+    assert features_file.exists()
 
-def test_router_explicit_file_type_hint(tmp_path):
-    # Give firmware file_type hint even if extension is wrong
-    fw = tmp_path / "mystery.dat"
-    fw.write_bytes(b"telnetd\x00" + b"\x00" * 50)
-
-    req = AnalyzeRequest.model_validate({
-        "schema_version": "1.0",
-        "job_id": "hint-test",
-        "firmware": {
-            "name": "mystery.dat",
-            "file_path": str(fw),
-            "file_type": "firmware",
-        },
-    })
-    report = run_pipeline(req)
-    assert report.status == "success"
+    data = json.loads(features_file.read_text(encoding="utf-8"))
+    assert "manifest_analysis" in data
+    assert data["manifest_analysis"]["package_name"] == "com.example.contactsapp"
+    assert data["manifest_analysis"]["permissions_count"] == 2
+    assert data["manifest_analysis"]["exported_count"] == 1

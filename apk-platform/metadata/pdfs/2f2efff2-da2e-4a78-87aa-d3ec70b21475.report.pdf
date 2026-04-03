@@ -1,0 +1,131 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1004 >>
+stream
+BT
+/F1 18 Tf
+50 800 Td
+(APK Analysis Report) Tj
+ET
+BT
+/F1 11 Tf
+50 770 Td
+(Sample ID: 2f2efff2-da2e-4a78-87aa-d3ec70b21475) Tj
+ET
+BT
+/F1 11 Tf
+50 754 Td
+(Filename: d2f902d6-ca8e-4a31-a54d-6a4d9e55bd06.apk) Tj
+ET
+BT
+/F1 11 Tf
+50 738 Td
+(Uploaded At: 2026-04-03T15:27:36.220745+00:00) Tj
+ET
+BT
+/F1 11 Tf
+50 722 Td
+(Status: success) Tj
+ET
+BT
+/F1 11 Tf
+50 706 Td
+(Risk Score: 72) Tj
+ET
+BT
+/F1 11 Tf
+50 690 Td
+() Tj
+ET
+BT
+/F1 11 Tf
+50 674 Td
+(Critical: 0) Tj
+ET
+BT
+/F1 11 Tf
+50 658 Td
+(High: 1) Tj
+ET
+BT
+/F1 11 Tf
+50 642 Td
+(Medium: 2) Tj
+ET
+BT
+/F1 11 Tf
+50 626 Td
+(Low: 0) Tj
+ET
+BT
+/F1 11 Tf
+50 610 Td
+(Info: 1) Tj
+ET
+BT
+/F1 11 Tf
+50 594 Td
+() Tj
+ET
+BT
+/F1 11 Tf
+50 578 Td
+(Findings:) Tj
+ET
+BT
+/F1 11 Tf
+50 562 Td
+(1. [HIGH] Mock suspicious permission usage) Tj
+ET
+BT
+/F1 11 Tf
+50 546 Td
+(   ID: DEMO-001) Tj
+ET
+BT
+/F1 11 Tf
+50 530 Td
+(   Desc: This is a mock finding for end-to-end demo.) Tj
+ET
+BT
+/F1 11 Tf
+50 514 Td
+() Tj
+ET
+BT
+/F1 11 Tf
+50 498 Td
+(Errors:) Tj
+ET
+BT
+/F1 11 Tf
+50 482 Td
+(No errors.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001297 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1367
+%%EOF

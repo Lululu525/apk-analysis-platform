@@ -1,25 +1,22 @@
 {
   "schema_version": "1.0",
-  "job_id": "demo-001",
-  "status": "success",
-  "started_at": "2026-03-08T12:54:16.265466+08:00",
-  "finished_at": "2026-03-08T12:54:16.466700+08:00",
-  "summary": {
-    "schema_version": "1.0",
-    "risk_score": 0,
-    "counts": {
-      "critical": 0,
-      "high": 0,
-      "medium": 0,
-      "low": 0,
-      "info": 0
-    }
+  "job_id": "demo-apk-001",
+  "submitted_at": "2026-04-03T21:50:00+08:00",
+  "firmware": {
+    "name": "test.apk",
+    "file_path": "C:\\Users\\USER\\Desktop\\apk-analysis-platform\\AI-model\\test.apk",
+    "sha256": "",
+    "file_type": "apk"
   },
-  "findings": [],
-  "artifacts": {
-    "logs_path": null,
-    "extracted_path": null,
-    "features_path": "artifacts/demo-001.features.json"
+  "device_meta": {
+    "vendor": "demo",
+    "model": "test-apk",
+    "firmware_version": "1.0",
+    "arch_hint": "android"
   },
-  "errors": []
+  "options": {
+    "run_static_scan": true,
+    "run_behavior_analysis": false,
+    "severity_threshold": "medium"
+  }
 }

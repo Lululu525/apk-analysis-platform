@@ -1,63 +1,177 @@
 import sqlite3
 from pathlib import Path
 
-APP_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = APP_ROOT / "metadata" / "metadata.db"
+DB_PATH = Path(__file__).resolve().parents[2] / "metadata" / "metadata.db"
 
-def get_conn():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    return sqlite3.connect(DB_PATH)
+
+def get_connection():
+    conn = sqlite3.connect(DB_PATH)
+    return conn
+
 
 def init_db():
-    with get_conn() as conn:
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS samples (
-          sample_id TEXT PRIMARY KEY,
-          sha256 TEXT NOT NULL,
-          filename TEXT NOT NULL,
-          uploaded_at TEXT NOT NULL,
-          storage_path TEXT NOT NULL,
-          status TEXT NOT NULL
-        );
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_samples_sha256 ON samples(sha256);")
-        conn.commit()
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-def insert_sample(sample_id: str, sha256: str, filename: str, uploaded_at: str, storage_path: str, status: str):
-    with get_conn() as conn:
-        conn.execute("""
-        INSERT INTO samples(sample_id, sha256, filename, uploaded_at, storage_path, status)
-        VALUES (?, ?, ?, ?, ?, ?);
-        """, (sample_id, sha256, filename, uploaded_at, storage_path, status))
-        conn.commit()
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS samples (
+            sample_id TEXT PRIMARY KEY,
+            sha256 TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            uploaded_at TEXT NOT NULL,
+            storage_path TEXT NOT NULL,
+            status TEXT NOT NULL
+        )
+        """
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def insert_sample(
+    sample_id: str,
+    sha256: str,
+    filename: str,
+    uploaded_at: str,
+    storage_path: str,
+    status: str,
+):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO samples (
+            sample_id,
+            sha256,
+            filename,
+            uploaded_at,
+            storage_path,
+            status
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (sample_id, sha256, filename, uploaded_at, storage_path, status),
+    )
+
+    conn.commit()
+    conn.close()
+
 
 def get_sample_by_id(sample_id: str):
-    with get_conn() as conn:
-        cursor = conn.execute("""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
         SELECT sample_id, sha256, filename, uploaded_at, storage_path, status
         FROM samples
         WHERE sample_id = ?
-        """, (sample_id,))
-        row = cursor.fetchone()
-        return row
+        """,
+        (sample_id,),
+    )
+
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def update_sample_status(sample_id: str, status: str) -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        UPDATE samples
+        SET status = ?
+        WHERE sample_id = ?
+        """,
+        (status, sample_id),
+    )
+
+    updated = cur.rowcount
+    conn.commit()
+    conn.close()
+    return updated
+
 
 def list_samples(limit: int = 20):
-    with get_conn() as conn:
-        cursor = conn.execute("""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
         SELECT sample_id, sha256, filename, uploaded_at, storage_path, status
         FROM samples
         ORDER BY uploaded_at DESC
         LIMIT ?
-        """, (limit,))
-        rows = cursor.fetchall()
-        return rows
+        """,
+        (limit,),
+    )
 
-def update_sample_status(sample_id: str, status: str):
-    with get_conn() as conn:
-        cur = conn.execute("""
-        UPDATE samples
-        SET status = ?
-        WHERE sample_id = ?
-        """, (status, sample_id))
-        conn.commit()
-        return cur.rowcount
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def count_samples(query: str | None = None) -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+
+    if query and query.strip():
+        keyword = f"%{query.strip()}%"
+        cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM samples
+            WHERE filename LIKE ?
+            """,
+            (keyword,),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM samples
+            """
+        )
+
+    total = cur.fetchone()[0]
+    conn.close()
+    return total
+
+
+def list_samples_paginated(limit: int, offset: int, query: str | None = None):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    if query and query.strip():
+        keyword = f"%{query.strip()}%"
+        cur.execute(
+            """
+            SELECT sample_id, sha256, filename, uploaded_at, storage_path, status
+            FROM samples
+            WHERE filename LIKE ?
+            ORDER BY uploaded_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (keyword, limit, offset),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT sample_id, sha256, filename, uploaded_at, storage_path, status
+            FROM samples
+            ORDER BY uploaded_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (limit, offset),
+        )
+
+    rows = cur.fetchall()
+    conn.close()
+    return rows
