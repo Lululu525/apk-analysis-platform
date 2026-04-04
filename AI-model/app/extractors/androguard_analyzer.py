@@ -428,15 +428,17 @@ def to_findings(result: AnalysisResult) -> List[Finding]:
             ))
 
     # ── 2. Exported components without permission protection ──────────────
-    # severity: service / provider → high（可被直接呼叫讀取資料）
-    #           activity / receiver → medium（可被外部觸發但影響面較小）
-    _COMP_SEV = {"service": "high", "provider": "high", "activity": "medium", "receiver": "medium"}
-    _COMP_CWE = {"service": "CWE-926", "provider": "CWE-926",
-                 "activity": "CWE-926", "receiver": "CWE-926"}
+    # service / provider are fully covered by privilege_rules.IPC_SERVICE_HIJACK
+    # and IPC_PROVIDER_REDELEGATION (with attack-vector context).
+    # activity / receiver are kept here because their IPC counterparts fire only
+    # conditionally (dangerous-perms held / sensitive broadcast actions matched).
+    _COMP_SEV = {"activity": "medium", "receiver": "medium"}
 
     if result.components:
         by_type: Dict[str, List[ComponentInfo]] = {}
         for comp in result.components:
+            if comp.type not in _COMP_SEV:
+                continue
             if comp.exported and not comp.permissions_required:
                 by_type.setdefault(comp.type, []).append(comp)
 
@@ -444,10 +446,10 @@ def to_findings(result: AnalysisResult) -> List[Finding]:
             findings.append(Finding(
                 finding_id=f"EXPORTED_UNPROTECTED_{comp_type.upper()}",
                 title=f"未受保護的導出 {comp_type}（{len(comps)} 個）",
-                severity=_COMP_SEV.get(comp_type, "medium"),
+                severity=_COMP_SEV[comp_type],
                 confidence=0.95,
                 category="privilege_escalation",
-                cwe=[_COMP_CWE.get(comp_type, "CWE-926")],
+                cwe=["CWE-926"],
                 evidence={
                     "components": [
                         {"name": c.name, "intent_filters": c.intent_filters}

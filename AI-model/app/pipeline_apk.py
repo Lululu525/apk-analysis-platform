@@ -17,7 +17,7 @@ from .extractors.androguard_analyzer import (
     to_findings as ag_to_findings,
     ANDROGUARD_AVAILABLE,
 )
-from .apk_rules import analyze_android_risk
+from .detectors.privilege_rules import check_combinations as check_privilege_escalation
 from .report.builder import build_report
 
 
@@ -166,7 +166,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         findings.extend(ag_to_findings(ag_result))
 
         if ag_result.success:
-            findings.extend(analyze_android_risk(ag_result))
+            findings.extend(check_privilege_escalation(ag_result))
         else:
             findings.append(Finding(
                 finding_id="ANDROGUARD_PARSE_ERROR",
