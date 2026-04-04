@@ -201,13 +201,16 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
 
         manifest_features: dict[str, Any] | None = None
         if ag_result is not None and getattr(ag_result, "success", False):
+            _perms = getattr(ag_result, "permissions", {}) or {}
+            _comps = getattr(ag_result, "components", []) or []
+            _exported = [c for c in _comps if getattr(c, "exported", False)]
             manifest_features = {
                 "package_name": getattr(ag_result, "package_name", None),
                 "app_name": getattr(ag_result, "app_name", None),
-                "permissions": getattr(ag_result, "permissions", []),
-                "permissions_count": len(getattr(ag_result, "permissions", []) or []),
-                "exported_components": getattr(ag_result, "exported_components", []),
-                "exported_count": len(getattr(ag_result, "exported_components", []) or []),
+                "permissions": list(_perms.keys()) if isinstance(_perms, dict) else list(_perms),
+                "permissions_count": len(_perms),
+                "exported_components": [getattr(c, "name", str(c)) for c in _exported],
+                "exported_count": len(_exported),
             }
 
         features: dict[str, Any] = {
