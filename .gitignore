@@ -1,52 +1,100 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Virtual environment
-.venv/
-venv/
-env/
-
-# IDE
-.vscode/
-.idea/
-
+# =========================
 # OS
+# =========================
 .DS_Store
 Thumbs.db
 
-# Logs
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# 虛擬環境
+.venv/
+venv/
+env/
+ENV/
+
+# =========================
+# FastAPI / Backend
+# =========================
 *.log
-
-# Databases
-*.db
 *.sqlite3
+*.db
 
-# APK files
-*.apk
-*.aab
+# metadata runtime files（分析結果不要上傳）
+apk-platform/metadata/
 
-# Backend generated files
-apk-platform/storage/objects/apks/
-apk-platform/metadata/results/
-apk-platform/metadata/artifacts/
-apk-platform/metadata/requests/
+# storage（上傳 APK 不要進 git）
+apk-platform/storage/
 
-# AI model output
-AI-model/artifacts/
+# =========================
+# AI model artifacts
+# =========================
+AI-model/__pycache__/
+AI-model/*.pt
+AI-model/*.pth
+AI-model/data/
 AI-model/output/
 
-# Android build
-.gradle/
-build/
-app/build/
+# 模型產生的 features / json
+*.features.json
+*.report.json
 
-# Temporary files
-tmp/
-<<<<<<< HEAD
-temp/
-=======
-temp/
->>>>>>> ab793ca (Update setup scripts, gitignore and requirements)
+# =========================
+# APK（關鍵）
+# =========================
+*.apk
+
+# =========================
+# Node / Frontend
+# =========================
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+
+# =========================
+# Env（重要）
+# =========================
+.env
+.env.local
+.env.*
+!.env.example   # ← 允許範例檔上傳
+
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Logs
+# =========================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Coverage / Testing
+# =========================
+coverage/
+htmlcov/
+
+# =========================
+# Misc
+# =========================
+*.tmp
+*.bak
+*.swp
+
+# =========================
+# Mac / Windows hidden
+# =========================
+*.DS_Store?
+._*

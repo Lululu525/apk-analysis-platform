@@ -33,7 +33,6 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-# Files inside APK worth scanning
 _SCAN_SUFFIXES = {
     ".dex",
     ".so",
@@ -59,12 +58,6 @@ def _should_scan_entry(name: str) -> bool:
 
 
 def _extract_apk(apk_path: Path, dest: Path) -> tuple[int, list[str]]:
-    """
-    Unzip APK into dest directory.
-
-    Returns:
-        (extracted_count, skipped_list)
-    """
     dest.mkdir(parents=True, exist_ok=True)
     extracted = 0
     skipped: list[str] = []
@@ -92,6 +85,165 @@ def _extract_apk(apk_path: Path, dest: Path) -> tuple[int, list[str]]:
     return extracted, skipped
 
 
+def _safe_slug(value: str) -> str:
+    return (
+        value.lower()
+        .replace("android.permission.", "")
+        .replace(".", "_")
+        .replace(" ", "_")
+    )
+
+
+def _append_unique_tags(finding: Finding, tags: list[str]) -> None:
+    existing = {tag.lower() for tag in finding.tags}
+    for tag in tags:
+        normalized = tag.strip()
+        if normalized and normalized.lower() not in existing:
+            finding.tags.append(normalized)
+            existing.add(normalized.lower())
+
+
+def _infer_android_context_for_finding(finding: Finding) -> None:
+    haystack = " ".join(
+        [
+            finding.finding_id or "",
+            finding.title or "",
+            finding.description or "",
+            finding.category or "",
+            " ".join(finding.cwe or []),
+            json.dumps(finding.evidence or {}, ensure_ascii=False),
+        ]
+    ).lower()
+
+    tags: list[str] = []
+    data_sensitivity: str | None = finding.data_sensitivity
+    exploitability = finding.exploitability
+    impact = finding.impact
+    exposure = finding.exposure
+
+    permission = (finding.evidence or {}).get("permission")
+    if isinstance(permission, str) and permission:
+        tags.append("dangerous_permission")
+        tags.append(permission.lower())
+        tags.append(_safe_slug(permission))
+
+        permission_lower = permission.lower()
+        if "read_sms" in permission_lower or "send_sms" in permission_lower:
+            data_sensitivity = data_sensitivity or "sms"
+            impact = impact or 1.40
+        elif "read_contacts" in permission_lower:
+            data_sensitivity = data_sensitivity or "contacts"
+            impact = impact or 1.30
+        elif "record_audio" in permission_lower:
+            data_sensitivity = data_sensitivity or "microphone"
+            impact = impact or 1.30
+        elif "fine_location" in permission_lower:
+            data_sensitivity = data_sensitivity or "location"
+            impact = impact or 1.30
+        elif "internet" in permission_lower:
+            data_sensitivity = data_sensitivity or "network"
+
+    permissions = (finding.evidence or {}).get("permissions")
+    if isinstance(permissions, list):
+        lowered_permissions = []
+        for perm in permissions:
+            if isinstance(perm, str):
+                lowered_permissions.append(perm.lower())
+                tags.append(perm.lower())
+                tags.append(_safe_slug(perm))
+
+        if any("internet" in perm for perm in lowered_permissions):
+            tags.append("network_exfiltration")
+
+        if any("read_sms" in perm for perm in lowered_permissions):
+            data_sensitivity = data_sensitivity or "sms"
+            impact = impact or 1.50
+
+        if any("read_contacts" in perm for perm in lowered_permissions):
+            data_sensitivity = data_sensitivity or "contacts"
+            impact = max(impact or 1.0, 1.30)
+
+        if any("record_audio" in perm for perm in lowered_permissions):
+            data_sensitivity = data_sensitivity or "microphone"
+            impact = max(impact or 1.0, 1.30)
+
+        if any("fine_location" in perm for perm in lowered_permissions):
+            data_sensitivity = data_sensitivity or "location"
+            impact = max(impact or 1.0, 1.30)
+
+    if "exported" in haystack:
+        tags.append("exported_component")
+        exploitability = exploitability or 1.20
+        exposure = exposure or 1.15
+
+    if "unprotected" in haystack:
+        tags.append("unprotected_component")
+        exploitability = max(exploitability or 1.0, 1.25)
+        exposure = max(exposure or 1.0, 1.20)
+
+    if "provider" in haystack:
+        tags.append("provider")
+        exploitability = max(exploitability or 1.0, 1.25)
+        exposure = max(exposure or 1.0, 1.20)
+
+    if "service" in haystack:
+        tags.append("service")
+        exploitability = max(exploitability or 1.0, 1.20)
+
+    if "receiver" in haystack:
+        tags.append("receiver")
+        exploitability = max(exploitability or 1.0, 1.10)
+
+    if "activity" in haystack:
+        tags.append("activity")
+
+    if "runtime.exec" in haystack or "command" in haystack:
+        tags.append("command_exec")
+        tags.append("sensitive_api")
+        exploitability = max(exploitability or 1.0, 1.35)
+        impact = max(impact or 1.0, 1.25)
+
+    if "webview" in haystack or "javascriptinterface" in haystack:
+        tags.append("sensitive_api")
+        exploitability = max(exploitability or 1.0, 1.20)
+
+    if "class.forname" in haystack or "method.invoke" in haystack or "reflection" in haystack:
+        tags.append("reflection")
+        tags.append("sensitive_api")
+        exploitability = max(exploitability or 1.0, 1.15)
+
+    if "too_many_permissions" in haystack or "overprivilege" in haystack or "overprivileged" in haystack:
+        tags.append("overprivileged")
+        exploitability = max(exploitability or 1.0, 1.10)
+        impact = max(impact or 1.0, 1.10)
+
+    if finding.category == "android_permission":
+        tags.append("android_permission")
+    elif finding.category == "android_component":
+        tags.append("android_component")
+    elif finding.category == "android_behavior":
+        tags.append("android_behavior")
+    elif finding.category == "analysis_limitation":
+        tags.append("analysis_limitation")
+
+    _append_unique_tags(finding, tags)
+
+    if data_sensitivity:
+        finding.data_sensitivity = data_sensitivity
+    if exploitability is not None:
+        finding.exploitability = exploitability
+    if impact is not None:
+        finding.impact = impact
+    if exposure is not None:
+        finding.exposure = exposure
+
+
+def _enrich_android_findings(findings: list[Finding]) -> list[Finding]:
+    for finding in findings:
+        _infer_android_context_for_finding(finding)
+    return findings
+
+
 def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
     started_at = _now_iso()
     errors: list[str] = []
@@ -109,7 +261,6 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
 
     ag_result = None
 
-    # ── 1. Basic metadata ────────────────────────────────────────────────────
     try:
         sha256 = _sha256_file(apk_path)
         size_bytes = apk_path.stat().st_size
@@ -119,7 +270,6 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         errors.append(f"failed to read APK: {e}")
         return build_report(req.job_id, started_at, findings, Artifacts(), errors)
 
-    # ── 2. Unzip into temp dir for per-file scanning ─────────────────────────
     extract_dir: Path | None = None
     strings_list: list[str] = []
     strings_method = "none"
@@ -130,12 +280,10 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         extracted_count, _ = _extract_apk(apk_path, extract_dir)
 
     if extract_dir and extract_dir.exists() and extracted_count > 0:
-        # .dex → DEX string table parser
         for dex_file in sorted(extract_dir.rglob("*.dex")):
             dex_strings = extract_strings_from_dex(dex_file, min_len=6, limit=3000)
             strings_list.extend(dex_strings)
 
-        # .so / other non-dex files → disassembly-first strategy
         per_file = extract_strings_from_dir(
             extract_dir,
             min_len=6,
@@ -148,53 +296,61 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
 
         strings_method = "dex_parser+per_file"
     else:
-        # Fallback: scan the raw APK bytes
         strings_list, strings_method = extract_strings(apk_path, min_len=6)
 
     strings_list = strings_list[:5000]
 
-    # ── 3. Rule-based scan on extracted strings ──────────────────────────────
     if req.options.run_static_scan:
         findings.extend(scan_text_for_rules("\n".join(strings_list)))
 
-    # ── 4. Network indicators from strings ───────────────────────────────────
     findings.extend(net_scan_strings(strings_list))
 
-    # ── 5. Androguard: manifest + permission + component analysis ────────────
     if ANDROGUARD_AVAILABLE:
         ag_result = analyze_apk(apk_path)
-        findings.extend(ag_to_findings(ag_result))
+
+        androguard_findings = ag_to_findings(ag_result)
+        findings.extend(_enrich_android_findings(androguard_findings))
 
         if ag_result.success:
+
             findings.extend(check_privilege_escalation(ag_result))
+
+            android_risk_findings = analyze_android_risk(ag_result)
+            findings.extend(_enrich_android_findings(android_risk_findings))
+
         else:
-            findings.append(Finding(
-                finding_id="ANDROGUARD_PARSE_ERROR",
-                title="Androguard could not parse this APK manifest",
+            findings.append(
+                Finding(
+                    finding_id="ANDROGUARD_PARSE_ERROR",
+                    title="Androguard could not parse this APK manifest",
+                    severity="info",
+                    confidence=1.0,
+                    category="analysis_limitation",
+                    evidence={"errors": (ag_result.errors or [])[:3]},
+                    remediation=(
+                        "Make sure the APK is valid. Obfuscation or hardening may cause "
+                        "manifest parsing to fail."
+                    ),
+                    tags=["analysis_limitation"],
+                )
+            )
+    else:
+        findings.append(
+            Finding(
+                finding_id="TOOL_ANDROGUARD_MISSING",
+                title="Androguard is not installed - manifest, permission, and component analysis skipped",
                 severity="info",
                 confidence=1.0,
                 category="analysis_limitation",
-                evidence={"errors": (ag_result.errors or [])[:3]},
+                evidence={"hint": "pip install androguard>=4.0"},
                 remediation=(
-                    "Make sure the APK is valid. Obfuscation or hardening may cause "
-                    "manifest parsing to fail."
+                    "Install androguard to enable AndroidManifest permission and "
+                    "exported-component analysis."
                 ),
-            ))
-    else:
-        findings.append(Finding(
-            finding_id="TOOL_ANDROGUARD_MISSING",
-            title="Androguard is not installed - manifest, permission, and component analysis skipped",
-            severity="info",
-            confidence=1.0,
-            category="analysis_limitation",
-            evidence={"hint": "pip install androguard>=4.0"},
-            remediation=(
-                "Install androguard to enable AndroidManifest permission and "
-                "exported-component analysis."
-            ),
-        ))
+                tags=["analysis_limitation"],
+            )
+        )
 
-    # ── 6. Artifacts ─────────────────────────────────────────────────────────
     artifacts = Artifacts()
     if output_dir:
         output_dir.mkdir(parents=True, exist_ok=True)

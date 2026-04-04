@@ -2,71 +2,132 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
-from app.schemas import AnalyzeRequest
-from app.pipeline import run_pipeline
+from app.scoring import score_permissions
 
 
-def normalize_request(raw: dict) -> dict:
-    if "firmware" in raw:
-        return raw
-
-    if "sample" in raw:
-        sample = raw.get("sample", {})
-        apk_meta = raw.get("apk_meta", {})
-        options = raw.get("options", {})
-
-        return {
-            "schema_version": raw.get("schema_version", "1.0"),
-            "job_id": raw.get("job_id"),
-            "submitted_at": raw.get("submitted_at"),
-            "firmware": {
-                "name": sample.get("name"),
-                "file_path": sample.get("file_path"),
-                "sha256": sample.get("sha256"),
-            },
-            "device_meta": {
-                "vendor": apk_meta.get("vendor"),
-                "model": apk_meta.get("package_name"),
-                "firmware_version": apk_meta.get("version_name"),
-                "arch_hint": apk_meta.get("arch_hint"),
-            },
-            "options": {
-                "run_static_scan": options.get("run_static_scan", True),
-                "run_behavior_analysis": options.get("run_behavior_analysis", False),
-                "severity_threshold": options.get("severity_threshold", "medium"),
-            },
-        }
-
-    raise ValueError("Unsupported request schema: expected 'firmware' or 'sample'")
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
-def main():
-    parser = argparse.ArgumentParser(description="AI-model CLI entrypoint")
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="APK manifest parser + risk scoring pipeline"
+    )
     parser.add_argument("--in", dest="input_json", required=True)
-    parser.add_argument("--out", dest="report_json", required=True)
-    parser.add_argument("--artifacts", dest="artifacts_dir", default=None)
+    parser.add_argument("--out", dest="output_json", required=True)
+    parser.add_argument("--artifacts", dest="artifacts_dir", required=True)
     args = parser.parse_args()
 
-    input_json = Path(args.input_json)
-    report_json = Path(args.report_json)
-    artifacts_dir = Path(args.artifacts_dir) if args.artifacts_dir else None
+    input_path = Path(args.input_json)
+    output_path = Path(args.output_json)
+    artifacts_dir = Path(args.artifacts_dir)
 
-    raw = json.loads(input_json.read_text(encoding="utf-8"))
-    normalized = normalize_request(raw)
+    request = json.loads(input_path.read_text(encoding="utf-8"))
+    apk_path = request["sample"]["file_path"]
+    job_id = request["job_id"]
 
-    req = AnalyzeRequest.model_validate(normalized)
-    report = run_pipeline(req, output_dir=artifacts_dir)
+    print(f"Analyzing APK: {apk_path}")
 
-    report_json.parent.mkdir(parents=True, exist_ok=True)
-    report_json.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+    started_at = utc_now_iso()
 
-    print(f"[OK] report written: {report_json}")
+    from androguard.misc import AnalyzeAPK
+
+    a, d, dx = AnalyzeAPK(apk_path)
+
+    package_name = a.get_package()
+    permissions = sorted(set(a.get_permissions()))
+    activities = sorted(set(a.get_activities()))
+
+    (
+        risk_score,
+        risk_level,
+        counts,
+        findings,
+        filtered_permissions,
+        features,
+    ) = score_permissions(permissions)
+
+    if not findings:
+        findings.append(
+            {
+                "id": "SUMMARY",
+                "severity": "info",
+                "title": "Permission analysis summary",
+                "description": (
+                    "No meaningful risky permissions detected. "
+                    f"Filtered potential false positives: {filtered_permissions or 'None'}."
+                ),
+                "remediation": "Review whether all requested permissions are necessary.",
+            }
+        )
+        counts["info"] += 1
+
+    finished_at = utc_now_iso()
+
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    features_path = artifacts_dir / f"{job_id}.features.json"
+    features_payload = {
+        "job_id": job_id,
+        "apk_path": apk_path,
+        "apk_info": {
+            "package_name": package_name,
+            "permissions": permissions,
+            "activities": activities,
+        },
+        "filtered_permissions": filtered_permissions,
+        "features": features,
+        "risk_score": risk_score,
+        "risk_level": risk_level,
+    }
+    features_path.write_text(
+        json.dumps(features_payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    result = {
+        "schema_version": "1.0",
+        "job_id": job_id,
+        "status": "success",
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "apk_info": {
+            "package_name": package_name,
+            "permissions": permissions,
+            "activities": activities,
+        },
+        "summary": {
+            "risk_score": risk_score,
+            "risk_level": risk_level,
+            "counts": counts,
+            "formula": features.get("formula"),
+            "rule_score": features.get("rule_score"),
+            "final_score": features.get("final_score"),
+        },
+        "findings": findings,
+        "filtered_permissions": filtered_permissions,
+        "artifacts": {
+            "features_path": str(features_path),
+        },
+        "errors": [],
+    }
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    print(f"[OK] report written: {output_path}")
     print(
-        f"status={report.status} "
-        f"risk_score={report.summary.risk_score} "
-        f"findings={len(report.findings)}"
+        f"[OK] package_name={package_name} "
+        f"permissions={len(permissions)} "
+        f"activities={len(activities)} "
+        f"risk_score={risk_score} "
+        f"risk_level={risk_level}"
     )
 
 
