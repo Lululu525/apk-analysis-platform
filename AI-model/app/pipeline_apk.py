@@ -18,7 +18,6 @@ from .extractors.androguard_analyzer import (
     ANDROGUARD_AVAILABLE,
 )
 from .detectors.privilege_rules import check_combinations as check_privilege_escalation
-from .apk_rules import analyze_android_risk
 from .report.builder import build_report
 
 
@@ -313,12 +312,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         findings.extend(_enrich_android_findings(androguard_findings))
 
         if ag_result.success:
-
             findings.extend(check_privilege_escalation(ag_result))
-
-            android_risk_findings = analyze_android_risk(ag_result)
-            findings.extend(_enrich_android_findings(android_risk_findings))
-
         else:
             findings.append(
                 Finding(
