@@ -8,7 +8,7 @@ Three-layer rule system:
 
 References:
   [1] AndroCom: Arikan & Yilmaz, Appl. Sci. 2025, 15, 2665
-      → vulnerability taxonomy, CWE/CVE mappings (Table 3)
+      → vulnerability taxonomy, CWE mappings (Table 3)
   [2] Detection of Hidden Privilege Escalations in Android:
       El-Zawawy & Hamdy, Automated Software Engineering 2025, 32:68
       → n-order IPC escalation, permission re-delegation, attack classification
@@ -32,7 +32,7 @@ OVER_PRIVILEGE_THRESHOLD = 25
 
 # ── Layer 2: Dangerous permission combination rules ───────────────────────────
 # Source [1] Table 3: privilege escalation, information disclosure, unauthorized
-# access — with associated CVEs.
+# access.
 
 @dataclass(frozen=True)
 class ComboRule:
@@ -47,7 +47,7 @@ class ComboRule:
 
 COMBO_RULES: List[ComboRule] = [
     # Stalkerware: location + camera + microphone simultaneously declared
-    # AndroCom [1]: Privilege Escalation, CVE-2019-16303 (Critical)
+    # AndroCom [1]: Privilege Escalation (Critical)
     ComboRule(
         rule_id="COMBO_STALKERWARE",
         required_perms=frozenset({
@@ -58,14 +58,14 @@ COMBO_RULES: List[ComboRule] = [
         severity="critical",
         title="潛在監控軟體特徵：位置 + 相機 + 麥克風同時宣告",
         cwe=("CWE-359", "CWE-269"),
-        cve_examples=("CVE-2019-16303",),
+        cve_examples=(),
         remediation=(
             "三項高敏感權限同時宣告與監控軟體特徵高度吻合。"
             "確認是否有合法使用情境，否則移除非必要項目。"
         ),
     ),
     # SMS exfiltration: read SMS + internet
-    # AndroCom [1]: Information Disclosure, CVE-2017-13309 (Medium)
+    # AndroCom [1]: Information Disclosure (Medium)
     ComboRule(
         rule_id="COMBO_SMS_EXFIL",
         required_perms=frozenset({
@@ -75,7 +75,7 @@ COMBO_RULES: List[ComboRule] = [
         severity="critical",
         title="簡訊竊取風險：READ_SMS + INTERNET",
         cwe=("CWE-359", "CWE-319"),
-        cve_examples=("CVE-2017-13309",),
+        cve_examples=(),
         remediation=(
             "讀取簡訊並同時具備網路存取能力，可將 OTP / 私人簡訊外傳。"
             "若非核心功能，移除 READ_SMS 權限。"
@@ -98,7 +98,7 @@ COMBO_RULES: List[ComboRule] = [
         ),
     ),
     # Contact exfiltration: read contacts + internet
-    # AndroCom [1]: Unauthorized Access, CVE-2020-8908 (Low)
+    # AndroCom [1]: Unauthorized Access (Low)
     ComboRule(
         rule_id="COMBO_CONTACT_EXFIL",
         required_perms=frozenset({
@@ -108,14 +108,14 @@ COMBO_RULES: List[ComboRule] = [
         severity="high",
         title="通訊錄外洩風險：READ_CONTACTS + INTERNET",
         cwe=("CWE-359",),
-        cve_examples=("CVE-2020-8908",),
+        cve_examples=(),
         remediation=(
             "讀取通訊錄與網路存取組合具備資料外洩能力。"
             "確認通訊錄資料不被傳送至第三方伺服器。"
         ),
     ),
     # Call interception: call log + audio
-    # AndroCom [1]: Unauthorized Access, CVE-2020-8908
+    # AndroCom [1]: Unauthorized Access
     ComboRule(
         rule_id="COMBO_CALL_INTERCEPT",
         required_perms=frozenset({
@@ -125,7 +125,7 @@ COMBO_RULES: List[ComboRule] = [
         severity="high",
         title="通話攔截風險：READ_CALL_LOG + RECORD_AUDIO",
         cwe=("CWE-359", "CWE-269"),
-        cve_examples=("CVE-2020-8908",),
+        cve_examples=(),
         remediation=(
             "通話記錄與錄音權限組合可用於攔截並記錄通話。"
             "確認兩項權限均有獨立且正當的使用情境。"
