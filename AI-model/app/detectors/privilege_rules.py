@@ -18,9 +18,9 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
-from ..schemas import Finding
+from ..schemas import Finding, Severity
 from ..extractors.androguard_analyzer import AnalysisResult, ComponentInfo
 
 
@@ -37,8 +37,8 @@ OVER_PRIVILEGE_THRESHOLD = 25
 @dataclass(frozen=True)
 class ComboRule:
     rule_id: str
-    required_perms: frozenset
-    severity: str
+    required_perms: frozenset[str]
+    severity: Severity
     title: str
     cwe: Tuple[str, ...]
     cve_examples: Tuple[str, ...]
@@ -214,7 +214,10 @@ def _get_intent_actions(component: ComponentInfo) -> Set[str]:
     if not component.intent_filters:
         return actions
     for f in component.intent_filters:
-        for action in (f.get("actions") or []):
+        raw = f.get("actions")
+        if not isinstance(raw, list):
+            continue
+        for action in raw:
             if action:
                 actions.add(action)
     return actions
@@ -222,7 +225,7 @@ def _get_intent_actions(component: ComponentInfo) -> Set[str]:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def check_combinations(result: AnalysisResult) -> List[Finding]:
+def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
     """
     Run all three layers of privilege escalation rules against an AnalysisResult.
 

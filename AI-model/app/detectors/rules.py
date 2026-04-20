@@ -14,13 +14,13 @@ from __future__ import annotations
 import re
 from typing import List
 
-from ..schemas import Finding
+from ..schemas import Finding, Severity
 
 
 # ── Rule table ─────────────────────────────────────────────────────────────────
 # (rule_id, regex_pattern, severity, cwe_list, cve_examples, remediation)
 
-_RULES: list[tuple[str, str, str, list[str], list[str], str]] = [
+_RULES: list[tuple[str, str, Severity, list[str], list[str], str]] = [
     # ── Credential & Secret Exposure ──────────────────────────────────────────
     (
         "HARDCODED_PASSWORD",

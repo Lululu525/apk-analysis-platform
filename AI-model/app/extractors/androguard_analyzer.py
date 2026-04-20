@@ -11,10 +11,10 @@ Capabilities:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Dict, List, Set, Any
+from typing import Optional, Dict, List, Set, Any, Tuple, Union
 from dataclasses import dataclass
 
-from ..schemas import Finding
+from ..schemas import Finding, Severity
 
 try:
     from androguard.misc import AnalyzeAPK
@@ -125,8 +125,8 @@ class ComponentInfo:
     type: str  # "activity", "service", "provider", "receiver"
     name: str
     exported: bool = False
-    intent_filters: List[Dict[str, str]] = None
-    permissions_required: List[str] = None
+    intent_filters: Optional[List[Dict[str, Union[str, List[str]]]]] = None
+    permissions_required: Optional[List[str]] = None
 
 
 @dataclass
@@ -139,12 +139,12 @@ class AnalysisResult:
     min_sdk: Optional[int] = None
     target_sdk: Optional[int] = None
 
-    permissions: Dict[str, PermissionInfo] = None
-    components: List[ComponentInfo] = None
-    sensitive_api_calls: List[str] = None
+    permissions: Optional[Dict[str, PermissionInfo]] = None
+    components: Optional[List[ComponentInfo]] = None
+    sensitive_api_calls: Optional[List[str]] = None
 
-    risk_findings: List[str] = None
-    errors: List[str] = None
+    risk_findings: Optional[List[str]] = None
+    errors: Optional[List[str]] = None
 
 
 def analyze_apk(apk_path: Path) -> AnalysisResult:
@@ -171,7 +171,9 @@ def analyze_apk(apk_path: Path) -> AnalysisResult:
     # ── Basic metadata ────────────────────────────────────────────────────
     result = AnalysisResult(success=True)
     result.package_name = apk.get_package()
-    manifest_xml = apk.get_android_manifest_axml().get_xml_obj()
+    _axml = apk.get_android_manifest_axml()
+    assert _axml is not None, "APK has no AndroidManifest.xml"
+    manifest_xml = _axml.get_xml_obj()
     _NS = "{http://schemas.android.com/apk/res/android}"
     result.version_name = manifest_xml.get(f"{_NS}versionName")
     try:
@@ -221,7 +223,9 @@ def _extract_permissions(apk) -> Dict[str, PermissionInfo]:
 def _extract_components(apk) -> List[ComponentInfo]:
     """Extract activities, services, content providers, broadcast receivers"""
     components: List[ComponentInfo] = []
-    manifest_xml = apk.get_android_manifest_axml().get_xml_obj()
+    _axml = apk.get_android_manifest_axml()
+    assert _axml is not None, "APK has no AndroidManifest.xml"
+    manifest_xml = _axml.get_xml_obj()
 
     # ── Activities ────────────────────────────────────────────────────────
     for activity in manifest_xml.findall(".//activity"):
@@ -295,7 +299,7 @@ def _extract_components(apk) -> List[ComponentInfo]:
     return components
 
 
-def _extract_intent_filters(component_elem) -> List[Dict[str, str]]:
+def _extract_intent_filters(component_elem) -> List[Dict[str, Union[str, List[str]]]]:
     """Extract intent-filter actions from component XML element"""
     filters = []
     for intent_filter in component_elem.findall(".//intent-filter"):
@@ -407,7 +411,7 @@ def to_findings(result: AnalysisResult) -> List[Finding]:
     findings: List[Finding] = []
 
     # ── 1. Dangerous permissions ──────────────────────────────────────────
-    _PERM_SEVERITY = {"高風險": ("high", "CWE-272"), "中風險": ("medium", "CWE-272")}
+    _PERM_SEVERITY: Dict[str, Tuple[Severity, str]] = {"高風險": ("high", "CWE-272"), "中風險": ("medium", "CWE-272")}
     if result.permissions:
         for risk_label, (severity, cwe) in _PERM_SEVERITY.items():
             perms = [p.name for p in result.permissions.values() if p.risk_level == risk_label]
@@ -432,7 +436,7 @@ def to_findings(result: AnalysisResult) -> List[Finding]:
     # and IPC_PROVIDER_REDELEGATION (with attack-vector context).
     # activity / receiver are kept here because their IPC counterparts fire only
     # conditionally (dangerous-perms held / sensitive broadcast actions matched).
-    _COMP_SEV = {"activity": "medium", "receiver": "medium"}
+    _COMP_SEV: Dict[str, Severity] = {"activity": "medium", "receiver": "medium"}
 
     if result.components:
         by_type: Dict[str, List[ComponentInfo]] = {}
