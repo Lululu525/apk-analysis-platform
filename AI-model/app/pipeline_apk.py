@@ -18,6 +18,7 @@ from .extractors.androguard_analyzer import (
     ANDROGUARD_AVAILABLE,
 )
 from .detectors.privilege_rules import check_combinations as check_privilege_escalation
+from .apk_rules import analyze_android_risk
 from .report.builder import build_report
 
 
