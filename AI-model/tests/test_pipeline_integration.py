@@ -125,6 +125,34 @@ def test_ipc_provider_redelegation_surfaced_through_pipeline(tmp_path, monkeypat
     assert "IPC_PROVIDER_REDELEGATION" in ids
 
 
+def test_apk_rules_module_must_not_exist():
+    """Tripwire: app.apk_rules was deleted in Sprint 2 and must never be re-added.
+
+    Rules that were previously here live in app.detectors.privilege_rules now.
+    If this test fails, someone (or a bad merge) re-created apk_rules.py;
+    check git history for the resurrection commit before re-deleting.
+    """
+    import importlib
+
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("app.apk_rules")
+
+
+def test_pipeline_apk_must_not_import_apk_rules():
+    """Tripwire: pipeline_apk must not import from the deleted apk_rules module."""
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parent.parent / "app" / "pipeline_apk.py"
+    text = source.read_text(encoding="utf-8")
+
+    assert "from .apk_rules" not in text, (
+        "pipeline_apk.py is importing from deleted apk_rules module"
+    )
+    assert "analyze_android_risk" not in text, (
+        "pipeline_apk.py references analyze_android_risk (deleted in Sprint 2)"
+    )
+
+
 def test_old_apk_rules_finding_ids_no_longer_appear(tmp_path, monkeypatch):
     """Verify deleted apk_rules finding IDs are gone from the pipeline output."""
     import app.pipeline_apk as pipeline_apk
