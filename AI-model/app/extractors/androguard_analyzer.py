@@ -300,7 +300,17 @@ def _extract_components(apk) -> List[ComponentInfo]:
 
 
 def _extract_intent_filters(component_elem) -> List[Dict[str, Union[str, List[str]]]]:
-    """Extract intent-filter actions from component XML element"""
+    """Extract intent-filter metadata (actions, categories, data schemes,
+    MIME types) from a component XML element.
+
+    Schema per filter dict (Option A: parallel lists, not per-<data>-element
+    pairing — matches the El-Zawawy & Hamdy 2025 feature vector consumed by
+    parse_manifest.build_features):
+        {"actions": [...], "categories": [...],
+         "data_schemes": [...], "data_types": [...]}
+    Empty lists are dropped — callers should use dict.get(key) or iterate
+    only present keys.
+    """
     filters = []
     for intent_filter in component_elem.findall(".//intent-filter"):
         filter_info = {}
@@ -317,14 +327,22 @@ def _extract_intent_filters(component_elem) -> List[Dict[str, Union[str, List[st
         if categories:
             filter_info["categories"] = categories
 
-        # Data schemes
+        # Data schemes + MIME types from <data> elements
         data_elements = intent_filter.findall(".//data")
         if data_elements:
-            filter_info["data_schemes"] = []
+            schemes: List[str] = []
+            mime_types: List[str] = []
             for data in data_elements:
                 scheme = data.get("{http://schemas.android.com/apk/res/android}scheme")
                 if scheme:
-                    filter_info["data_schemes"].append(scheme)
+                    schemes.append(scheme)
+                mime = data.get("{http://schemas.android.com/apk/res/android}mimeType")
+                if mime:
+                    mime_types.append(mime)
+            if schemes:
+                filter_info["data_schemes"] = schemes
+            if mime_types:
+                filter_info["data_types"] = mime_types
 
         if filter_info:
             filters.append(filter_info)

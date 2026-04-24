@@ -77,15 +77,16 @@ def _flatten_intents(comp: ComponentInfo) -> List[Dict[str, Optional[str]]]:
         actions = f.get("actions") or [None]
         categories = f.get("categories") or [None]
         schemes = f.get("data_schemes") or [None]
-        # data_type (MIME) is not yet extracted by androguard_analyzer
-        # (Day 3+ scope). Emit None for now to keep the schema stable.
-        for action, category, scheme in product(actions, categories, schemes):
+        data_types = f.get("data_types") or [None]
+        for action, category, scheme, mime in product(
+            actions, categories, schemes, data_types
+        ):
             rows.append({
                 "component": comp.name,
                 "action": action,
                 "category": category,
                 "data_scheme": scheme,
-                "data_type": None,
+                "data_type": mime,
                 "permission": perm,
             })
     return rows

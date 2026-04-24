@@ -51,6 +51,16 @@ def _ag_result() -> AnalysisResult:
             }],
         ),
         ComponentInfo(
+            type="activity",
+            name="com.example.ShareActivity",
+            exported=True,
+            intent_filters=[{
+                "actions": ["android.intent.action.SEND"],
+                "categories": ["android.intent.category.DEFAULT"],
+                "data_types": ["image/*"],
+            }],
+        ),
+        ComponentInfo(
             type="service",
             name="com.example.SyncService",
             exported=True,
@@ -96,7 +106,10 @@ def test_build_features_shape(monkeypatch, tmp_path):
     ]
 
     comps: Dict[str, List[str]] = features["components"]
-    assert comps["activities"] == ["com.example.MainActivity"]
+    assert comps["activities"] == [
+        "com.example.MainActivity",
+        "com.example.ShareActivity",
+    ]
     assert comps["services"] == ["com.example.SyncService"]
     assert comps["providers"] == ["com.example.UserProvider"]
     assert comps["receivers"] == ["com.example.BootReceiver"]
@@ -105,6 +118,7 @@ def test_build_features_shape(monkeypatch, tmp_path):
     assert "com.example.UserProvider" not in features["exported_unprotected"]
     assert set(features["exported_unprotected"]) == {
         "com.example.MainActivity",
+        "com.example.ShareActivity",
         "com.example.SyncService",
         "com.example.BootReceiver",
     }
@@ -133,6 +147,18 @@ def test_intents_flattened(monkeypatch, tmp_path):
     assert boot_row["component"] == "com.example.BootReceiver"
     assert boot_row["category"] is None
     assert boot_row["permission"] is None
+
+    send_row = next(
+        i for i in intents if i["action"] == "android.intent.action.SEND"
+    )
+    assert send_row == {
+        "component": "com.example.ShareActivity",
+        "action": "android.intent.action.SEND",
+        "category": "android.intent.category.DEFAULT",
+        "data_scheme": None,
+        "data_type": "image/*",
+        "permission": None,
+    }
 
 
 def test_build_features_raises_when_androguard_missing(monkeypatch, tmp_path):
@@ -174,3 +200,54 @@ def test_cli_returns_error_code_for_missing_apk(tmp_path, capsys):
     rc = pm.main([str(tmp_path / "nope.apk")])
     assert rc == 2
     assert "not found" in capsys.readouterr().err
+
+
+# ── Unit test for the XML-level extractor ─────────────────────────────────────
+# Guards the contract that _extract_intent_filters actually pulls
+# android:mimeType from <data> elements. If this breaks, parse_manifest's
+# data_type column silently goes back to None.
+
+def test_extract_intent_filters_captures_mimetype():
+    from xml.etree import ElementTree as ET
+
+    from app.extractors.androguard_analyzer import _extract_intent_filters
+
+    xml = """
+    <activity xmlns:android="http://schemas.android.com/apk/res/android">
+      <intent-filter>
+        <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <data android:mimeType="image/*"/>
+        <data android:scheme="content"/>
+      </intent-filter>
+    </activity>
+    """
+    elem = ET.fromstring(xml)
+    filters = _extract_intent_filters(elem)
+
+    assert len(filters) == 1
+    f = filters[0]
+    assert f["actions"] == ["android.intent.action.SEND"]
+    assert f["categories"] == ["android.intent.category.DEFAULT"]
+    assert f["data_schemes"] == ["content"]
+    assert f["data_types"] == ["image/*"]
+
+
+def test_extract_intent_filters_omits_empty_data_keys():
+    """When <data> has neither scheme nor mimeType, the dict should not
+    contain empty data_schemes / data_types keys."""
+    from xml.etree import ElementTree as ET
+
+    from app.extractors.androguard_analyzer import _extract_intent_filters
+
+    xml = """
+    <activity xmlns:android="http://schemas.android.com/apk/res/android">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN"/>
+      </intent-filter>
+    </activity>
+    """
+    elem = ET.fromstring(xml)
+    filters = _extract_intent_filters(elem)
+
+    assert filters == [{"actions": ["android.intent.action.MAIN"]}]
