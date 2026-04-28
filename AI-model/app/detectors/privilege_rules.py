@@ -57,7 +57,7 @@ COMBO_RULES: List[ComboRule] = [
         }),
         severity="critical",
         title="潛在監控軟體特徵：位置 + 相機 + 麥克風同時宣告",
-        cwe=("CWE-359", "CWE-269"),
+        cwe=("CWE-250",),
         cve_examples=(),
         remediation=(
             "三項高敏感權限同時宣告與監控軟體特徵高度吻合。"
@@ -74,7 +74,7 @@ COMBO_RULES: List[ComboRule] = [
         }),
         severity="critical",
         title="簡訊竊取風險：READ_SMS + INTERNET",
-        cwe=("CWE-359", "CWE-319"),
+        cwe=("CWE-200", "CWE-319"),
         cve_examples=(),
         remediation=(
             "讀取簡訊並同時具備網路存取能力，可將 OTP / 私人簡訊外傳。"
@@ -90,7 +90,7 @@ COMBO_RULES: List[ComboRule] = [
         }),
         severity="critical",
         title="麥克風錄音外傳風險：RECORD_AUDIO + INTERNET",
-        cwe=("CWE-359", "CWE-319"),
+        cwe=("CWE-359", "CWE-200"),
         cve_examples=(),
         remediation=(
             "應用程式可在背景錄音並透過網路上傳。"
@@ -107,7 +107,7 @@ COMBO_RULES: List[ComboRule] = [
         }),
         severity="high",
         title="通訊錄外洩風險：READ_CONTACTS + INTERNET",
-        cwe=("CWE-359",),
+        cwe=("CWE-359","CWE-200"),
         cve_examples=(),
         remediation=(
             "讀取通訊錄與網路存取組合具備資料外洩能力。"
@@ -124,7 +124,7 @@ COMBO_RULES: List[ComboRule] = [
         }),
         severity="high",
         title="通話攔截風險：READ_CALL_LOG + RECORD_AUDIO",
-        cwe=("CWE-359", "CWE-269"),
+        cwe=("CWE-862",),
         cve_examples=(),
         remediation=(
             "通話記錄與錄音權限組合可用於攔截並記錄通話。"
@@ -140,7 +140,7 @@ COMBO_RULES: List[ComboRule] = [
         }),
         severity="critical",
         title="覆蓋攻擊風險：SYSTEM_ALERT_WINDOW + BIND_ACCESSIBILITY_SERVICE",
-        cwe=("CWE-1021", "CWE-269"),
+        cwe=("CWE-1021", "CWE-451"),
         cve_examples=(),
         remediation=(
             "覆蓋視窗與無障礙服務組合是 Clickjacking 和憑證竊取的常見手法。"
