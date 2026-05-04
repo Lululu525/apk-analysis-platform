@@ -40,21 +40,3 @@ def _resolve_file_type(req: AnalyzeRequest) -> FileType:
             return detect(path)
 
     return "unknown"
-
-
-# ── kept for backward-compatibility (old pipeline.run_cli callers) ────────────
-
-from typing import Tuple
-import json
-
-from .schemas import AnalyzeReport
-
-
-def run_cli(input_json: Path, report_json: Path, output_dir: Path | None = None) -> Tuple[AnalyzeReport, str]:
-    from .schemas import AnalyzeRequest
-    data = json.loads(input_json.read_text(encoding="utf-8"))
-    req = AnalyzeRequest.model_validate(data)
-    report = run_pipeline(req, output_dir=output_dir)
-    report_json.parent.mkdir(parents=True, exist_ok=True)
-    report_json.write_text(report.model_dump_json(indent=2), encoding="utf-8")
-    return report, report_json.as_posix()

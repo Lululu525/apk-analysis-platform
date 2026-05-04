@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Literal, List, Dict, Any
+from typing import Literal, Any
 from pydantic import BaseModel, Field, ConfigDict
 
 Severity = Literal["critical", "high", "medium", "low", "info"]
@@ -11,25 +11,20 @@ class ExtensibleSchema(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class StrictSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    schema_version: str = "1.0"
-
-
 class FirmwareInfo(ExtensibleSchema):
     name: str
-    sha256: Optional[str] = None
-    uri: Optional[str] = None
-    file_path: Optional[str] = None
-    size_bytes: Optional[int] = None
-    file_type: Optional[str] = None
+    sha256: str | None = None
+    uri: str | None = None
+    file_path: str | None = None
+    size_bytes: int | None = None
+    file_type: str | None = None
 
 
 class DeviceMeta(ExtensibleSchema):
-    vendor: Optional[str] = None
-    model: Optional[str] = None
-    firmware_version: Optional[str] = None
-    arch_hint: Optional[str] = None
+    vendor: str | None = None
+    model: str | None = None
+    firmware_version: str | None = None
+    arch_hint: str | None = None
 
 
 class Options(ExtensibleSchema):
@@ -41,9 +36,9 @@ class Options(ExtensibleSchema):
 class AnalyzeRequest(ExtensibleSchema):
     schema_version: str = "1.0"
     job_id: str
-    submitted_at: Optional[str] = None
+    submitted_at: str | None = None
     firmware: FirmwareInfo
-    device_meta: Optional[DeviceMeta] = None
+    device_meta: DeviceMeta | None = None
     options: Options = Field(default_factory=Options)
 
 
@@ -53,32 +48,33 @@ class Finding(ExtensibleSchema):
     severity: Severity
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     category: str
-    evidence: Dict[str, Any] = Field(default_factory=dict)
-    remediation: Optional[str] = None
-    cwe: List[str] = Field(default_factory=list)
-    cve_examples: List[str] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    remediation: str | None = None
+    cwe: list[str] = Field(default_factory=list)
+    cve_examples: list[str] = Field(default_factory=list)
 
-    description: Optional[str] = None
-    exploitability: Optional[float] = None
-    impact: Optional[float] = None
-    exposure: Optional[float] = None
-    data_sensitivity: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
-    score_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    description: str | None = None
+    exploitability: float | None = None
+    impact: float | None = None
+    exposure: float | None = None
+    data_sensitivity: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    score_breakdown: dict[str, Any] = Field(default_factory=dict)
 
 
-class ReportSummary(StrictSchema):
+class ReportSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     risk_score: int = Field(ge=0, le=100)
     risk_level: str = "Info"
-    counts: Dict[Severity, int] = Field(default_factory=dict)
+    counts: dict[Severity, int] = Field(default_factory=dict)
 
 
 class Artifacts(ExtensibleSchema):
-    logs_path: Optional[str] = None
-    extracted_path: Optional[str] = None
-    features_path: Optional[str] = None
-    strings_path: Optional[str] = None
-    pdf_path: Optional[str] = None
+    logs_path: str | None = None
+    extracted_path: str | None = None
+    features_path: str | None = None
+    strings_path: str | None = None
+    pdf_path: str | None = None
 
 
 class AnalyzeReport(ExtensibleSchema):
@@ -88,6 +84,6 @@ class AnalyzeReport(ExtensibleSchema):
     started_at: str
     finished_at: str
     summary: ReportSummary
-    findings: List[Finding] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
     artifacts: Artifacts = Field(default_factory=Artifacts)
-    errors: List[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
