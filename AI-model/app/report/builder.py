@@ -94,7 +94,7 @@ def _infer_data_sensitivity(finding: Finding) -> str:
 
     haystack = " ".join(
         [
-            finding.finding_id or "",
+            finding.id or "",
             finding.title or "",
             finding.description or "",
             finding.category or "",
@@ -137,7 +137,7 @@ def _infer_exploitability(finding: Finding) -> float:
     tags = {tag.strip().lower() for tag in finding.tags if tag}
     text = " ".join(
         [
-            finding.finding_id or "",
+            finding.id or "",
             finding.title or "",
             finding.description or "",
             finding.category or "",
@@ -189,7 +189,7 @@ def _infer_exposure(finding: Finding) -> float:
 
     text = " ".join(
         [
-            finding.finding_id or "",
+            finding.id or "",
             finding.title or "",
             finding.description or "",
             finding.category or "",
@@ -236,7 +236,7 @@ def _infer_permission_tags(findings: List[Finding]) -> Set[str]:
     for finding in findings:
         text = " ".join(
             [
-                finding.finding_id or "",
+                finding.id or "",
                 finding.title or "",
                 finding.description or "",
                 finding.category or "",
@@ -280,7 +280,7 @@ def _overprivilege_bonus(findings: List[Finding]) -> float:
     for finding in findings:
         text = " ".join(
             [
-                finding.finding_id or "",
+                finding.id or "",
                 finding.title or "",
                 finding.description or "",
                 finding.category or "",
@@ -299,7 +299,7 @@ def _exposed_component_bonus(findings: List[Finding]) -> float:
     for finding in findings:
         text = " ".join(
             [
-                finding.finding_id or "",
+                finding.id or "",
                 finding.title or "",
                 finding.description or "",
                 finding.category or "",

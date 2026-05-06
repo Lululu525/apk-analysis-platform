@@ -43,10 +43,6 @@ def main() -> None:
 
     output = report.model_dump()
 
-    # Backend reads finding.get("id") — map finding_id → id
-    for finding in output.get("findings", []):
-        finding["id"] = finding.get("finding_id", "")
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(output, ensure_ascii=False, indent=2),
