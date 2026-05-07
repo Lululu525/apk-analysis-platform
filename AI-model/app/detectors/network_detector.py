@@ -188,7 +188,7 @@ def scan_filesystem(root: Path) -> list[Finding]:
             for pat in rule["patterns"]:
                 if pat.search(text):
                     findings.append(Finding(
-                        finding_id=rule_id,
+                        id=rule_id,
                         title=rule["title"],
                         severity=rule["severity"],
                         confidence=0.75,
@@ -223,7 +223,7 @@ def scan_strings(strings_list: list[str]) -> list[Finding]:
         for pat in rule["patterns"]:
             if pat.search(text):
                 findings.append(Finding(
-                    finding_id=rule_id,
+                    id=rule_id,
                     title=rule["title"],
                     severity=rule["severity"],
                     confidence=0.6,   # lower confidence without FS context

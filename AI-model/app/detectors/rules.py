@@ -221,7 +221,7 @@ def scan_text_for_rules(text: str) -> list[Finding]:
 
         if re.search(rule.pattern, text, flags=re.IGNORECASE):
             findings.append(Finding(
-                finding_id=rule.rule_id,
+                id=rule.rule_id,
                 title=_title(rule.rule_id),
                 severity=rule.severity,
                 confidence=0.75,

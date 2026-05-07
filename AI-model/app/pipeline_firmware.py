@@ -81,7 +81,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
     # > 7.8 = almost certainly encrypted (random-looking)
     if entropy > 7.5:
         findings.append(Finding(
-            finding_id="HIGH_ENTROPY_ENCRYPTED",
+            id="HIGH_ENTROPY_ENCRYPTED",
             title="Firmware appears to be encrypted or heavily compressed",
             severity="medium",
             confidence=min(1.0, round((entropy - 7.5) / 0.5, 2)),  # scales 0→1 as entropy 7.5→8.0
@@ -111,7 +111,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
 
         if bw_result.tool_missing:
             findings.append(Finding(
-                finding_id="TOOL_BINWALK_MISSING",
+                id="TOOL_BINWALK_MISSING",
                 title="binwalk not installed — filesystem extraction skipped",
                 severity="info",
                 confidence=1.0,
@@ -163,7 +163,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         findings.extend(cs_findings)
     if not checksec_available:
         findings.append(Finding(
-            finding_id="TOOL_CHECKSEC_MISSING",
+            id="TOOL_CHECKSEC_MISSING",
             title="checksec not installed — binary hardening checks skipped",
             severity="info",
             confidence=1.0,

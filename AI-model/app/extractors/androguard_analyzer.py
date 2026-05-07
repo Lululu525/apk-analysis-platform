@@ -436,7 +436,7 @@ def to_findings(result: AnalysisResult) -> List[Finding]:
             if not perms:
                 continue
             findings.append(Finding(
-                finding_id=f"DANGEROUS_PERMISSIONS_{risk_label.replace('風險', '')}",
+                id=f"DANGEROUS_PERMISSIONS_{risk_label.replace('風險', '')}",
                 title=f"聲明 {risk_label} 權限（{len(perms)} 項）",
                 severity=severity,
                 confidence=1.0,
@@ -466,7 +466,7 @@ def to_findings(result: AnalysisResult) -> List[Finding]:
 
         for comp_type, comps in by_type.items():
             findings.append(Finding(
-                finding_id=f"EXPORTED_UNPROTECTED_{comp_type.upper()}",
+                id=f"EXPORTED_UNPROTECTED_{comp_type.upper()}",
                 title=f"未受保護的導出 {comp_type}（{len(comps)} 個）",
                 severity=_COMP_SEV[comp_type],
                 confidence=0.95,
@@ -487,7 +487,7 @@ def to_findings(result: AnalysisResult) -> List[Finding]:
     # ── 3. Sensitive API calls ────────────────────────────────────────────
     if result.sensitive_api_calls:
         findings.append(Finding(
-            finding_id="SENSITIVE_API_CALLS",
+            id="SENSITIVE_API_CALLS",
             title=f"偵測到敏感 API 呼叫（{len(result.sensitive_api_calls)} 個）",
             severity="medium",
             confidence=0.75,
@@ -503,7 +503,7 @@ def to_findings(result: AnalysisResult) -> List[Finding]:
     # ── 4. Outdated target SDK ────────────────────────────────────────────
     if result.target_sdk and result.target_sdk < 23:
         findings.append(Finding(
-            finding_id="LOW_TARGET_SDK",
+            id="LOW_TARGET_SDK",
             title=f"targetSdkVersion 過舊（API {result.target_sdk}）",
             severity="medium",
             confidence=1.0,

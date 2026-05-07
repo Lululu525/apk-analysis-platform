@@ -71,7 +71,7 @@ def test_combo_sms_exfil_surfaced_through_pipeline(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
 
     report = run_pipeline(_make_request(apk, "sms-exfil-job"), output_dir=tmp_path / "out")
-    ids = {f.finding_id for f in report.findings}
+    ids = {f.id for f in report.findings}
 
     assert report.status == "success"
     assert "COMBO_SMS_EXFIL" in ids
@@ -95,7 +95,7 @@ def test_ipc_service_hijack_surfaced_through_pipeline(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
 
     report = run_pipeline(_make_request(apk, "service-hijack-job"), output_dir=tmp_path / "out")
-    ids = {f.finding_id for f in report.findings}
+    ids = {f.id for f in report.findings}
 
     assert report.status == "success"
     assert "IPC_SERVICE_HIJACK" in ids
@@ -119,7 +119,7 @@ def test_ipc_provider_redelegation_surfaced_through_pipeline(tmp_path, monkeypat
     monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
 
     report = run_pipeline(_make_request(apk, "provider-job"), output_dir=tmp_path / "out")
-    ids = {f.finding_id for f in report.findings}
+    ids = {f.id for f in report.findings}
 
     assert report.status == "success"
     assert "IPC_PROVIDER_REDELEGATION" in ids
@@ -168,7 +168,7 @@ def test_old_apk_rules_finding_ids_no_longer_appear(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
 
     report = run_pipeline(_make_request(apk, "legacy-job"), output_dir=tmp_path / "out")
-    ids = {f.finding_id for f in report.findings}
+    ids = {f.id for f in report.findings}
 
     assert "APK_SMS_EXFILTRATION" not in ids
     assert "APK_HIGH_RISK_PERMISSION_READ_SMS" not in ids
@@ -225,7 +225,7 @@ def test_androguard_missing_produces_info_finding(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", False)
 
     report = run_pipeline(_make_request(apk, "no-ag-job"))
-    ids = {f.finding_id for f in report.findings}
+    ids = {f.id for f in report.findings}
 
     assert report.status == "success"
     assert "TOOL_ANDROGUARD_MISSING" in ids

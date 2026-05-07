@@ -106,7 +106,7 @@ def _append_unique_tags(finding: Finding, tags: list[str]) -> None:
 def _infer_android_context_for_finding(finding: Finding) -> None:
     haystack = " ".join(
         [
-            finding.finding_id or "",
+            finding.id or "",
             finding.title or "",
             finding.description or "",
             finding.category or "",
@@ -316,7 +316,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         else:
             findings.append(
                 Finding(
-                    finding_id="ANDROGUARD_PARSE_ERROR",
+                    id="ANDROGUARD_PARSE_ERROR",
                     title="Androguard could not parse this APK manifest",
                     severity="info",
                     confidence=1.0,
@@ -332,7 +332,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
     else:
         findings.append(
             Finding(
-                finding_id="TOOL_ANDROGUARD_MISSING",
+                id="TOOL_ANDROGUARD_MISSING",
                 title="Androguard is not installed - manifest, permission, and component analysis skipped",
                 severity="info",
                 confidence=1.0,

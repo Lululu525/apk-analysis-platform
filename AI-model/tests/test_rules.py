@@ -4,11 +4,11 @@ from app.detectors.rules import scan_text_for_rules
 
 
 def _ids(findings):
-    return {f.finding_id for f in findings}
+    return {f.id for f in findings}
 
 
 def _by_id(findings, fid):
-    return next((f for f in findings if f.finding_id == fid), None)
+    return next((f for f in findings if f.id == fid), None)
 
 
 # ── individual rule triggers ───────────────────────────────────────────────────
@@ -68,7 +68,7 @@ def test_dedup_same_rule_fires_once():
     # Two password patterns in same text → one finding
     text = 'password="abc"\npassword="def"'
     findings = scan_text_for_rules(text)
-    pw_findings = [f for f in findings if f.finding_id == "HARDCODED_PASSWORD"]
+    pw_findings = [f for f in findings if f.id == "HARDCODED_PASSWORD"]
     assert len(pw_findings) == 1
 
 

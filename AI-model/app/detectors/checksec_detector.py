@@ -85,7 +85,7 @@ def _protection_to_findings(bp: BinaryProtection) -> list[Finding]:
 
     if not bp.nx:
         findings.append(Finding(
-            finding_id="CHECKSEC_NO_NX",
+            id="CHECKSEC_NO_NX",
             title="Binary lacks NX/DEP protection",
             severity="high",
             confidence=0.9,
@@ -97,7 +97,7 @@ def _protection_to_findings(bp: BinaryProtection) -> list[Finding]:
 
     if not bp.canary:
         findings.append(Finding(
-            finding_id="CHECKSEC_NO_CANARY",
+            id="CHECKSEC_NO_CANARY",
             title="Binary lacks stack canary",
             severity="medium",
             confidence=0.9,
@@ -109,7 +109,7 @@ def _protection_to_findings(bp: BinaryProtection) -> list[Finding]:
 
     if not bp.pie:
         findings.append(Finding(
-            finding_id="CHECKSEC_NO_PIE",
+            id="CHECKSEC_NO_PIE",
             title="Binary is not position-independent (no PIE/ASLR)",
             severity="medium",
             confidence=0.9,
@@ -121,7 +121,7 @@ def _protection_to_findings(bp: BinaryProtection) -> list[Finding]:
 
     if bp.relro == "none":
         findings.append(Finding(
-            finding_id="CHECKSEC_NO_RELRO",
+            id="CHECKSEC_NO_RELRO",
             title="Binary has no RELRO (GOT overwrite risk)",
             severity="medium",
             confidence=0.85,
@@ -132,7 +132,7 @@ def _protection_to_findings(bp: BinaryProtection) -> list[Finding]:
         ))
     elif bp.relro == "partial":
         findings.append(Finding(
-            finding_id="CHECKSEC_PARTIAL_RELRO",
+            id="CHECKSEC_PARTIAL_RELRO",
             title="Binary has only partial RELRO",
             severity="low",
             confidence=0.85,
@@ -144,7 +144,7 @@ def _protection_to_findings(bp: BinaryProtection) -> list[Finding]:
 
     if bp.rpath or bp.runpath:
         findings.append(Finding(
-            finding_id="CHECKSEC_UNSAFE_RPATH",
+            id="CHECKSEC_UNSAFE_RPATH",
             title="Binary has unsafe RPATH/RUNPATH",
             severity="medium",
             confidence=0.8,

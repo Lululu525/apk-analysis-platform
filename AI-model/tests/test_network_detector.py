@@ -13,7 +13,7 @@ def _make_fs(tmp_path: Path) -> Path:
 
 
 def _ids(findings):
-    return {f.finding_id for f in findings}
+    return {f.id for f in findings}
 
 
 # ── filesystem scan ────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ def test_dedup_same_service_fires_once(tmp_path):
     (fs / "etc" / "inetd.conf").write_text("telnet stream tcp nowait root telnetd\n")
     (init_d / "rcS").write_text("telnetd -l /bin/sh\n")
     findings = scan_filesystem(fs)
-    telnet = [f for f in findings if f.finding_id == "NET_TELNET_ENABLED"]
+    telnet = [f for f in findings if f.id == "NET_TELNET_ENABLED"]
     assert len(telnet) == 1
 
 
