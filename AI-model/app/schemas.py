@@ -43,7 +43,7 @@ class AnalyzeRequest(ExtensibleSchema):
 
 
 class Finding(ExtensibleSchema):
-    finding_id: str
+    id: str
     title: str
     severity: Severity
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)

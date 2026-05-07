@@ -41,7 +41,7 @@ def _make_component(comp_type, name, exported=True, permissions_required=None,
 
 
 def _ids(findings):
-    return {f.finding_id for f in findings}
+    return {f.id for f in findings}
 
 
 # ── Edge cases ────────────────────────────────────────────────────────────────
@@ -94,14 +94,14 @@ def test_over_privilege_not_fired_at_threshold():
 def test_over_privilege_severity_is_high():
     perms = [f"android.permission.PERM_{i}" for i in range(26)]
     result = _make_result(permissions=perms)
-    finding = next(f for f in check_combinations(result) if f.finding_id == "OVER_PRIVILEGE")
+    finding = next(f for f in check_combinations(result) if f.id == "OVER_PRIVILEGE")
     assert finding.severity == "high"
 
 
 def test_over_privilege_evidence_contains_count():
     perms = [f"android.permission.PERM_{i}" for i in range(30)]
     result = _make_result(permissions=perms)
-    finding = next(f for f in check_combinations(result) if f.finding_id == "OVER_PRIVILEGE")
+    finding = next(f for f in check_combinations(result) if f.id == "OVER_PRIVILEGE")
     assert finding.evidence["permission_count"] == 30
 
 
@@ -183,7 +183,7 @@ def test_combo_severity_critical_for_sms_exfil():
         "android.permission.READ_SMS",
         "android.permission.INTERNET",
     ])
-    finding = next(f for f in check_combinations(result) if f.finding_id == "COMBO_SMS_EXFIL")
+    finding = next(f for f in check_combinations(result) if f.id == "COMBO_SMS_EXFIL")
     assert finding.severity == "critical"
 
 
@@ -192,7 +192,7 @@ def test_combo_evidence_lists_matched_permissions():
         "android.permission.READ_CONTACTS",
         "android.permission.INTERNET",
     ])
-    finding = next(f for f in check_combinations(result) if f.finding_id == "COMBO_CONTACT_EXFIL")
+    finding = next(f for f in check_combinations(result) if f.id == "COMBO_CONTACT_EXFIL")
     matched = set(finding.evidence["matched_permissions"])
     assert "android.permission.READ_CONTACTS" in matched
     assert "android.permission.INTERNET" in matched
@@ -238,7 +238,7 @@ def test_ipc_service_hijack_evidence_lists_service_name():
                                exported=True, permissions_required=None)
     result = _make_result(components=[service])
     finding = next(f for f in check_combinations(result)
-                   if f.finding_id == "IPC_SERVICE_HIJACK")
+                   if f.id == "IPC_SERVICE_HIJACK")
     assert "com.example.SecretService" in finding.evidence["services"]
 
 
@@ -330,7 +330,7 @@ def test_ipc_confused_deputy_evidence_lists_perms_and_activities():
         components=[activity],
     )
     finding = next(f for f in check_combinations(result)
-                   if f.finding_id == "IPC_CONFUSED_DEPUTY")
+                   if f.id == "IPC_CONFUSED_DEPUTY")
     assert "com.example.DeputyActivity" in finding.evidence["unprotected_activities"]
     assert "android.permission.CAMERA" in finding.evidence["dangerous_permissions_held"]
 
@@ -357,5 +357,5 @@ def test_ipc_provider_redelegation_severity_critical():
                                 exported=True, permissions_required=None)
     result = _make_result(components=[provider])
     finding = next(f for f in check_combinations(result)
-                   if f.finding_id == "IPC_PROVIDER_REDELEGATION")
+                   if f.id == "IPC_PROVIDER_REDELEGATION")
     assert finding.severity == "critical"

@@ -13,7 +13,7 @@ def _make_fs(tmp_path: Path) -> Path:
 
 
 def _ids(findings):
-    return {f.finding_id for f in findings}
+    return {f.id for f in findings}
 
 
 # ── /etc/passwd ────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ def test_passwd_empty_password(tmp_path):
     )
     findings = scan_filesystem(fs)
     assert "FS_PASSWD_EMPTY" in _ids(findings)
-    f = next(f for f in findings if f.finding_id == "FS_PASSWD_EMPTY")
+    f = next(f for f in findings if f.id == "FS_PASSWD_EMPTY")
     assert f.severity == "critical"
     assert "CWE-798" in f.cwe
 
@@ -60,7 +60,7 @@ def test_shadow_md5_hash(tmp_path):
     )
     findings = scan_filesystem(fs)
     assert "FS_SHADOW_WEAK_HASH" in _ids(findings)
-    f = next(f for f in findings if f.finding_id == "FS_SHADOW_WEAK_HASH")
+    f = next(f for f in findings if f.id == "FS_SHADOW_WEAK_HASH")
     assert "CWE-916" in f.cwe
 
 
@@ -73,7 +73,7 @@ def test_wifi_psk_in_wpa_supplicant(tmp_path):
     )
     findings = scan_filesystem(fs)
     assert "FS_WIFI_PSK_HARDCODED" in _ids(findings)
-    f = next(f for f in findings if f.finding_id == "FS_WIFI_PSK_HARDCODED")
+    f = next(f for f in findings if f.id == "FS_WIFI_PSK_HARDCODED")
     assert "CWE-798" in f.cwe
 
 
@@ -86,7 +86,7 @@ def test_private_key_in_etc(tmp_path):
     )
     findings = scan_filesystem(fs)
     assert "FS_PRIVATE_KEY_EMBEDDED" in _ids(findings)
-    f = next(f for f in findings if f.finding_id == "FS_PRIVATE_KEY_EMBEDDED")
+    f = next(f for f in findings if f.id == "FS_PRIVATE_KEY_EMBEDDED")
     assert f.severity == "critical"
     assert "CWE-321" in f.cwe
 
@@ -109,7 +109,7 @@ def test_world_writable_config(tmp_path):
     cfg.chmod(0o666)
     findings = scan_filesystem(fs)
     assert "FS_WORLD_WRITABLE_CONFIG" in _ids(findings)
-    f = next(f for f in findings if f.finding_id == "FS_WORLD_WRITABLE_CONFIG")
+    f = next(f for f in findings if f.id == "FS_WORLD_WRITABLE_CONFIG")
     assert "CWE-732" in f.cwe
 
 

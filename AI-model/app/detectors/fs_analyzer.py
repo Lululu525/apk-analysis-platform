@@ -102,7 +102,7 @@ def _scan_passwd(content: str, rel: str) -> list[Finding]:
     if _PASSWD_EMPTY_RE.search(content):
         m = _PASSWD_EMPTY_RE.findall(content)
         findings.append(Finding(
-            finding_id="FS_PASSWD_EMPTY",
+            id="FS_PASSWD_EMPTY",
             title="Account with empty password found in /etc/passwd",
             severity="critical",
             confidence=0.95,
@@ -115,7 +115,7 @@ def _scan_passwd(content: str, rel: str) -> list[Finding]:
 
     if _PASSWD_ROOT_SHELL.search(content):
         findings.append(Finding(
-            finding_id="FS_ROOT_SHELL",
+            id="FS_ROOT_SHELL",
             title="root account has a login shell enabled",
             severity="high",
             confidence=0.9,
@@ -134,7 +134,7 @@ def _scan_shadow(content: str, rel: str) -> list[Finding]:
     if weak:
         accounts = [a for a, _ in weak[:5]]
         findings.append(Finding(
-            finding_id="FS_SHADOW_WEAK_HASH",
+            id="FS_SHADOW_WEAK_HASH",
             title="Weak password hash (MD5/DES) in /etc/shadow",
             severity="high",
             confidence=0.9,
@@ -152,7 +152,7 @@ def _scan_wifi(content: str, rel: str) -> list[Finding]:
     psk_matches = _WIFI_PSK_RE.findall(content)
     if psk_matches:
         findings.append(Finding(
-            finding_id="FS_WIFI_PSK_HARDCODED",
+            id="FS_WIFI_PSK_HARDCODED",
             title="Hardcoded Wi-Fi PSK found in firmware",
             severity="high",
             confidence=0.85,
@@ -168,7 +168,7 @@ def _scan_wifi(content: str, rel: str) -> list[Finding]:
 def _scan_private_key(content: str, rel: str) -> list[Finding]:
     if _PRIVATE_KEY_RE.search(content):
         return [Finding(
-            finding_id="FS_PRIVATE_KEY_EMBEDDED",
+            id="FS_PRIVATE_KEY_EMBEDDED",
             title="Private key material embedded in firmware",
             severity="critical",
             confidence=0.95,
@@ -184,7 +184,7 @@ def _scan_private_key(content: str, rel: str) -> list[Finding]:
 def _scan_default_creds(content: str, rel: str) -> list[Finding]:
     if _DEFAULT_CRED_RE.search(content) or _NVRAM_PSK_RE.search(content):
         return [Finding(
-            finding_id="FS_DEFAULT_CREDENTIALS",
+            id="FS_DEFAULT_CREDENTIALS",
             title="Default or hardcoded credentials found in config",
             severity="high",
             confidence=0.8,
@@ -200,7 +200,7 @@ def _scan_default_creds(content: str, rel: str) -> list[Finding]:
 def _scan_world_writable(path: Path, rel: str) -> list[Finding]:
     if _is_world_writable(path):
         return [Finding(
-            finding_id="FS_WORLD_WRITABLE_CONFIG",
+            id="FS_WORLD_WRITABLE_CONFIG",
             title="Sensitive config file is world-writable",
             severity="medium",
             confidence=0.85,
@@ -250,14 +250,14 @@ def scan_filesystem(root: Path) -> list[Finding]:
 
         for scanner in set(scanners):  # dedup scanner list per file
             for f in scanner(content, rel):
-                if f.finding_id not in seen_ids:
+                if f.id not in seen_ids:
                     all_findings.append(f)
-                    seen_ids.add(f.finding_id)
+                    seen_ids.add(f.id)
 
         # Permission check (independent of content)
         for f in _scan_world_writable(fpath, rel):
-            if f.finding_id + rel not in seen_ids:
+            if f.id + rel not in seen_ids:
                 all_findings.append(f)
-                seen_ids.add(f.finding_id + rel)
+                seen_ids.add(f.id + rel)
 
     return all_findings

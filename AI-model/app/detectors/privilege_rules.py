@@ -248,7 +248,7 @@ def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
     perm_count = len(permission_names)
     if perm_count > OVER_PRIVILEGE_THRESHOLD:
         findings.append(Finding(
-            finding_id="OVER_PRIVILEGE",
+            id="OVER_PRIVILEGE",
             title=f"過度宣告權限（{perm_count} 項，超過惡意 App 統計基準值 {OVER_PRIVILEGE_THRESHOLD}）",
             severity="high",
             confidence=0.85,
@@ -270,7 +270,7 @@ def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
     for rule in COMBO_RULES:
         if rule.required_perms.issubset(permission_names):
             findings.append(Finding(
-                finding_id=rule.rule_id,
+                id=rule.rule_id,
                 title=rule.title,
                 severity=rule.severity,
                 confidence=0.9,
@@ -290,7 +290,7 @@ def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
     ]
     if unprotected_services:
         findings.append(Finding(
-            finding_id="IPC_SERVICE_HIJACK",
+            id="IPC_SERVICE_HIJACK",
             title=f"Service Hijacking 風險：{len(unprotected_services)} 個 exported service 無權限保護",
             severity="high",
             confidence=0.9,
@@ -318,7 +318,7 @@ def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
         if matched_actions:
             short_name = comp.name.rsplit(".", 1)[-1].upper()
             findings.append(Finding(
-                finding_id=f"IPC_BROADCAST_THEFT_{short_name}",
+                id=f"IPC_BROADCAST_THEFT_{short_name}",
                 title=f"Broadcast Theft 風險：{comp.name} 可攔截系統敏感廣播",
                 severity="high",
                 confidence=0.85,
@@ -349,7 +349,7 @@ def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
         ]
         if unprotected_activities:
             findings.append(Finding(
-                finding_id="IPC_CONFUSED_DEPUTY",
+                id="IPC_CONFUSED_DEPUTY",
                 title=(
                     f"Confused Deputy 風險：{len(unprotected_activities)} 個 exported activity"
                     " 可被 Intent Spoofing 利用以繞過權限管制"
@@ -381,7 +381,7 @@ def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
     ]
     if unprotected_providers:
         findings.append(Finding(
-            finding_id="IPC_PROVIDER_REDELEGATION",
+            id="IPC_PROVIDER_REDELEGATION",
             title=f"ContentProvider 越權存取：{len(unprotected_providers)} 個 provider 無讀寫權限保護",
             severity="critical",
             confidence=0.95,
