@@ -33,7 +33,6 @@ def main() -> None:
         ),
         options=Options(
             run_static_scan=opts.get("run_static_scan", True),
-            run_behavior_analysis=opts.get("run_behavior_analysis", False),
             severity_threshold=opts.get("severity_threshold", "medium"),
         ),
     )

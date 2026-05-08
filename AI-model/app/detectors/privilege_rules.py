@@ -18,7 +18,6 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Set, Tuple
 
 from ..schemas import Finding, Severity
 from ..extractors.androguard_analyzer import AnalysisResult, ComponentInfo
@@ -40,12 +39,12 @@ class ComboRule:
     required_perms: frozenset[str]
     severity: Severity
     title: str
-    cwe: Tuple[str, ...]
-    cve_examples: Tuple[str, ...]
+    cwe: tuple[str, ...]
+    cve_examples: tuple[str, ...]
     remediation: str
 
 
-COMBO_RULES: List[ComboRule] = [
+COMBO_RULES: list[ComboRule] = [
     # Stalkerware: location + camera + microphone simultaneously declared
     # AndroCom [1]: Privilege Escalation (Critical)
     ComboRule(
@@ -178,7 +177,7 @@ COMBO_RULES: List[ComboRule] = [
 
 # Sensitive system broadcasts that should not be freely receivable
 # Source [2] Section 3.1: SMS_RECEIVED and BOOT_COMPLETED cited as primary examples
-SENSITIVE_BROADCAST_ACTIONS: Set[str] = {
+SENSITIVE_BROADCAST_ACTIONS: set[str] = {
     "android.provider.Telephony.SMS_RECEIVED",
     "android.intent.action.BOOT_COMPLETED",
     "android.net.conn.CONNECTIVITY_CHANGE",
@@ -193,7 +192,7 @@ SENSITIVE_BROADCAST_ACTIONS: Set[str] = {
 # indicate a Confused Deputy / permission re-delegation risk
 # Source [2] Section 3.2: re-delegation = victim app uses its permissions on behalf
 # of a caller that does not hold those permissions
-DANGEROUS_PERMS_FOR_DEPUTY: Set[str] = {
+DANGEROUS_PERMS_FOR_DEPUTY: set[str] = {
     "android.permission.READ_SMS",
     "android.permission.SEND_SMS",
     "android.permission.READ_CONTACTS",
@@ -208,9 +207,9 @@ DANGEROUS_PERMS_FOR_DEPUTY: Set[str] = {
 }
 
 
-def _get_intent_actions(component: ComponentInfo) -> Set[str]:
+def _get_intent_actions(component: ComponentInfo) -> set[str]:
     """Return all declared intent-filter actions for a component."""
-    actions: Set[str] = set()
+    actions: set[str] = set()
     if not component.intent_filters:
         return actions
     for f in component.intent_filters:
@@ -225,7 +224,7 @@ def _get_intent_actions(component: ComponentInfo) -> Set[str]:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
+def check_combinations(result: AnalysisResult | None) -> list[Finding]:
     """
     Run all three layers of privilege escalation rules against an AnalysisResult.
 
@@ -238,11 +237,11 @@ def check_combinations(result: Optional[AnalysisResult]) -> List[Finding]:
     if not result or not result.success:
         return []
 
-    findings: List[Finding] = []
+    findings: list[Finding] = []
 
     # Normalize: permissions is Dict[str, PermissionInfo] — keys are permission names
-    permission_names: Set[str] = set(result.permissions.keys()) if result.permissions else set()
-    components: List[ComponentInfo] = result.components or []
+    permission_names: set[str] = set(result.permissions.keys()) if result.permissions else set()
+    components: list[ComponentInfo] = result.components or []
 
     # ── Layer 1: Over-privilege ───────────────────────────────────────────────
     perm_count = len(permission_names)

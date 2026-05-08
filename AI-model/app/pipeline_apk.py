@@ -116,32 +116,12 @@ def _infer_android_context_for_finding(finding: Finding) -> None:
     ).lower()
 
     tags: list[str] = []
-    data_sensitivity: str | None = finding.data_sensitivity
-    exploitability = finding.exploitability
-    impact = finding.impact
-    exposure = finding.exposure
 
     permission = (finding.evidence or {}).get("permission")
     if isinstance(permission, str) and permission:
         tags.append("dangerous_permission")
         tags.append(permission.lower())
         tags.append(_safe_slug(permission))
-
-        permission_lower = permission.lower()
-        if "read_sms" in permission_lower or "send_sms" in permission_lower:
-            data_sensitivity = data_sensitivity or "sms"
-            impact = impact or 1.40
-        elif "read_contacts" in permission_lower:
-            data_sensitivity = data_sensitivity or "contacts"
-            impact = impact or 1.30
-        elif "record_audio" in permission_lower:
-            data_sensitivity = data_sensitivity or "microphone"
-            impact = impact or 1.30
-        elif "fine_location" in permission_lower:
-            data_sensitivity = data_sensitivity or "location"
-            impact = impact or 1.30
-        elif "internet" in permission_lower:
-            data_sensitivity = data_sensitivity or "network"
 
     permissions = (finding.evidence or {}).get("permissions")
     if isinstance(permissions, list):
@@ -155,44 +135,20 @@ def _infer_android_context_for_finding(finding: Finding) -> None:
         if any("internet" in perm for perm in lowered_permissions):
             tags.append("network_exfiltration")
 
-        if any("read_sms" in perm for perm in lowered_permissions):
-            data_sensitivity = data_sensitivity or "sms"
-            impact = impact or 1.50
-
-        if any("read_contacts" in perm for perm in lowered_permissions):
-            data_sensitivity = data_sensitivity or "contacts"
-            impact = max(impact or 1.0, 1.30)
-
-        if any("record_audio" in perm for perm in lowered_permissions):
-            data_sensitivity = data_sensitivity or "microphone"
-            impact = max(impact or 1.0, 1.30)
-
-        if any("fine_location" in perm for perm in lowered_permissions):
-            data_sensitivity = data_sensitivity or "location"
-            impact = max(impact or 1.0, 1.30)
-
     if "exported" in haystack:
         tags.append("exported_component")
-        exploitability = exploitability or 1.20
-        exposure = exposure or 1.15
 
     if "unprotected" in haystack:
         tags.append("unprotected_component")
-        exploitability = max(exploitability or 1.0, 1.25)
-        exposure = max(exposure or 1.0, 1.20)
 
     if "provider" in haystack:
         tags.append("provider")
-        exploitability = max(exploitability or 1.0, 1.25)
-        exposure = max(exposure or 1.0, 1.20)
 
     if "service" in haystack:
         tags.append("service")
-        exploitability = max(exploitability or 1.0, 1.20)
 
     if "receiver" in haystack:
         tags.append("receiver")
-        exploitability = max(exploitability or 1.0, 1.10)
 
     if "activity" in haystack:
         tags.append("activity")
@@ -200,22 +156,16 @@ def _infer_android_context_for_finding(finding: Finding) -> None:
     if "runtime.exec" in haystack or "command" in haystack:
         tags.append("command_exec")
         tags.append("sensitive_api")
-        exploitability = max(exploitability or 1.0, 1.35)
-        impact = max(impact or 1.0, 1.25)
 
     if "webview" in haystack or "javascriptinterface" in haystack:
         tags.append("sensitive_api")
-        exploitability = max(exploitability or 1.0, 1.20)
 
     if "class.forname" in haystack or "method.invoke" in haystack or "reflection" in haystack:
         tags.append("reflection")
         tags.append("sensitive_api")
-        exploitability = max(exploitability or 1.0, 1.15)
 
     if "too_many_permissions" in haystack or "overprivilege" in haystack or "overprivileged" in haystack:
         tags.append("overprivileged")
-        exploitability = max(exploitability or 1.0, 1.10)
-        impact = max(impact or 1.0, 1.10)
 
     if finding.category == "android_permission":
         tags.append("android_permission")
@@ -227,15 +177,6 @@ def _infer_android_context_for_finding(finding: Finding) -> None:
         tags.append("analysis_limitation")
 
     _append_unique_tags(finding, tags)
-
-    if data_sensitivity:
-        finding.data_sensitivity = data_sensitivity
-    if exploitability is not None:
-        finding.exploitability = exploitability
-    if impact is not None:
-        finding.impact = impact
-    if exposure is not None:
-        finding.exposure = exposure
 
 
 def _enrich_android_findings(findings: list[Finding]) -> list[Finding]:

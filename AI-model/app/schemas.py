@@ -29,7 +29,6 @@ class DeviceMeta(ExtensibleSchema):
 
 class Options(ExtensibleSchema):
     run_static_scan: bool = True
-    run_behavior_analysis: bool = False
     severity_threshold: Severity = "medium"
 
 
@@ -54,10 +53,6 @@ class Finding(ExtensibleSchema):
     cve_examples: list[str] = Field(default_factory=list)
 
     description: str | None = None
-    exploitability: float | None = None
-    impact: float | None = None
-    exposure: float | None = None
-    data_sensitivity: str | None = None
     tags: list[str] = Field(default_factory=list)
     score_breakdown: dict[str, Any] = Field(default_factory=dict)
 
