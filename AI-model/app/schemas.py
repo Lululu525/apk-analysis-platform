@@ -29,7 +29,6 @@ class DeviceMeta(ExtensibleSchema):
 
 class Options(ExtensibleSchema):
     run_static_scan: bool = True
-    run_behavior_analysis: bool = False
     severity_threshold: Severity = "medium"
 
 
