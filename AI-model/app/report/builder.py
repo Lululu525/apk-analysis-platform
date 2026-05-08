@@ -89,9 +89,6 @@ def _normalize_severity(severity: str) -> str:
 
 
 def _infer_data_sensitivity(finding: Finding) -> str:
-    if finding.data_sensitivity:
-        return finding.data_sensitivity.strip().lower()
-
     haystack = " ".join(
         [
             finding.id or "",
@@ -128,9 +125,6 @@ def _infer_data_sensitivity(finding: Finding) -> str:
 
 
 def _infer_exploitability(finding: Finding) -> float:
-    if finding.exploitability is not None:
-        return max(0.5, min(2.0, finding.exploitability))
-
     sev = _normalize_severity(finding.severity)
     value = DEFAULT_EXPLOITABILITY[sev]
 
@@ -166,9 +160,6 @@ def _infer_exploitability(finding: Finding) -> float:
 
 
 def _infer_impact(finding: Finding) -> float:
-    if finding.impact is not None:
-        return max(0.5, min(2.0, finding.impact))
-
     sev = _normalize_severity(finding.severity)
     value = DEFAULT_IMPACT[sev]
     sensitivity = _infer_data_sensitivity(finding)
@@ -178,9 +169,6 @@ def _infer_impact(finding: Finding) -> float:
 
 
 def _infer_exposure(finding: Finding) -> float:
-    if finding.exposure is not None:
-        return max(0.5, min(2.0, finding.exposure))
-
     tags = {tag.strip().lower() for tag in finding.tags if tag}
     modifier = 1.0
 
