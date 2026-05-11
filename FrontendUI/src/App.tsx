@@ -64,21 +64,28 @@ type ResultResponse = {
     findings?: Array<{
       id?: string;
       severity?: string;
-      title?: string;
-      description?: string;
-      remediation?: string;
-      evidence?: string;
+      title?: unknown;
+      description?: unknown;
+      remediation?: unknown;
+      evidence?: unknown;
       score_weight?: number;
     }>;
     artifacts?: {
       pdf_path?: string | null;
       features_path?: string | null;
     };
-    errors?: string[];
+    errors?: unknown[];
   };
 };
 
-const API_BASE = "http://127.0.0.1:8000";
+type ViteImportMeta = ImportMeta & {
+  env?: {
+    VITE_API_BASE_URL?: string;
+  };
+};
+
+const API_BASE =
+  (import.meta as ViteImportMeta).env?.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const statusColorMap: Record<SampleStatus, string> = {
   received: "#94a3b8",
@@ -126,6 +133,40 @@ function formatDate(value?: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
+}
+
+function renderValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => renderValue(item)).join(", ");
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return "-";
+
+    return entries
+      .map(([key, val]) => `${key}: ${renderValue(val)}`)
+      .join(" | ");
+  }
+
+  return String(value);
+}
+
+function hasDisplayValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>).length > 0;
+  }
+  return true;
 }
 
 function escapeRegExp(text: string) {
@@ -312,10 +353,12 @@ function ReportModal({
   open,
   onClose,
   result,
+  onOpenPdf,
 }: {
   open: boolean;
   onClose: () => void;
   result: ResultResponse | null;
+  onOpenPdf: (sampleId: string) => void;
 }) {
   if (!open || !result?.result) return null;
 
@@ -383,19 +426,39 @@ function ReportModal({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            style={{
-              borderRadius: 14,
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
-              padding: "10px 16px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={() => onOpenPdf(result.sample_id)}
+              disabled={result.status !== "finished"}
+              style={{
+                borderRadius: 14,
+                border: "1px solid #dbeafe",
+                background: result.status === "finished" ? "#2563eb" : "#f8fafc",
+                color: result.status === "finished" ? "#ffffff" : "#94a3b8",
+                padding: "10px 16px",
+                fontWeight: 800,
+                cursor: result.status === "finished" ? "pointer" : "not-allowed",
+                boxShadow:
+                  result.status === "finished" ? "0 8px 20px rgba(37,99,235,0.22)" : "none",
+              }}
+            >
+              Download PDF
+            </button>
+
+            <button
+              onClick={onClose}
+              style={{
+                borderRadius: 14,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                padding: "10px 16px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: 24 }}>
@@ -408,9 +471,9 @@ function ReportModal({
             }}
           >
             <SummaryBox title="Sample ID" value={result.sample_id} />
-            <SummaryBox title="Report Status" value={report.status || result.status} />
-            <SummaryBox title="Risk Score" value={summary.risk_score ?? "N/A"} />
-            <SummaryBox title="Risk Level" value={summary.risk_level || "N/A"} />
+            <SummaryBox title="Report Status" value={renderValue(report.status || result.status)} />
+            <SummaryBox title="Risk Score" value={renderValue(summary.risk_score ?? "N/A")} />
+            <SummaryBox title="Risk Level" value={renderValue(summary.risk_level || "N/A")} />
           </div>
 
           <div
@@ -501,15 +564,15 @@ function ReportModal({
                           {sev}
                         </span>
                         <span style={{ fontSize: 16, fontWeight: 700, color: "#111827" }}>
-                          {finding.title || "Untitled finding"}
+                          {renderValue(finding.title || "Untitled finding")}
                         </span>
                       </div>
 
                       <div style={{ color: "#475569", marginBottom: 10 }}>
-                        {finding.description || "No description."}
+                        {renderValue(finding.description || "No description.")}
                       </div>
 
-                      {finding.evidence ? (
+                      {hasDisplayValue(finding.evidence) ? (
                         <div
                           style={{
                             padding: 12,
@@ -522,11 +585,13 @@ function ReportModal({
                           }}
                         >
                           <strong>Evidence</strong>
-                          <div style={{ marginTop: 6 }}>{finding.evidence}</div>
+                          <div style={{ marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                            {renderValue(finding.evidence)}
+                          </div>
                         </div>
                       ) : null}
 
-                      {finding.remediation ? (
+                      {hasDisplayValue(finding.remediation) ? (
                         <div
                           style={{
                             padding: 12,
@@ -538,7 +603,9 @@ function ReportModal({
                           }}
                         >
                           <strong>Remediation</strong>
-                          <div style={{ marginTop: 6 }}>{finding.remediation}</div>
+                          <div style={{ marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                            {renderValue(finding.remediation)}
+                          </div>
                         </div>
                       ) : null}
                     </div>
@@ -573,7 +640,7 @@ function ReportModal({
                       padding: 12,
                     }}
                   >
-                    {error}
+                    {renderValue(error)}
                   </div>
                 ))}
               </div>
@@ -1178,7 +1245,7 @@ export default function App() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "3fr 1.2fr 1.6fr 1.4fr",
+                  gridTemplateColumns: "3fr 1.2fr 1.6fr 1fr",
                   gap: 12,
                   padding: "14px 16px",
                   background: "#f8fafc",
@@ -1204,7 +1271,7 @@ export default function App() {
                     key={sample.sample_id}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "3fr 1.2fr 1.6fr 1.4fr",
+                      gridTemplateColumns: "3fr 1.2fr 1.6fr 1fr",
                       gap: 12,
                       padding: "16px",
                       borderBottom: "1px solid #eef2f7",
@@ -1255,23 +1322,9 @@ export default function App() {
                           cursor: sample.status === "finished" ? "pointer" : "not-allowed",
                         }}
                       >
-                        Result
+                        View Result
                       </button>
 
-                      <button
-                        onClick={() => openPdf(sample.sample_id)}
-                        disabled={sample.status !== "finished"}
-                        style={{
-                          borderRadius: 12,
-                          border: "1px solid #cbd5e1",
-                          background: sample.status === "finished" ? "#ffffff" : "#f8fafc",
-                          padding: "8px 12px",
-                          fontWeight: 700,
-                          cursor: sample.status === "finished" ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        PDF
-                      </button>
 
                       {(sample.status === "received" || sample.status === "failed") && (
                         <button
@@ -1375,6 +1428,7 @@ export default function App() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         result={modalResult}
+        onOpenPdf={openPdf}
       />
 
       <UploadModal
