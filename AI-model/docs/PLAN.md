@@ -21,6 +21,16 @@
 
 ---
 
+## KAN-39 原型狀態
+
+KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作，內容包含敏感 API 分組列表、Androguard XREF 掃描、字串 fallback，以及依 API 群組聚合 Finding 的設計。
+
+此原型尚未整合進本 repo，也尚未通過本專案既有 pipeline 與測試驗收。因此本計畫暫時將 KAN-39 視為「已有參考實作、待整合驗證」，不標記為正式完成。
+
+待組員將功能整合進 GitHub 或提供確認版檔案後，再重新審視 Task 3、Task 7 與測試規劃是否需要調整。
+
+---
+
 ## 參考來源
 
 - 本地論文：`/Users/hikaru820/Documents/論文/Detection of Hidden Privilege Escalations in Android.pdf`
