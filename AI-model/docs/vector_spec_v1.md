@@ -26,7 +26,7 @@ Automated Software Engineering 2025, 32:68
 
 | row_type | 語意 | 對應論文概念 | 資料來源 |
 |----------|------|-------------|---------|
-| `intent_row` | 某 component 發出的一個 Intent（呼叫端） | Intent vector (sender side) | manifest 推斷 + bytecode（v2） |
+| `intent_row` | 某 component 發出的一個 Intent（呼叫端） | Intent vector (sender side) | manifest 推斷 |
 | `filter_row` | 某 component 宣告的 intent-filter entry（接收端） | Filter vector (receiver side) | manifest |
 | `resolution_row` | 一個 intent × filter 的解析配對（IPC 事件） | Resolution = sender+receiver combined | manifest 內部 matching |
 
@@ -37,7 +37,7 @@ Automated Software Engineering 2025, 32:68
 1. **encoder 核心欄位**：v1 模型 encoder 只使用 `action`、`category`、`data_type`、`permission`
    四個欄位（論文對齊），其餘欄位用於 dataset 管理、可解釋性、filtering。
 2. **缺值編碼**：所有 categorical 欄位缺值一律轉為 `"<NONE>"`，由 `OneHotEncoder(handle_unknown="ignore")` 處理。
-3. **`data_scheme`**：保留為輔助欄位（v1 encoder 不使用），未來 v2 可加入。
+3. **`data_scheme`**：保留為輔助欄位，v1 encoder 不使用。
 4. **`sample_id`** 規格：格式為 `{job_id}` 或 `{sha256_8hex}`，pipeline 注入，不由 Parser 產生。
 
 ---
@@ -49,7 +49,6 @@ Automated Software Engineering 2025, 32:68
 在 manifest-only 解析階段，intent_row 是**從 filter_row 反向推斷**的：若某 component 宣告了
 intent-filter，則系統中必然存在對應的呼叫者；此時 `source="manifest_only"`，
 `is_explicit=False`（manifest 不揭露呼叫者是誰）。
-Bytecode extractor（v2）可補強真實的呼叫端 component。
 
 ### Schema
 
@@ -109,7 +108,7 @@ Bytecode extractor（v2）可補強真實的呼叫端 component。
 代表「一個 intent 與一個 filter 的 matching 結果（App 內部 IPC 配對）」。
 
 v1 只做**同一 APK 內**的 implicit intent matching（intent_row × filter_row 的笛卡爾積，
-篩選符合 action/category/type 的配對）。跨 App n-order chain 不在 v1 範圍內。
+篩選符合 action/category/type 的配對）。
 
 ### Schema
 
