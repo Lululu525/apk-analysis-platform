@@ -42,6 +42,10 @@ from itertools import product
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..detectors.privilege_rules import (
+    DANGEROUS_PERMS_FOR_DEPUTY,
+    SENSITIVE_BROADCAST_ACTIONS,
+)
 from ..extractors.androguard_analyzer import (
     ANDROGUARD_AVAILABLE,
     AnalysisResult,
@@ -92,25 +96,8 @@ def _flatten_intents(comp: ComponentInfo) -> List[Dict[str, Optional[str]]]:
     return rows
 
 
-def build_features(apk_path: Path) -> Dict[str, Any]:
-    """Extract a flat manifest feature dict from an APK.
-
-    Raises:
-        RuntimeError: androguard is not installed.
-        ValueError:   androguard failed to parse the APK.
-    """
-    if not ANDROGUARD_AVAILABLE:
-        raise RuntimeError(
-            "androguard is not installed in this environment. "
-            "Install with: pip install androguard>=4.0"
-        )
-
-    result: AnalysisResult = analyze_apk(apk_path)
-    if not result.success:
-        raise ValueError(
-            f"Failed to parse APK {apk_path}: {'; '.join(result.errors or ['unknown error'])}"
-        )
-
+def _summarize(result: AnalysisResult) -> Dict[str, Any]:
+    """Convert an AnalysisResult to the manifest summary dict (same shape as build_features)."""
     permissions = sorted((result.permissions or {}).keys())
     components_by_type: Dict[str, List[str]] = {v: [] for v in _COMPONENT_KEY.values()}
     intents: List[Dict[str, Optional[str]]] = []
@@ -136,6 +123,225 @@ def build_features(apk_path: Path) -> Dict[str, Any]:
         "components": components_by_type,
         "intents": intents,
         "exported_unprotected": exported_unprotected,
+    }
+
+
+def _build_filter_rows(
+    result: AnalysisResult,
+    sample_id: str,
+    package_name: str,
+) -> List[Dict[str, Any]]:
+    """Build filter_rows from all relevant components.
+
+    Components with intent-filters: one row per (action × category × scheme × data_type).
+    Exported components without intent-filters: one all-None row (covers IPC_SERVICE_HIJACK
+    and IPC_PROVIDER_REDELEGATION cases reachable via explicit intent).
+    Non-exported components without intent-filters are skipped.
+    """
+    rows: List[Dict[str, Any]] = []
+    for comp in result.components or []:
+        perm = _component_permission(comp)
+        protected = perm is not None
+
+        if comp.intent_filters:
+            for f in comp.intent_filters:
+                actions = f.get("actions") or [None]
+                categories = f.get("categories") or [None]
+                schemes = f.get("data_schemes") or [None]
+                data_types = f.get("data_types") or [None]
+                for action, category, scheme, data_type in product(
+                    actions, categories, schemes, data_types
+                ):
+                    rows.append({
+                        "sample_id": sample_id,
+                        "package_name": package_name,
+                        "component_name": comp.name,
+                        "component_type": comp.type,
+                        "action": action,
+                        "category": category,
+                        "data_type": data_type,
+                        "data_scheme": scheme,
+                        "permission": perm,
+                        "exported": comp.exported,
+                        "protected": protected,
+                    })
+        elif comp.exported:
+            rows.append({
+                "sample_id": sample_id,
+                "package_name": package_name,
+                "component_name": comp.name,
+                "component_type": comp.type,
+                "action": None,
+                "category": None,
+                "data_type": None,
+                "data_scheme": None,
+                "permission": perm,
+                "exported": True,
+                "protected": protected,
+            })
+    return rows
+
+
+def _build_intent_rows(filter_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Infer manifest-only intent_rows 1:1 from filter_rows.
+
+    The caller is unknown from manifest alone, so component identity fields are
+    "<UNKNOWN>" and is_explicit=False. Bytecode extraction (v2) replaces these.
+    """
+    rows: List[Dict[str, Any]] = []
+    for fr in filter_rows:
+        rows.append({
+            "sample_id": fr["sample_id"],
+            "package_name": fr["package_name"],
+            "component_name": "<UNKNOWN>",
+            "component_type": "<UNKNOWN>",
+            "action": fr["action"],
+            "category": fr["category"],
+            "data_type": fr["data_type"],
+            "data_scheme": fr["data_scheme"],
+            "permission": None,
+            "is_explicit": False,
+            "source": "manifest_only",
+        })
+    return rows
+
+
+def _compute_risk_hint(
+    comp_type: str,
+    exported: bool,
+    protected: bool,
+    action: Optional[str],
+    app_permission_names: set,
+) -> Optional[str]:
+    """Return the IPC risk hint for a filter_row, or None if no risk applies."""
+    if not exported or protected:
+        return None
+    if comp_type == "service":
+        return "IPC_SERVICE_HIJACK"
+    if comp_type == "receiver" and action in SENSITIVE_BROADCAST_ACTIONS:
+        return "IPC_BROADCAST_THEFT"
+    if comp_type == "activity" and (app_permission_names & DANGEROUS_PERMS_FOR_DEPUTY):
+        return "IPC_CONFUSED_DEPUTY"
+    if comp_type == "provider":
+        return "IPC_PROVIDER_REDELEGATION"
+    return None
+
+
+def _build_resolution_rows(
+    filter_rows: List[Dict[str, Any]],
+    intent_rows: List[Dict[str, Any]],
+    permission_names: set,
+) -> List[Dict[str, Any]]:
+    """Build manifest-only 1:1 resolution_rows from inferred intent/filter rows."""
+    if len(intent_rows) != len(filter_rows):
+        raise ValueError("manifest-only resolution expects 1:1 intent/filter rows")
+
+    rows: List[Dict[str, Any]] = []
+    for ir, fr in zip(intent_rows, filter_rows):
+        rows.append({
+            "sample_id": fr["sample_id"],
+            "intent_component_name": ir["component_name"],
+            "intent_component_type": ir["component_type"],
+            "intent_action": ir["action"],
+            "intent_category": ir["category"],
+            "intent_data_type": ir["data_type"],
+            "intent_data_scheme": ir.get("data_scheme"),
+            "intent_permission": ir["permission"],
+            "filter_component_name": fr["component_name"],
+            "filter_component_type": fr["component_type"],
+            "filter_action": fr["action"],
+            "filter_category": fr["category"],
+            "filter_data_type": fr["data_type"],
+            "filter_data_scheme": fr.get("data_scheme"),
+            "filter_permission": fr["permission"],
+            "filter_exported": fr["exported"],
+            "filter_protected": fr["protected"],
+            "match_action": True,
+            "match_category": True,
+            "match_type": True,
+            "caller_permission": ir["permission"],
+            "callee_permission": fr["permission"],
+            "risk_hint": _compute_risk_hint(
+                comp_type=fr["component_type"],
+                exported=fr["exported"],
+                protected=fr["protected"],
+                action=fr["action"],
+                app_permission_names=permission_names,
+            ),
+        })
+    return rows
+
+
+def build_features(apk_path: Path) -> Dict[str, Any]:
+    """Extract a flat manifest feature dict from an APK.
+
+    Raises:
+        RuntimeError: androguard is not installed.
+        ValueError:   androguard failed to parse the APK.
+    """
+    if not ANDROGUARD_AVAILABLE:
+        raise RuntimeError(
+            "androguard is not installed in this environment. "
+            "Install with: pip install androguard>=4.0"
+        )
+
+    result: AnalysisResult = analyze_apk(apk_path)
+    if not result.success:
+        raise ValueError(
+            f"Failed to parse APK {apk_path}: {'; '.join(result.errors or ['unknown error'])}"
+        )
+
+    return _summarize(result)
+
+
+def build_model_features(
+    apk_path: Path,
+    sample_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build row-level feature dicts for ML training/inference.
+
+    Args:
+        apk_path:  Path to the .apk file.
+        sample_id: Caller-supplied identifier injected into every row.
+                   Defaults to apk_path.stem when omitted.
+
+    Returns:
+        {
+            "intent_rows":     [intent_row, ...],
+            "filter_rows":     [filter_row, ...],
+            "resolution_rows": [resolution_row, ...],
+            "app_summary":     {...}   # identical to build_features() output
+        }
+
+    Raises:
+        RuntimeError: androguard is not installed.
+        ValueError:   androguard failed to parse the APK.
+    """
+    if not ANDROGUARD_AVAILABLE:
+        raise RuntimeError(
+            "androguard is not installed in this environment. "
+            "Install with: pip install androguard>=4.0"
+        )
+
+    result: AnalysisResult = analyze_apk(apk_path)
+    if not result.success:
+        raise ValueError(
+            f"Failed to parse APK {apk_path}: {'; '.join(result.errors or ['unknown error'])}"
+        )
+
+    sid = sample_id or apk_path.stem
+    pkg = result.package_name or "<UNKNOWN>"
+    perm_names: set[str] = set((result.permissions or {}).keys())
+
+    filter_rows = _build_filter_rows(result, sid, pkg)
+    intent_rows = _build_intent_rows(filter_rows)
+    resolution_rows = _build_resolution_rows(filter_rows, intent_rows, perm_names)
+
+    return {
+        "intent_rows": intent_rows,
+        "filter_rows": filter_rows,
+        "resolution_rows": resolution_rows,
+        "app_summary": _summarize(result),
     }
 
 

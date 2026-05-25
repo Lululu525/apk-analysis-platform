@@ -9,7 +9,6 @@ RuntimeError branch when androguard is unavailable.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Dict, List
 
 import pytest
@@ -231,6 +230,178 @@ def test_extract_intent_filters_captures_mimetype():
     assert f["categories"] == ["android.intent.category.DEFAULT"]
     assert f["data_schemes"] == ["content"]
     assert f["data_types"] == ["image/*"]
+
+
+# ── build_model_features tests ────────────────────────────────────────────────
+
+def test_build_model_features_shape(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    out = pm.build_model_features(tmp_path / "app.apk", sample_id="test-001")
+
+    assert set(out.keys()) == {"intent_rows", "filter_rows", "resolution_rows", "app_summary"}
+    # app_summary must be identical to build_features()
+    summary = pm.build_features(tmp_path / "app.apk")
+    assert out["app_summary"] == summary
+    # 1:1:1 invariant
+    assert len(out["intent_rows"]) == len(out["filter_rows"])
+    assert len(out["resolution_rows"]) == len(out["filter_rows"])
+    # fixture produces 5 filter_rows: MainActivity(1), ShareActivity(1),
+    # SyncService(1,no-filter), UserProvider(1,no-filter), BootReceiver(1)
+    assert len(out["filter_rows"]) == 5
+
+
+def test_build_model_features_sample_id_default(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    apk = tmp_path / "myapp.apk"
+    out = pm.build_model_features(apk)
+    assert out["filter_rows"][0]["sample_id"] == "myapp"
+
+
+def test_filter_rows_component_fields(monkeypatch, tmp_path):
+    """Every filter_row carries component_name, component_type, exported, protected."""
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["filter_rows"]
+    for row in rows:
+        assert "component_name" in row
+        assert "component_type" in row
+        assert isinstance(row["exported"], bool)
+        assert isinstance(row["protected"], bool)
+
+
+def test_filter_rows_protected_vs_unprotected(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["filter_rows"]
+    by_comp = {r["component_name"]: r for r in rows}
+
+    # UserProvider has permissions_required → protected=True
+    assert by_comp["com.example.UserProvider"]["protected"] is True
+    assert by_comp["com.example.UserProvider"]["permission"] == "com.example.permission.READ_USERS"
+    # SyncService has no permissions_required → protected=False
+    assert by_comp["com.example.SyncService"]["protected"] is False
+    assert by_comp["com.example.SyncService"]["permission"] is None
+
+
+def test_filter_rows_exported_without_intent_filter(monkeypatch, tmp_path):
+    """Exported components with no intent-filter still emit one all-None filter_row."""
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["filter_rows"]
+    by_comp = {r["component_name"]: r for r in rows}
+
+    for name in ("com.example.SyncService", "com.example.UserProvider"):
+        row = by_comp[name]
+        assert row["action"] is None
+        assert row["category"] is None
+        assert row["data_type"] is None
+
+
+def test_filter_rows_multiple_intent_filters(monkeypatch, tmp_path):
+    """A component with 2 intent-filters produces 2+ filter_rows."""
+    result = _ag_result()
+    result.components = [
+        ComponentInfo(
+            type="activity",
+            name="com.example.MultiFilter",
+            exported=True,
+            intent_filters=[
+                {"actions": ["android.intent.action.VIEW"]},
+                {"actions": ["android.intent.action.EDIT"]},
+            ],
+        )
+    ]
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: result)
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["filter_rows"]
+    actions = [r["action"] for r in rows]
+    assert "android.intent.action.VIEW" in actions
+    assert "android.intent.action.EDIT" in actions
+    assert len(rows) == 2
+
+
+def test_filter_rows_missing_action(monkeypatch, tmp_path):
+    """Intent-filter with no <action> produces a row with action=None."""
+    result = _ag_result()
+    result.components = [
+        ComponentInfo(
+            type="activity",
+            name="com.example.NoAction",
+            exported=True,
+            intent_filters=[{"categories": ["android.intent.category.DEFAULT"]}],
+        )
+    ]
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: result)
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["filter_rows"]
+    assert len(rows) == 1
+    assert rows[0]["action"] is None
+    assert rows[0]["category"] == "android.intent.category.DEFAULT"
+
+
+def test_intent_rows_manifest_only_fields(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["intent_rows"]
+    for row in rows:
+        assert row["component_name"] == "<UNKNOWN>"
+        assert row["component_type"] == "<UNKNOWN>"
+        assert row["is_explicit"] is False
+        assert row["source"] == "manifest_only"
+        assert row["permission"] is None
+
+
+def test_resolution_rows_risk_hint_service_hijack(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["resolution_rows"]
+    service_row = next(r for r in rows if r["filter_component_name"] == "com.example.SyncService")
+    assert service_row["risk_hint"] == "IPC_SERVICE_HIJACK"
+
+
+def test_resolution_rows_risk_hint_broadcast_theft(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["resolution_rows"]
+    boot_row = next(r for r in rows if r["filter_component_name"] == "com.example.BootReceiver")
+    assert boot_row["risk_hint"] == "IPC_BROADCAST_THEFT"
+
+
+def test_resolution_rows_risk_hint_confused_deputy(monkeypatch, tmp_path):
+    # _ag_result has READ_SMS in permissions → activities get CONFUSED_DEPUTY
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["resolution_rows"]
+    main_row = next(r for r in rows if r["filter_component_name"] == "com.example.MainActivity")
+    assert main_row["risk_hint"] == "IPC_CONFUSED_DEPUTY"
+
+
+def test_resolution_rows_protected_no_hint(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["resolution_rows"]
+    provider_row = next(r for r in rows if r["filter_component_name"] == "com.example.UserProvider")
+    assert provider_row["risk_hint"] is None
+
+
+def test_build_model_features_raises_when_androguard_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", False)
+    with pytest.raises(RuntimeError, match="androguard"):
+        pm.build_model_features(tmp_path / "app.apk")
 
 
 def test_extract_intent_filters_omits_empty_data_keys():
