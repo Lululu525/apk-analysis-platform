@@ -68,6 +68,7 @@ class Artifacts(ExtensibleSchema):
     logs_path: str | None = None
     extracted_path: str | None = None
     features_path: str | None = None
+    ml_features_path: str | None = None
     strings_path: str | None = None
     pdf_path: str | None = None
 

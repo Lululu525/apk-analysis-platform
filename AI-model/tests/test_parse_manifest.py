@@ -81,7 +81,6 @@ def _ag_result() -> AnalysisResult:
         ),
     ]
     result.sensitive_api_calls = []
-    result.risk_findings = []
     result.errors = []
     return result
 
@@ -402,6 +401,39 @@ def test_build_model_features_raises_when_androguard_missing(monkeypatch, tmp_pa
     monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", False)
     with pytest.raises(RuntimeError, match="androguard"):
         pm.build_model_features(tmp_path / "app.apk")
+
+
+def test_build_model_features_raises_on_parse_failure(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(
+        pm,
+        "analyze_apk",
+        lambda _: AnalysisResult(success=False, errors=["bad zip"]),
+    )
+
+    with pytest.raises(ValueError, match="bad zip"):
+        pm.build_model_features(tmp_path / "app.apk")
+
+
+def test_risk_hint_values_align_with_privilege_rules(monkeypatch, tmp_path):
+    """Lock parse_manifest risk hints to privilege_rules' public finding IDs."""
+    from app.detectors.privilege_rules import check_combinations
+
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    result = _ag_result()
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: result)
+
+    rule_ids = {finding.id for finding in check_combinations(result)}
+    hints = {
+        row["risk_hint"]
+        for row in pm.build_model_features(tmp_path / "app.apk")["resolution_rows"]
+        if row["risk_hint"] is not None
+    }
+    normalized_rule_ids = set(rule_ids)
+    if any(rule_id.startswith("IPC_BROADCAST_THEFT_") for rule_id in rule_ids):
+        normalized_rule_ids.add("IPC_BROADCAST_THEFT")
+
+    assert hints.issubset(normalized_rule_ids)
 
 
 def test_extract_intent_filters_omits_empty_data_keys():

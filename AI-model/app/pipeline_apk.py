@@ -11,13 +11,14 @@ from .schemas import AnalyzeRequest, AnalyzeReport, Artifacts, Finding
 from .detectors.rules import scan_text_for_rules
 from .detectors.strings_detector import extract_strings, extract_strings_from_dir
 from .detectors.network_detector import scan_strings as net_scan_strings
+from .detectors.android_static_detector import findings_from_analysis
 from .extractors.dex_parser import extract_strings_from_dex
 from .extractors.androguard_analyzer import (
     analyze_apk,
-    to_findings as ag_to_findings,
     ANDROGUARD_AVAILABLE,
 )
 from .detectors.privilege_rules import check_combinations as check_privilege_escalation
+from .tools.parse_manifest import build_model_features
 from .report.builder import build_report
 
 
@@ -249,7 +250,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
     if ANDROGUARD_AVAILABLE:
         ag_result = analyze_apk(apk_path)
 
-        androguard_findings = ag_to_findings(ag_result)
+        androguard_findings = findings_from_analysis(ag_result)
         findings.extend(_enrich_android_findings(androguard_findings))
 
         if ag_result.success:
@@ -329,6 +330,32 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
             encoding="utf-8",
         )
         artifacts.features_path = str(features_path)
+
+        if ag_result is not None and getattr(ag_result, "success", False):
+            try:
+                ml_features = build_model_features(apk_path, sample_id=req.job_id)
+            except Exception as exc:
+                findings.append(
+                    Finding(
+                        id="ML_FEATURE_EXTRACTION_FAILED",
+                        title="ML feature extraction failed",
+                        severity="info",
+                        confidence=1.0,
+                        category="analysis_limitation",
+                        evidence={"error": str(exc)},
+                        remediation=(
+                            "Check APK parseability and row-level feature builder inputs."
+                        ),
+                        tags=["analysis_limitation", "ml_feature_extraction"],
+                    )
+                )
+            else:
+                ml_features_path = output_dir / f"{req.job_id}.ml_features.json"
+                ml_features_path.write_text(
+                    json.dumps(ml_features, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                artifacts.ml_features_path = str(ml_features_path)
 
         strings_path = output_dir / f"{req.job_id}.strings.txt"
         strings_path.write_text(

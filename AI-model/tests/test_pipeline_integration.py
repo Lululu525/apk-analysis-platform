@@ -49,9 +49,65 @@ def _make_ag_result(permissions=None, components=None) -> AnalysisResult:
     result.min_sdk = 21
     result.version_name = "1.0"
     result.version_code = 1
-    result.risk_findings = []
     result.errors = []
     return result
+
+
+def _model_features_stub(sample_id: str = "test-job") -> dict:
+    return {
+        "intent_rows": [{
+            "sample_id": sample_id,
+            "package_name": "com.example.testapp",
+            "component_name": "<UNKNOWN>",
+            "component_type": "<UNKNOWN>",
+            "action": None,
+            "category": None,
+            "data_type": None,
+            "data_scheme": None,
+            "permission": None,
+            "is_explicit": False,
+            "source": "manifest_only",
+        }],
+        "filter_rows": [{
+            "sample_id": sample_id,
+            "package_name": "com.example.testapp",
+            "component_name": "com.example.DataService",
+            "component_type": "service",
+            "action": None,
+            "category": None,
+            "data_type": None,
+            "data_scheme": None,
+            "permission": None,
+            "exported": True,
+            "protected": False,
+        }],
+        "resolution_rows": [{
+            "sample_id": sample_id,
+            "intent_component_name": "<UNKNOWN>",
+            "intent_component_type": "<UNKNOWN>",
+            "intent_action": None,
+            "intent_category": None,
+            "intent_data_type": None,
+            "intent_data_scheme": None,
+            "intent_permission": None,
+            "filter_component_name": "com.example.DataService",
+            "filter_component_type": "service",
+            "filter_action": None,
+            "filter_category": None,
+            "filter_data_type": None,
+            "filter_data_scheme": None,
+            "filter_permission": None,
+            "filter_exported": True,
+            "filter_protected": False,
+            "match_action": True,
+            "match_category": True,
+            "match_type": True,
+            "caller_permission": None,
+            "callee_permission": None,
+            "risk_hint": "IPC_SERVICE_HIJACK",
+        }],
+        "app_summary": {"package_name": "com.example.testapp"},
+    }
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -68,7 +124,11 @@ def test_combo_sms_exfil_surfaced_through_pipeline(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
     monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
-    monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
 
     report = run_pipeline(_make_request(apk, "sms-exfil-job"), output_dir=tmp_path / "out")
     ids = {f.id for f in report.findings}
@@ -92,7 +152,11 @@ def test_ipc_service_hijack_surfaced_through_pipeline(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
     monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
-    monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
 
     report = run_pipeline(_make_request(apk, "service-hijack-job"), output_dir=tmp_path / "out")
     ids = {f.id for f in report.findings}
@@ -116,7 +180,11 @@ def test_ipc_provider_redelegation_surfaced_through_pipeline(tmp_path, monkeypat
 
     monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
     monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
-    monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
 
     report = run_pipeline(_make_request(apk, "provider-job"), output_dir=tmp_path / "out")
     ids = {f.id for f in report.findings}
@@ -139,7 +207,7 @@ def test_apk_rules_module_must_not_exist():
 
 
 def test_pipeline_apk_must_not_import_apk_rules():
-    """Tripwire: pipeline_apk must not import from the deleted apk_rules module."""
+    """Tripwire: pipeline_apk must not import deleted or legacy APK risk entrypoints."""
     from pathlib import Path
 
     source = Path(__file__).resolve().parent.parent / "app" / "pipeline_apk.py"
@@ -151,6 +219,8 @@ def test_pipeline_apk_must_not_import_apk_rules():
     assert "analyze_android_risk" not in text, (
         "pipeline_apk.py references analyze_android_risk (deleted in Sprint 2)"
     )
+    assert "ag_to_findings" not in text
+    assert "to_findings" not in text
 
 
 def test_old_apk_rules_finding_ids_no_longer_appear(tmp_path, monkeypatch):
@@ -165,7 +235,11 @@ def test_old_apk_rules_finding_ids_no_longer_appear(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
     monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
-    monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
 
     report = run_pipeline(_make_request(apk, "legacy-job"), output_dir=tmp_path / "out")
     ids = {f.id for f in report.findings}
@@ -199,7 +273,11 @@ def test_manifest_features_written_correctly(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
     monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
-    monkeypatch.setattr(pipeline_apk, "ag_to_findings", lambda _: [])
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
 
     report = run_pipeline(_make_request(apk, "manifest-job"), output_dir=out_dir)
     assert report.status == "success"
@@ -215,6 +293,64 @@ def test_manifest_features_written_correctly(tmp_path, monkeypatch):
     assert "android.permission.READ_CONTACTS" in ma["permissions"]
     assert ma["exported_count"] == 1
     assert "com.example.SyncService" in ma["exported_components"]
+
+
+def test_ml_features_artifact_written_correctly(tmp_path, monkeypatch):
+    """Pipeline writes row-level ML features when the feature builder succeeds."""
+    import app.pipeline_apk as pipeline_apk
+
+    apk = _make_apk(tmp_path, "ml.apk")
+    out_dir = tmp_path / "artifacts"
+    ag = _make_ag_result()
+
+    monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
+
+    report = run_pipeline(_make_request(apk, "ml-job"), output_dir=out_dir)
+
+    assert report.status == "success"
+    assert report.artifacts.ml_features_path == str(out_dir / "ml-job.ml_features.json")
+
+    ml_features_file = out_dir / "ml-job.ml_features.json"
+    assert ml_features_file.exists()
+
+    data = json.loads(ml_features_file.read_text(encoding="utf-8"))
+    assert set(data.keys()) == {
+        "intent_rows",
+        "filter_rows",
+        "resolution_rows",
+        "app_summary",
+    }
+    assert data["filter_rows"][0]["sample_id"] == "ml-job"
+
+
+def test_ml_feature_extraction_failure_is_non_fatal(tmp_path, monkeypatch):
+    """Feature-builder failures must not write half artifacts or fail the report."""
+    import app.pipeline_apk as pipeline_apk
+
+    apk = _make_apk(tmp_path, "ml-fail.apk")
+    out_dir = tmp_path / "artifacts"
+    ag = _make_ag_result()
+
+    def failing_stub(_apk, sample_id=None):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
+    monkeypatch.setattr(pipeline_apk, "build_model_features", failing_stub)
+
+    report = run_pipeline(_make_request(apk, "ml-fail-job"), output_dir=out_dir)
+    ids = {f.id for f in report.findings}
+
+    assert report.status == "success"
+    assert report.artifacts.ml_features_path is None
+    assert not (out_dir / "ml-fail-job.ml_features.json").exists()
+    assert "ML_FEATURE_EXTRACTION_FAILED" in ids
 
 
 def test_androguard_missing_produces_info_finding(tmp_path, monkeypatch):

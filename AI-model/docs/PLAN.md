@@ -18,6 +18,10 @@
 | 弱標註來源 | `privilege_rules.py` 輸出作為 `risk_hint`，例如 `IPC_SERVICE_HIJACK`、`IPC_CONFUSED_DEPUTY` |
 | 報告保留可解釋性 | Detector 輸出 rule findings；Model 輸出 `risk_probability` + feature attribution；兩者並存 |
 | AndroCom 定位 | 僅作方法論參考（keyword、balanced sampling 策略），不直接引入 source code snippet 作為訓練資料 |
+| filter_row 編碼方式 | 採用 multi-hot encoding：一個 component 一筆 row，action/category/data_type 各展開為 `has_action_*`、`has_category_*`、`has_data_type_*` 布林欄位，不做笛卡爾積展開 |
+| resolution_row action 欄位 | 使用 `action_match` 布林值（intent 的 action 集合與 filter 的 action 集合是否有交集），不將 filter 側 multi-hot 全部展開進 resolution_row |
+| intent_row 來源（v1 限制） | v1 manifest-only 階段，intent_row 從 filter_row 1:1 反推，sender 為 `<UNKNOWN>`，無獨立訓練價值；v2 bytecode 補強後才有真實 sender 資訊 |
+| bytecode 補強（v2）定位 | 從 smali/bytecode 掃描 `new Intent()` / `startActivity()` 等 API 呼叫，提取 sender component 身份、發送的 action、caller 持有的 permission，以建構有意義的 resolution_row |
 
 ---
 
@@ -52,7 +56,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 
 ---
 
-## Task 1：論文 Vector 與現狀差異表
+## Task 1：論文 Vector 與現狀差異表 ✅ 已完成
 
 **任務名稱與核心功能**
 建立 `Hidden Privilege Vector Spec v1`，將論文中的三種 vector 對應到本地專案的實作場景，作為後續 Parser、Dataset、Model 的共用規格。
@@ -70,7 +74,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 
 ---
 
-## Task 2：重構 Parser 為模型 Pre-processing
+## Task 2：重構 Parser 為模型 Pre-processing ✅ 已完成
 
 **任務名稱與核心功能**
 將現有 `parse_manifest.py` 從「輸出概要 JSON」純化為「輸出模型訓練/推論所需 row-level feature JSON」。
@@ -78,9 +82,9 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 **詳細執行指示**
 1. 保留目前 `build_features(apk_path)` 的 manifest summary，避免破壞現有測試。
 2. 新增 `build_model_features(apk_path)`，輸出 `intent_rows`, `filter_rows`, `resolution_rows`, `app_summary`。
-3. 從 `androguard_analyzer.ComponentInfo` 生成 `filter_rows`，每個 intent-filter 的 action/category/type 展平為獨立行。
-4. 對 manifest 可解析的 implicit intent/filter 做單一 App 內部 matching，生成初步 `resolution_rows`。
-5. 對無法由 manifest 得知的 code-generated intent，標記 `source="manifest_only"`，後續由 bytecode extractor 補強。
+3. 從 `androguard_analyzer.ComponentInfo` 生成 `filter_rows`，採用 **multi-hot encoding**：一個 component 一筆 row，action/category/data_type 各自展開為布林欄位（`has_action_VIEW`、`has_category_DEFAULT` 等），不做笛卡爾積展開。
+4. 對 manifest 可解析的 implicit intent/filter 做單一 App 內部 matching，生成初步 `resolution_rows`，matching 結果以 `action_match`（布林值）表示 action 集合的交集關係，而非逐 action 比對。
+5. 對無法由 manifest 得知的 code-generated intent，標記 `source="manifest_only"`，後續由 bytecode extractor（v2）補強。
 6. 更新測試，覆蓋 activity/service/provider/receiver、protected/unprotected、缺 action/category/type、multiple filters。
 
 **完成檢查目標**
@@ -88,7 +92,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 
 ---
 
-## Task 3：Extractor/Detector 分工重定義
+## Task 3：Extractor/Detector 分工重定義 ✅ 已完成
 
 **任務名稱與核心功能**
 解決目前 Extractor 與 Detector 分工不清、核心職責衝突的問題，改為清晰的三層架構。
@@ -114,12 +118,16 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 1. Training format 使用 JSONL 或 Parquet，每筆是一個 row-level 樣本，欄位包含 `sample_id`, `row_type`, `features`, `label`, `label_source`, `split`。
 2. `row_type` 固定為 `intent`, `filter`, `resolution`, `app_summary`。
 3. `label` 固定二值：`1=dangerous/overprivilege risk`, `0=normal`；弱標註標記 `label_source="rule_weak_label"`。
-4. Inference format 不含 `label/split`，但必須含 `schema_version`, `encoder_version`, `sample_id`, `features`, `row_type`。
-5. 模型輸出格式固定為：`row_id`, `row_type`, `risk_probability`, `predicted_label`, `top_features`, `model_version`。
-6. Report 彙整邏輯：row-level 預測彙整為 app-level risk，與 rule findings 合併。
+4. **label 轉換規則**（由 dataset builder 負責，不放在 Parser）：
+   - `filter_row` → `label = 1 if (exported == True and protected == False) else 0`
+   - `resolution_row` → `label = 1 if risk_hint is not None else 0`
+   - `intent_row` → v1 不產生 label，不進入訓練
+5. Inference format 不含 `label/split`，但必須含 `schema_version`, `encoder_version`, `sample_id`, `features`, `row_type`。
+6. 模型輸出格式固定為：`row_id`, `row_type`, `risk_probability`, `predicted_label`, `top_features`, `model_version`。
+7. Report 彙整邏輯：row-level 預測彙整為 app-level risk，與 rule findings 合併。
 
 **完成檢查目標**
-訓練與推論資料不混用；Inference 可以直接由上傳 APK 生成，不需要 label；Training 可以重現 train/validation/test split。
+訓練與推論資料不混用；Inference 可以直接由上傳 APK 生成，不需要 label；Training 可以重現 train/validation/test split；filter_row 與 resolution_row 的 label 轉換規則明確且可驗證。
 
 ---
 
@@ -147,16 +155,26 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 **任務名稱與核心功能**
 建立可重現的第一版 ML pipeline，用簡單模型驗證 vector 是否有效。
 
+**模型選型決策**
+
+| row type | 模型 | 理由 |
+|----------|------|------|
+| `filter_row` | **Random Forest** | multi-hot 稀疏特徵天生友善；`feature_importances_` 直接支援可解釋性報告；小資料不易 overfit |
+| `resolution_row` | **Logistic Regression** | action/permission 對稱性為強線性關係；`action_match` 等布林欄位維度低；係數可直接解讀 |
+| `intent_row` | **不訓練** | v1 manifest-only 階段 intent 從 filter 1:1 反推，sender 為 `<UNKNOWN>`，match_* 欄位全為 True，無鑑別力；待 bytecode v2 補強後再啟用 |
+
+> **注意**：resolution_row 模型程式碼框架可先實作，但在文件中標注「需 bytecode v2 補強後啟用」。v1 階段只正式訓練 `filter_row` 模型。
+
 **詳細執行指示**
 1. 在 `AI-model/app/ml` 下建立 encoder、dataset loader、trainer、predictor。
-2. 類別欄位使用 `OneHotEncoder(handle_unknown="ignore")`，缺值統一轉換 `"<NONE>"`。
-3. 第一版模型：`DecisionTree` for intent、`RandomForest` for filter、`LogisticRegression` for resolution，對齊 Hidden Privilege 論文。
+2. `filter_row` 的 multi-hot 欄位使用 `MultiLabelBinarizer`；類別欄位使用 `OneHotEncoder(handle_unknown="ignore")`；缺值統一轉換 `"<NONE>"`。
+3. `resolution_row` 的 `action_match` 欄位為布林值，直接作為特徵輸入，不展開 filter 側 multi-hot。
 4. 輸出 `model.joblib`, `encoder.joblib`, `metrics.json`, `feature_schema.json`。
 5. 評估指標至少包含 accuracy、precision、recall、F1、confusion matrix；若資料不平衡，以 recall/F1 優化。
 6. 訓練資料不足時，允許先用 Detector weak labels 作 baseline，但文件中標明不是終結學術標籤。
 
 **完成檢查目標**
-可用一個命令完成資料讀取、訓練、評估與模型輸出；任何一筆 inference feature 可以被 encoder 正確轉換並得到預測。
+可用一個命令完成 filter_row 資料讀取、訓練、評估與模型輸出；任何一筆 inference feature 可以被 encoder 正確轉換並得到預測；resolution_row trainer 框架存在但有明確的「待 v2 啟用」標記。
 
 ---
 
@@ -194,6 +212,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
    - 每種至少 5 個可重現的測試案例
 4. 產出一份實驗紀錄：資料來源、標註方式、模型版本、metrics、已知限制。
 5. 報告中明確寫出：本專案是單一 App 越權風險模型，不宣稱完整偵測跨 App n-order chain。
+6. 報告中標注 resolution_row 模型的 v2 依賴：bytecode 補強後方可啟用，v1 實驗結果僅代表 filter_row 模型效能。
 
 **完成檢查目標**
 測試可重現；模型結果可解釋；對題報告能清楚說明第一階段到第四階段的技術連接與研究目標。
@@ -204,11 +223,11 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 
 | Task | 預估工期 | 風險等級 | 主要風險點 |
 |------|---------|---------|-----------|
-| T1 Vector Spec | 3–4 天 | 低 | 無 |
-| T2 Parser 重構 | 1–1.5 週 | 中 | filter_row/resolution_row edge cases |
-| T3 分工重定義 | 3–4 天 | 低 | 主要是 rename + 職責切割 |
-| T4 資料格式 | 3 天 | 低 | 無 |
+| T1 Vector Spec | 3–4 天 | 低 | 無 ✅ 已完成 |
+| T2 Parser 重構 | 1–1.5 週 | 中 | filter_row multi-hot edge cases ✅ 已完成 |
+| T3 分工重定義 | 3–4 天 | 低 | 主要是 rename + 職責切割 ✅ 已完成 |
+| T4 資料格式 | 3 天 | 低 | label 轉換規則需與 dataset builder 對齊 |
 | T5 資料蒐集 | 2–3 週 | **高** | APK 取得 + 標記耗時，需遵守 150 上限 |
-| T6 MVP ML | 1.5–2 週 | 中 | 訓練資料品質決定 baseline 意義 |
+| T6 MVP ML | 1.5–2 週 | 中 | v1 只訓練 filter_row；resolution_row 待 bytecode v2 |
 | T7 Inference 整合 | 1 週 | 低 | 現有 pipeline API 相容性 |
 | T8 驗證交付 | 1.5 週 | 中 | golden dataset 5 種場景需人工設計 |

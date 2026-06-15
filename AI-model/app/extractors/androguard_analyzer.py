@@ -3,18 +3,15 @@ Androguard-based Android APK analysis.
 
 Capabilities:
   1. Manifest parsing: extract permissions, components, intent filters
-  2. Permission risk assessment: identify dangerous/sensitive permissions
+  2. Permission metadata extraction
   3. Sensitive API detection: find risky Android API calls in bytecode
   4. Component analysis: Activity, Service, ContentProvider, BroadcastReceiver
-  5. Intent data flow: trace inter-component communication patterns
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Dict, List, Set, Any, Tuple, Union
+from typing import Optional, Dict, List, Union
 from dataclasses import dataclass
-
-from ..schemas import Finding, Severity
 
 try:
     from androguard.misc import AnalyzeAPK
@@ -143,7 +140,6 @@ class AnalysisResult:
     components: Optional[List[ComponentInfo]] = None
     sensitive_api_calls: Optional[List[str]] = None
 
-    risk_findings: Optional[List[str]] = None
     errors: Optional[List[str]] = None
 
 
@@ -152,7 +148,7 @@ def analyze_apk(apk_path: Path) -> AnalysisResult:
     Complete APK analysis using Androguard.
 
     Returns:
-        AnalysisResult with all extracted metadata and risk findings
+        AnalysisResult with extracted Android facts.
     """
     if not ANDROGUARD_AVAILABLE:
         return AnalysisResult(
@@ -195,9 +191,6 @@ def analyze_apk(apk_path: Path) -> AnalysisResult:
 
     # ── Sensitive API detection ───────────────────────────────────────────
     result.sensitive_api_calls = _find_sensitive_apis(dexes)
-
-    # ── Risk assessment ──────────────────────────────────────────────────
-    result.risk_findings = _assess_risks(result)
 
     return result
 
@@ -378,143 +371,3 @@ def _find_sensitive_apis(dexes) -> List[str]:
         pass
 
     return list(set(sensitive_calls))  # deduplicate
-
-
-def _assess_risks(result: AnalysisResult) -> List[str]:
-    """Identify potential privilege escalation risks"""
-    risks = []
-
-    if not result.permissions:
-        return risks
-
-    # ── Risk 1: Dangerous permissions ─────────────────────────────────────
-    dangerous_perms = [p.name for p in result.permissions.values() if p.risk_level == "高風險"]
-    if dangerous_perms:
-        risks.append(f"高風險權限聲明: {', '.join(dangerous_perms[:3])}")
-
-    # ── Risk 2: Exported components without permission checks ──────────────
-    if result.components:
-        exported_unprotected = [c for c in result.components
-                              if c.exported and not c.permissions_required]
-        if exported_unprotected:
-            risks.append(f"未受保護的導出組件: {len(exported_unprotected)} 個")
-
-    # ── Risk 3: Sensitive API calls ────────────────────────────────────────
-    if result.sensitive_api_calls:
-        risks.append(f"檢測到敏感 API 調用: {len(result.sensitive_api_calls)} 個")
-
-    # ── Risk 4: Old target SDK ────────────────────────────────────────────
-    if result.target_sdk and result.target_sdk < 23:
-        risks.append(f"目標 SDK 過舊 ({result.target_sdk}): 運行時權限未使用")
-
-    return risks
-
-
-# ── AnalysisResult → Finding converter ────────────────────────────────────────
-
-def to_findings(result: AnalysisResult) -> List[Finding]:
-    """
-    Convert an AnalysisResult into a flat list of Finding objects
-    that the pipeline can merge with other detectors' output.
-
-    Rules:
-      - permissions   → grouped by risk level (高/中 each become one Finding)
-      - components    → grouped by type; only exported-without-permission ones
-      - sensitive APIs→ one Finding listing all detected calls
-      - old SDK       → one Finding if targetSdk < 23
-    """
-    if not result.success:
-        return []
-
-    findings: List[Finding] = []
-
-    # ── 1. Dangerous permissions ──────────────────────────────────────────
-    _PERM_SEVERITY: Dict[str, Tuple[Severity, str]] = {"高風險": ("high", "CWE-272"), "中風險": ("medium", "CWE-272")}
-    if result.permissions:
-        for risk_label, (severity, cwe) in _PERM_SEVERITY.items():
-            perms = [p.name for p in result.permissions.values() if p.risk_level == risk_label]
-            if not perms:
-                continue
-            findings.append(Finding(
-                id=f"DANGEROUS_PERMISSIONS_{risk_label.replace('風險', '')}",
-                title=f"聲明 {risk_label} 權限（{len(perms)} 項）",
-                severity=severity,
-                confidence=1.0,
-                category="permission",
-                cwe=[cwe, "CWE-269"],
-                evidence={"permissions": perms},
-                remediation=(
-                    "確認每項危險權限是否真正需要；"
-                    "移除不必要的權限聲明，並在程式碼中以 checkSelfPermission() 驗證後再使用。"
-                ),
-            ))
-
-    # ── 2. Exported components without permission protection ──────────────
-    # service / provider are fully covered by privilege_rules.IPC_SERVICE_HIJACK
-    # and IPC_PROVIDER_REDELEGATION (with attack-vector context).
-    # activity / receiver are kept here because their IPC counterparts fire only
-    # conditionally (dangerous-perms held / sensitive broadcast actions matched).
-    _COMP_SEV: Dict[str, Severity] = {"activity": "medium", "receiver": "medium"}
-
-    if result.components:
-        by_type: Dict[str, List[ComponentInfo]] = {}
-        for comp in result.components:
-            if comp.type not in _COMP_SEV:
-                continue
-            if comp.exported and not comp.permissions_required:
-                by_type.setdefault(comp.type, []).append(comp)
-
-        for comp_type, comps in by_type.items():
-            findings.append(Finding(
-                id=f"EXPORTED_UNPROTECTED_{comp_type.upper()}",
-                title=f"未受保護的導出 {comp_type}（{len(comps)} 個）",
-                severity=_COMP_SEV[comp_type],
-                confidence=0.95,
-                category="privilege_escalation",
-                cwe=["CWE-926"],
-                evidence={
-                    "components": [
-                        {"name": c.name, "intent_filters": c.intent_filters}
-                        for c in comps
-                    ]
-                },
-                remediation=(
-                    f"為每個導出的 {comp_type} 加上 android:permission 屬性，"
-                    "或將不需對外公開的元件設定 android:exported=\"false\"。"
-                ),
-            ))
-
-    # ── 3. Sensitive API calls ────────────────────────────────────────────
-    if result.sensitive_api_calls:
-        findings.append(Finding(
-            id="SENSITIVE_API_CALLS",
-            title=f"偵測到敏感 API 呼叫（{len(result.sensitive_api_calls)} 個）",
-            severity="medium",
-            confidence=0.75,
-            category="sensitive_api",
-            cwe=["CWE-78", "CWE-95"],
-            evidence={"calls": sorted(result.sensitive_api_calls)[:20]},
-            remediation=(
-                "審查 Runtime.exec()、反射（Class.forName / Method.invoke）"
-                "和 loadLibrary() 的呼叫點，確認所有外部輸入都已驗證或白名單化。"
-            ),
-        ))
-
-    # ── 4. Outdated target SDK ────────────────────────────────────────────
-    if result.target_sdk and result.target_sdk < 23:
-        findings.append(Finding(
-            id="LOW_TARGET_SDK",
-            title=f"targetSdkVersion 過舊（API {result.target_sdk}）",
-            severity="medium",
-            confidence=1.0,
-            category="sdk_version",
-            cwe=["CWE-693"],
-            evidence={"target_sdk": result.target_sdk, "runtime_permission_threshold": 23},
-            remediation=(
-                "將 targetSdkVersion 提升至 API 33 以上；"
-                "API < 23 代表 App 不使用運行時權限模型，"
-                "系統會在安裝時一次授予全部權限，使用者無法個別拒絕。"
-            ),
-        ))
-
-    return findings
