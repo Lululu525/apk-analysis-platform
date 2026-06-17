@@ -1,2 +1,3 @@
 pydantic>=2.0
 androguard>=4.0          # APK analysis: manifest parsing, permission extraction
+pytest>=7.0             # Testing framework

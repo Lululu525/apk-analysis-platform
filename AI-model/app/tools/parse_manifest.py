@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from itertools import product
 from pathlib import Path
@@ -66,6 +67,32 @@ def _component_permission(comp: ComponentInfo) -> Optional[str]:
     if not comp.permissions_required:
         return None
     return comp.permissions_required[0]
+
+
+def _normalize_feature_suffix(value: str) -> str:
+    """Return a stable ASCII-safe suffix for generated multi-hot fields."""
+    suffix = re.sub(r"[^0-9a-zA-Z]+", "_", value.lower())
+    suffix = re.sub(r"_+", "_", suffix).strip("_")
+    return suffix or "unknown"
+
+
+def _collect_filter_values(comp: ComponentInfo, key: str) -> List[str]:
+    values: List[str] = []
+    seen: set[str] = set()
+    for intent_filter in comp.intent_filters or []:
+        raw_values = intent_filter.get(key) or []
+        if isinstance(raw_values, str):
+            raw_values = [raw_values]
+        for value in raw_values:
+            if value and value not in seen:
+                values.append(value)
+                seen.add(value)
+    return values
+
+
+def _add_multi_hot_fields(row: Dict[str, Any], prefix: str, values: List[str]) -> None:
+    for value in values:
+        row[f"has_{prefix}_{_normalize_feature_suffix(value)}"] = True
 
 
 def _flatten_intents(comp: ComponentInfo) -> List[Dict[str, Optional[str]]]:
@@ -133,8 +160,9 @@ def _build_filter_rows(
 ) -> List[Dict[str, Any]]:
     """Build filter_rows from all relevant components.
 
-    Components with intent-filters: one row per (action × category × scheme × data_type).
-    Exported components without intent-filters: one all-None row (covers IPC_SERVICE_HIJACK
+    Components with intent-filters: one component-level row with raw value lists
+    plus multi-hot action/category/data_type fields.
+    Exported components without intent-filters: one empty-list row (covers IPC_SERVICE_HIJACK
     and IPC_PROVIDER_REDELEGATION cases reachable via explicit intent).
     Non-exported components without intent-filters are skipped.
     """
@@ -143,42 +171,31 @@ def _build_filter_rows(
         perm = _component_permission(comp)
         protected = perm is not None
 
-        if comp.intent_filters:
-            for f in comp.intent_filters:
-                actions = f.get("actions") or [None]
-                categories = f.get("categories") or [None]
-                schemes = f.get("data_schemes") or [None]
-                data_types = f.get("data_types") or [None]
-                for action, category, scheme, data_type in product(
-                    actions, categories, schemes, data_types
-                ):
-                    rows.append({
-                        "sample_id": sample_id,
-                        "package_name": package_name,
-                        "component_name": comp.name,
-                        "component_type": comp.type,
-                        "action": action,
-                        "category": category,
-                        "data_type": data_type,
-                        "data_scheme": scheme,
-                        "permission": perm,
-                        "exported": comp.exported,
-                        "protected": protected,
-                    })
-        elif comp.exported:
-            rows.append({
-                "sample_id": sample_id,
-                "package_name": package_name,
-                "component_name": comp.name,
-                "component_type": comp.type,
-                "action": None,
-                "category": None,
-                "data_type": None,
-                "data_scheme": None,
-                "permission": perm,
-                "exported": True,
-                "protected": protected,
-            })
+        if not comp.intent_filters and not comp.exported:
+            continue
+
+        actions = _collect_filter_values(comp, "actions")
+        categories = _collect_filter_values(comp, "categories")
+        data_types = _collect_filter_values(comp, "data_types")
+        data_schemes = _collect_filter_values(comp, "data_schemes")
+
+        row: Dict[str, Any] = {
+            "sample_id": sample_id,
+            "package_name": package_name,
+            "component_name": comp.name,
+            "component_type": comp.type,
+            "actions": actions,
+            "categories": categories,
+            "data_types": data_types,
+            "data_schemes": data_schemes,
+            "permission": perm,
+            "exported": comp.exported,
+            "protected": protected,
+        }
+        _add_multi_hot_fields(row, "action", actions)
+        _add_multi_hot_fields(row, "category", categories)
+        _add_multi_hot_fields(row, "data_type", data_types)
+        rows.append(row)
     return rows
 
 
@@ -195,10 +212,10 @@ def _build_intent_rows(filter_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]
             "package_name": fr["package_name"],
             "component_name": "<UNKNOWN>",
             "component_type": "<UNKNOWN>",
-            "action": fr["action"],
-            "category": fr["category"],
-            "data_type": fr["data_type"],
-            "data_scheme": fr["data_scheme"],
+            "actions": list(fr["actions"]),
+            "categories": list(fr["categories"]),
+            "data_types": list(fr["data_types"]),
+            "data_schemes": list(fr["data_schemes"]),
             "permission": None,
             "is_explicit": False,
             "source": "manifest_only",
@@ -210,7 +227,7 @@ def _compute_risk_hint(
     comp_type: str,
     exported: bool,
     protected: bool,
-    action: Optional[str],
+    actions: List[str],
     app_permission_names: set,
 ) -> Optional[str]:
     """Return the IPC risk hint for a filter_row, or None if no risk applies."""
@@ -218,13 +235,19 @@ def _compute_risk_hint(
         return None
     if comp_type == "service":
         return "IPC_SERVICE_HIJACK"
-    if comp_type == "receiver" and action in SENSITIVE_BROADCAST_ACTIONS:
+    if comp_type == "receiver" and (set(actions) & SENSITIVE_BROADCAST_ACTIONS):
         return "IPC_BROADCAST_THEFT"
     if comp_type == "activity" and (app_permission_names & DANGEROUS_PERMS_FOR_DEPUTY):
         return "IPC_CONFUSED_DEPUTY"
     if comp_type == "provider":
         return "IPC_PROVIDER_REDELEGATION"
     return None
+
+
+def _matches_any(intent_values: List[str], filter_values: List[str]) -> bool:
+    if not intent_values:
+        return True
+    return bool(set(intent_values) & set(filter_values))
 
 
 def _build_resolution_rows(
@@ -242,30 +265,30 @@ def _build_resolution_rows(
             "sample_id": fr["sample_id"],
             "intent_component_name": ir["component_name"],
             "intent_component_type": ir["component_type"],
-            "intent_action": ir["action"],
-            "intent_category": ir["category"],
-            "intent_data_type": ir["data_type"],
-            "intent_data_scheme": ir.get("data_scheme"),
+            "intent_actions": list(ir["actions"]),
+            "intent_categories": list(ir["categories"]),
+            "intent_data_types": list(ir["data_types"]),
+            "intent_data_schemes": list(ir["data_schemes"]),
             "intent_permission": ir["permission"],
             "filter_component_name": fr["component_name"],
             "filter_component_type": fr["component_type"],
-            "filter_action": fr["action"],
-            "filter_category": fr["category"],
-            "filter_data_type": fr["data_type"],
-            "filter_data_scheme": fr.get("data_scheme"),
+            "filter_actions": list(fr["actions"]),
+            "filter_categories": list(fr["categories"]),
+            "filter_data_types": list(fr["data_types"]),
+            "filter_data_schemes": list(fr["data_schemes"]),
             "filter_permission": fr["permission"],
             "filter_exported": fr["exported"],
             "filter_protected": fr["protected"],
-            "match_action": True,
-            "match_category": True,
-            "match_type": True,
+            "match_action": _matches_any(ir["actions"], fr["actions"]),
+            "match_category": _matches_any(ir["categories"], fr["categories"]),
+            "match_type": _matches_any(ir["data_types"], fr["data_types"]),
             "caller_permission": ir["permission"],
             "callee_permission": fr["permission"],
             "risk_hint": _compute_risk_hint(
                 comp_type=fr["component_type"],
                 exported=fr["exported"],
                 protected=fr["protected"],
-                action=fr["action"],
+                actions=fr["actions"],
                 app_permission_names=permission_names,
             ),
         })

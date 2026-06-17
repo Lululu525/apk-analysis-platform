@@ -289,7 +289,7 @@ def test_filter_rows_protected_vs_unprotected(monkeypatch, tmp_path):
 
 
 def test_filter_rows_exported_without_intent_filter(monkeypatch, tmp_path):
-    """Exported components with no intent-filter still emit one all-None filter_row."""
+    """Exported components with no intent-filter still emit one empty-list filter_row."""
     monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
     monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
 
@@ -298,13 +298,15 @@ def test_filter_rows_exported_without_intent_filter(monkeypatch, tmp_path):
 
     for name in ("com.example.SyncService", "com.example.UserProvider"):
         row = by_comp[name]
-        assert row["action"] is None
-        assert row["category"] is None
-        assert row["data_type"] is None
+        assert row["actions"] == []
+        assert row["categories"] == []
+        assert row["data_types"] == []
+        assert row["data_schemes"] == []
+        assert not any(k.startswith("has_") for k in row)
 
 
 def test_filter_rows_multiple_intent_filters(monkeypatch, tmp_path):
-    """A component with 2 intent-filters produces 2+ filter_rows."""
+    """A component with 2 intent-filters produces 1 multi-hot filter_row."""
     result = _ag_result()
     result.components = [
         ComponentInfo(
@@ -321,14 +323,18 @@ def test_filter_rows_multiple_intent_filters(monkeypatch, tmp_path):
     monkeypatch.setattr(pm, "analyze_apk", lambda _: result)
 
     rows = pm.build_model_features(tmp_path / "app.apk")["filter_rows"]
-    actions = [r["action"] for r in rows]
-    assert "android.intent.action.VIEW" in actions
-    assert "android.intent.action.EDIT" in actions
-    assert len(rows) == 2
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["actions"] == [
+        "android.intent.action.VIEW",
+        "android.intent.action.EDIT",
+    ]
+    assert row["has_action_android_intent_action_view"] is True
+    assert row["has_action_android_intent_action_edit"] is True
 
 
 def test_filter_rows_missing_action(monkeypatch, tmp_path):
-    """Intent-filter with no <action> produces a row with action=None."""
+    """Intent-filter with no <action> produces a row with actions=[]."""
     result = _ag_result()
     result.components = [
         ComponentInfo(
@@ -343,8 +349,77 @@ def test_filter_rows_missing_action(monkeypatch, tmp_path):
 
     rows = pm.build_model_features(tmp_path / "app.apk")["filter_rows"]
     assert len(rows) == 1
-    assert rows[0]["action"] is None
-    assert rows[0]["category"] == "android.intent.category.DEFAULT"
+    assert rows[0]["actions"] == []
+    assert rows[0]["categories"] == ["android.intent.category.DEFAULT"]
+    assert rows[0]["has_category_android_intent_category_default"] is True
+
+
+def test_filter_rows_multi_hot_does_not_create_cartesian_product(monkeypatch, tmp_path):
+    result = _ag_result()
+    result.components = [
+        ComponentInfo(
+            type="activity",
+            name="com.example.RichFilter",
+            exported=True,
+            intent_filters=[{
+                "actions": [
+                    "android.intent.action.VIEW",
+                    "android.intent.action.SEND",
+                ],
+                "categories": [
+                    "android.intent.category.DEFAULT",
+                    "android.intent.category.BROWSABLE",
+                ],
+                "data_types": ["image/*", "text/plain"],
+            }],
+        )
+    ]
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: result)
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["filter_rows"]
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["actions"] == [
+        "android.intent.action.VIEW",
+        "android.intent.action.SEND",
+    ]
+    assert row["categories"] == [
+        "android.intent.category.DEFAULT",
+        "android.intent.category.BROWSABLE",
+    ]
+    assert row["data_types"] == ["image/*", "text/plain"]
+    assert row["has_action_android_intent_action_view"] is True
+    assert row["has_action_android_intent_action_send"] is True
+    assert row["has_category_android_intent_category_default"] is True
+    assert row["has_category_android_intent_category_browsable"] is True
+    assert row["has_data_type_image"] is True
+    assert row["has_data_type_text_plain"] is True
+
+
+def test_filter_rows_multi_hot_field_name_normalization(monkeypatch, tmp_path):
+    result = _ag_result()
+    result.components = [
+        ComponentInfo(
+            type="activity",
+            name="com.example.NormalizeFilter",
+            exported=True,
+            intent_filters=[{
+                "actions": ["android.intent.action.VIEW"],
+                "categories": ["android.intent.category.DEFAULT"],
+                "data_types": ["image/*"],
+            }],
+        )
+    ]
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: result)
+
+    row = pm.build_model_features(tmp_path / "app.apk")["filter_rows"][0]
+
+    assert row["has_action_android_intent_action_view"] is True
+    assert row["has_category_android_intent_category_default"] is True
+    assert row["has_data_type_image"] is True
 
 
 def test_intent_rows_manifest_only_fields(monkeypatch, tmp_path):
@@ -358,6 +433,10 @@ def test_intent_rows_manifest_only_fields(monkeypatch, tmp_path):
         assert row["is_explicit"] is False
         assert row["source"] == "manifest_only"
         assert row["permission"] is None
+        assert "actions" in row
+        assert "categories" in row
+        assert "data_types" in row
+        assert "data_schemes" in row
 
 
 def test_resolution_rows_risk_hint_service_hijack(monkeypatch, tmp_path):
@@ -369,12 +448,65 @@ def test_resolution_rows_risk_hint_service_hijack(monkeypatch, tmp_path):
     assert service_row["risk_hint"] == "IPC_SERVICE_HIJACK"
 
 
+def test_resolution_rows_manifest_only_matches_remain_true(monkeypatch, tmp_path):
+    monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
+
+    rows = pm.build_model_features(tmp_path / "app.apk")["resolution_rows"]
+
+    for row in rows:
+        assert row["match_action"] is True
+        assert row["match_category"] is True
+        assert row["match_type"] is True
+
+
+def test_resolution_rows_match_fields_use_set_intersection():
+    filter_rows = [{
+        "sample_id": "sample-1",
+        "component_name": "com.example.FilterActivity",
+        "component_type": "activity",
+        "actions": ["android.intent.action.VIEW"],
+        "categories": ["android.intent.category.DEFAULT"],
+        "data_types": ["image/*"],
+        "data_schemes": [],
+        "permission": None,
+        "exported": True,
+        "protected": False,
+    }]
+    intent_rows = [{
+        "component_name": "com.example.SenderActivity",
+        "component_type": "activity",
+        "actions": ["android.intent.action.VIEW"],
+        "categories": [],
+        "data_types": [],
+        "data_schemes": [],
+        "permission": None,
+    }]
+
+    row = pm._build_resolution_rows(filter_rows, intent_rows, set())[0]
+
+    assert row["match_action"] is True
+    assert row["match_category"] is True
+    assert row["match_type"] is True
+
+    intent_rows[0]["actions"] = ["android.intent.action.SEND"]
+    intent_rows[0]["categories"] = ["android.intent.category.BROWSABLE"]
+    intent_rows[0]["data_types"] = ["text/plain"]
+
+    row = pm._build_resolution_rows(filter_rows, intent_rows, set())[0]
+
+    assert row["match_action"] is False
+    assert row["match_category"] is False
+    assert row["match_type"] is False
+
+
 def test_resolution_rows_risk_hint_broadcast_theft(monkeypatch, tmp_path):
     monkeypatch.setattr(pm, "ANDROGUARD_AVAILABLE", True)
     monkeypatch.setattr(pm, "analyze_apk", lambda _: _ag_result())
 
     rows = pm.build_model_features(tmp_path / "app.apk")["resolution_rows"]
     boot_row = next(r for r in rows if r["filter_component_name"] == "com.example.BootReceiver")
+    assert boot_row["filter_actions"] == ["android.intent.action.BOOT_COMPLETED"]
     assert boot_row["risk_hint"] == "IPC_BROADCAST_THEFT"
 
 
