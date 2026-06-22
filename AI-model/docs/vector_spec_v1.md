@@ -74,8 +74,10 @@ intent-filter，則系統中必然存在對應的呼叫者；此時 `source="man
 
 代表「某 component **宣告**的一個 intent-filter entry（接收端視角）」。
 
-每個 intent-filter XML 元素的每個 (action, category, data_type) 組合**各產生一筆 row**
-（笛卡爾積展開，與現行 `_flatten_intents()` 邏輯一致）。
+每個 component **產生一筆 row**，採用 multi-hot encoding：component 宣告的所有
+action、category、data_type 分別展開為 `has_action_*`、`has_category_*`、
+`has_data_type_*` 布林欄位。此設計取代原笛卡爾積展開（已於 commit `7098f99` 廢棄），
+避免特徵爆炸並保留完整集合語意。
 
 ### Schema
 
@@ -227,3 +229,4 @@ v1 只做**同一 APK 內**的 implicit intent matching（intent_row × filter_r
 | 版本 | 日期 | 異動 |
 |------|------|------|
 | v1.0 | 2026-05-20 | 初版，定義三種 row schema；完成 parse_manifest.py 差異表 |
+| v1.1 | 2026-06-19 | §2 filter_row 改為 multi-hot encoding（廢棄笛卡爾積展開）；與 training_data_spec.md 對齊 |

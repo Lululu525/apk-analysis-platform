@@ -83,7 +83,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 1. 保留目前 `build_features(apk_path)` 的 manifest summary，避免破壞現有測試。
 2. 新增 `build_model_features(apk_path)`，輸出 `intent_rows`, `filter_rows`, `resolution_rows`, `app_summary`。
 3. 從 `androguard_analyzer.ComponentInfo` 生成 `filter_rows`，採用 **multi-hot encoding**：一個 component 一筆 row，action/category/data_type 各自展開為布林欄位（`has_action_VIEW`、`has_category_DEFAULT` 等），不做笛卡爾積展開。
-4. 對 manifest 可解析的 implicit intent/filter 做單一 App 內部 matching，生成初步 `resolution_rows`，matching 結果以 `action_match`（布林值）表示 action 集合的交集關係，而非逐 action 比對。
+4. 對 manifest 可解析的 implicit intent/filter 做單一 App 內部 matching，生成初步 `resolution_rows`，matching 結果以 `match_action`（布林值）表示 action 集合的交集關係，而非逐 action 比對。
 5. 對無法由 manifest 得知的 code-generated intent，標記 `source="manifest_only"`，後續由 bytecode extractor（v2）補強。
 6. 更新測試，覆蓋 activity/service/provider/receiver、protected/unprotected、缺 action/category/type、multiple filters。
 
@@ -109,18 +109,18 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 
 ---
 
-## Task 4：Training 與 Inference 資料格式定義
+## Task 4：Training 與 Inference 資料格式定義 ✅ 已完成
 
 **任務名稱與核心功能**
 制定兩套正式資料規範：訓練資料格式與推論格式。
 
 **詳細執行指示**
 1. Training format 使用 JSONL 或 Parquet，每筆是一個 row-level 樣本，欄位包含 `sample_id`, `row_type`, `features`, `label`, `label_source`, `split`。
-2. `row_type` 固定為 `intent`, `filter`, `resolution`, `app_summary`。
+2. `row_type` 固定為 `filter`, `resolution`（v1 訓練集）。`intent_row` 因 v1 manifest-only 階段無獨立訓練價值，不進入訓練；`app_summary` 為 APK 級別摘要，非 row-level 樣本，兩者均不出現在 training / inference data 中。
 3. `label` 固定二值：`1=dangerous/overprivilege risk`, `0=normal`；弱標註標記 `label_source="rule_weak_label"`。
 4. **label 轉換規則**（由 dataset builder 負責，不放在 Parser）：
    - `filter_row` → `label = 1 if (exported == True and protected == False) else 0`
-   - `resolution_row` → `label = 1 if risk_hint is not None else 0`
+   - `resolution_row` → `label = 1 if (risk_hint is not None and risk_hint != "<NONE>") else 0`
    - `intent_row` → v1 不產生 label，不進入訓練
 5. Inference format 不含 `label/split`，但必須含 `schema_version`, `encoder_version`, `sample_id`, `features`, `row_type`。
 6. 模型輸出格式固定為：`row_id`, `row_type`, `risk_probability`, `predicted_label`, `top_features`, `model_version`。
@@ -226,7 +226,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 | T1 Vector Spec | 3–4 天 | 低 | 無 ✅ 已完成 |
 | T2 Parser 重構 | 1–1.5 週 | 中 | filter_row multi-hot edge cases ✅ 已完成 |
 | T3 分工重定義 | 3–4 天 | 低 | 主要是 rename + 職責切割 ✅ 已完成 |
-| T4 資料格式 | 3 天 | 低 | label 轉換規則需與 dataset builder 對齊 |
+| T4 資料格式 | 3 天 | 低 | label 轉換規則需與 dataset builder 對齊 ✅ 已完成|
 | T5 資料蒐集 | 2–3 週 | **高** | APK 取得 + 標記耗時，需遵守 150 上限 |
 | T6 MVP ML | 1.5–2 週 | 中 | v1 只訓練 filter_row；resolution_row 待 bytecode v2 |
 | T7 Inference 整合 | 1 週 | 低 | 現有 pipeline API 相容性 |
