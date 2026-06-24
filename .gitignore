@@ -46,9 +46,19 @@ AI-model/output/
 *.report.json
 
 # =========================
-# APK（關鍵）
+# APK
 # =========================
+# 一般情況下不追蹤 .apk（platform storage、build 產物等）
 *.apk
+# 例外：dataset/ 下的 toy/opensource/public APK 需要進 git
+!AI-model/dataset/toy_apks/**/*.apk
+!AI-model/dataset/opensource_apks/**/*.apk
+!AI-model/dataset/public_apks/**/*.apk
+
+# =========================
+# Toy APK Android Studio 原始碼（不進 git，只 commit build 出來的 .apk）
+# =========================
+AI-model/toy_apk_sources/
 
 # =========================
 # Node / Frontend
