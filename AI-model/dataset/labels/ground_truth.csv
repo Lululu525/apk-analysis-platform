@@ -1,1 +1,7 @@
 apk_filename,package_name,scenario,case_id,label,label_source,note
+scenario_b_case0.apk,com.toyapk.scenario_b.case0,B,0,0,manual,對照組：Service exported=false
+scenario_b_case1.apk,com.toyapk.scenario_b.case1,B,1,1,manual,Service exported=true 無 permission
+scenario_b_case2.apk,com.toyapk.scenario_b.case2,B,2,0,manual,Service exported=true 有 signature permission 保護
+scenario_b_case3.apk,com.toyapk.scenario_b.case3,B,3,1,manual,兩個 Service：ProtectedService 有保護；UnprotectedService 無保護（exported）→ rule engine 對 UnprotectedService 觸發 IPC_SERVICE_HIJACK
+scenario_b_case4.apk,com.toyapk.scenario_b.case4,B,4,1,manual,Service exported=true 有 intent-filter 無 permission
+scenario_b_case5.apk,com.toyapk.scenario_b.case5,B,5,1,manual,兩個 Service 皆 exported 有 intent-filter 無 permission
