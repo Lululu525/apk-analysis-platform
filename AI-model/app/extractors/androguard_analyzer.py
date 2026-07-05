@@ -225,6 +225,7 @@ def _extract_components(apk) -> List[ComponentInfo]:
         name = activity.get("{http://schemas.android.com/apk/res/android}name")
         exported = activity.get("{http://schemas.android.com/apk/res/android}exported", "false").lower() == "true"
         intent_filters = _extract_intent_filters(activity)
+        permissions = activity.get("{http://schemas.android.com/apk/res/android}permission")
 
         # Activities with intent-filter are implicitly exported
         if intent_filters:
@@ -234,7 +235,8 @@ def _extract_components(apk) -> List[ComponentInfo]:
             type="activity",
             name=name,
             exported=exported,
-            intent_filters=intent_filters
+            intent_filters=intent_filters,
+            permissions_required=[permissions] if permissions else None
         ))
 
     # ── Services ──────────────────────────────────────────────────────────
@@ -278,6 +280,7 @@ def _extract_components(apk) -> List[ComponentInfo]:
         name = receiver.get("{http://schemas.android.com/apk/res/android}name")
         exported = receiver.get("{http://schemas.android.com/apk/res/android}exported", "false").lower() == "true"
         intent_filters = _extract_intent_filters(receiver)
+        permissions = receiver.get("{http://schemas.android.com/apk/res/android}permission")
 
         if intent_filters:
             exported = True
@@ -286,7 +289,8 @@ def _extract_components(apk) -> List[ComponentInfo]:
             type="receiver",
             name=name,
             exported=exported,
-            intent_filters=intent_filters
+            intent_filters=intent_filters,
+            permissions_required=[permissions] if permissions else None
         ))
 
     return components

@@ -1,0 +1,21 @@
+# APK binaries
+*.apk
+
+# Toy APK reports and analysis markdown files
+dataset/toy_apk_reports/
+dataset/toy_apks/**/*.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Misc
+.DS_Store
+*.log

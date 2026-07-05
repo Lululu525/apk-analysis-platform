@@ -1,11 +1,15 @@
 """Tests for Android static findings derived from extracted AnalysisResult facts."""
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
+from unittest.mock import MagicMock
+
 from app.detectors.android_static_detector import findings_from_analysis
 from app.extractors.androguard_analyzer import (
     AnalysisResult,
     ComponentInfo,
     PermissionInfo,
+    _extract_components,
 )
 
 
@@ -123,3 +127,31 @@ def test_low_target_sdk_finding():
     finding = next(f for f in findings_from_analysis(result) if f.id == "LOW_TARGET_SDK")
 
     assert finding.evidence["target_sdk"] == 22
+
+
+def test_activity_with_android_permission_attr_parsed_correctly():
+    """Regression: exported activity with android:permission should have
+    permissions_required populated (not None) after _extract_components fix."""
+    NS = "http://schemas.android.com/apk/res/android"
+    manifest_xml = ET.fromstring(
+        f'<manifest xmlns:android="{NS}" package="com.example.app">'
+        f'  <application>'
+        f'    <activity'
+        f'      android:name="com.example.ProtectedActivity"'
+        f'      android:exported="true"'
+        f'      android:permission="com.example.permission.ACCESS_PROTECTED" />'
+        f'  </application>'
+        f'</manifest>'
+    )
+
+    mock_axml = MagicMock()
+    mock_axml.get_xml_obj.return_value = manifest_xml
+    mock_apk = MagicMock()
+    mock_apk.get_android_manifest_axml.return_value = mock_axml
+
+    components = _extract_components(mock_apk)
+    activity = next(c for c in components if c.type == "activity")
+
+    assert activity.exported is True
+    assert activity.permissions_required is not None
+    assert "com.example.permission.ACCESS_PROTECTED" in activity.permissions_required
