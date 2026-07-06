@@ -124,6 +124,7 @@ class ComponentInfo:
     exported: bool = False
     intent_filters: Optional[List[Dict[str, Union[str, List[str]]]]] = None
     permissions_required: Optional[List[str]] = None
+    grant_uri_permissions: bool = False
 
 
 @dataclass
@@ -263,6 +264,17 @@ def _extract_components(apk) -> List[ComponentInfo]:
         exported = provider.get("{http://schemas.android.com/apk/res/android}exported", "false").lower() == "true"
         authority = provider.get("{http://schemas.android.com/apk/res/android}authorities")
         permissions = provider.get("{http://schemas.android.com/apk/res/android}permission")
+        read_permission = provider.get("{http://schemas.android.com/apk/res/android}readPermission")
+        write_permission = provider.get("{http://schemas.android.com/apk/res/android}writePermission")
+        grant_uri_permissions = provider.get(
+            "{http://schemas.android.com/apk/res/android}grantUriPermissions",
+            "false",
+        ).lower() == "true"
+        permissions_required = [
+            permission
+            for permission in (permissions, read_permission, write_permission)
+            if permission is not None
+        ]
 
         # ContentProviders are exported by default
         if authority and not exported:
@@ -272,7 +284,8 @@ def _extract_components(apk) -> List[ComponentInfo]:
             type="provider",
             name=name,
             exported=exported,
-            permissions_required=[permissions] if permissions else None
+            permissions_required=permissions_required or None,
+            grant_uri_permissions=grant_uri_permissions,
         ))
 
     # ── Broadcast Receivers ───────────────────────────────────────────────
