@@ -70,6 +70,8 @@ def _ag_result() -> AnalysisResult:
             name="com.example.UserProvider",
             exported=True,
             permissions_required=["com.example.permission.READ_USERS"],
+            read_permission="com.example.permission.READ_USERS",
+            write_permission="com.example.permission.READ_USERS",
         ),
         ComponentInfo(
             type="receiver",

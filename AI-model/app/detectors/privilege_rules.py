@@ -374,14 +374,16 @@ def check_combinations(result: AnalysisResult | None) -> list[Finding]:
     # ── Layer 3d: ContentProvider re-delegation ───────────────────────────────
     # Source [2] Section 3.2: unprotected exported ContentProvider allows any app
     # to read/write structured data without holding the corresponding permission.
-    unprotected_providers = [
-        c for c in components
-        if c.type == "provider" and c.exported and not c.permissions_required
-    ]
+    def _provider_exposed(c: ComponentInfo) -> bool:
+        if c.type != "provider" or not c.exported:
+            return False
+        return (not c.read_permission) or (not c.write_permission)
+
+    unprotected_providers = [c for c in components if _provider_exposed(c)]
     if unprotected_providers:
         findings.append(Finding(
             id="IPC_PROVIDER_REDELEGATION",
-            title=f"ContentProvider 越權存取：{len(unprotected_providers)} 個 provider 無讀寫權限保護",
+            title=f"ContentProvider 越權存取：{len(unprotected_providers)} 個 provider 讀取或寫入端缺乏權限保護",
             severity="critical",
             confidence=0.95,
             category="ipc_privilege_escalation",
@@ -393,8 +395,48 @@ def check_combinations(result: AnalysisResult | None) -> list[Finding]:
                 "reference": "El-Zawawy & Hamdy 2025, Section 3.2",
             },
             remediation=(
-                "為 ContentProvider 設定 android:readPermission 與 android:writePermission，"
+                "為 ContentProvider 同時設定 android:readPermission 與 android:writePermission"
+                "（或設定涵蓋兩者的 android:permission），"
                 "或在 query()/insert()/update()/delete() 入口手動驗證呼叫者身份。"
+            ),
+        ))
+
+    # ── Layer 3e: grantUriPermissions bypass ──────────────────────────────────
+    # Manifest-only signal: the provider has some read/write protection, but
+    # grantUriPermissions can delegate URI access outside those permissions.
+    grant_bypass_providers = [
+        c for c in components
+        if c.type == "provider"
+        and c.grant_uri_permissions
+        and (c.read_permission or c.write_permission)
+        and not _provider_exposed(c)
+    ]
+    if grant_bypass_providers:
+        findings.append(Finding(
+            id="IPC_PROVIDER_URI_GRANT_BYPASS",
+            title=(
+                f"ContentProvider URI 授權繞過風險：{len(grant_bypass_providers)} 個 provider "
+                "設定 grantUriPermissions，可能繞過既有 read/write permission 保護"
+            ),
+            severity="medium",
+            confidence=0.5,
+            category="ipc_privilege_escalation",
+            cwe=["CWE-926", "CWE-284"],
+            cve_examples=[],
+            evidence={
+                "providers": [c.name for c in grant_bypass_providers[:10]],
+                "attack_type": "URI Permission Grant Bypass",
+                "note": (
+                    "grantUriPermissions=true allows URI access to be delegated "
+                    "without the recipient holding readPermission/writePermission. "
+                    "Manifest-only analysis cannot prove unsafe forwarding."
+                ),
+                "reference": "El-Zawawy & Hamdy 2025, Section 3.2",
+            },
+            remediation=(
+                "檢查是否有 exported component 會把收到的 content:// URI 連同 grant flags "
+                "轉發給外部呼叫者；若無此需求，移除 grantUriPermissions，或改用 "
+                "<grant-uri-permission> 子元素做 path 級範圍限縮。"
             ),
         ))
 

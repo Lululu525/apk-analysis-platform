@@ -64,6 +64,10 @@ _COMPONENT_KEY = {
 
 
 def _component_permission(comp: ComponentInfo) -> Optional[str]:
+    if comp.type == "provider":
+        if comp.read_permission and comp.write_permission:
+            return comp.read_permission
+        return None
     if not comp.permissions_required:
         return None
     return comp.permissions_required[0]
@@ -136,7 +140,7 @@ def _summarize(result: AnalysisResult) -> Dict[str, Any]:
             continue
         components_by_type[key].append(comp.name)
         intents.extend(_flatten_intents(comp))
-        if comp.exported and not comp.permissions_required:
+        if comp.exported and _component_permission(comp) is None:
             exported_unprotected.append(comp.name)
 
     return {

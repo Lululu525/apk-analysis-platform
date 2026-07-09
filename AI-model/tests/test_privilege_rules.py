@@ -27,7 +27,8 @@ def _make_result(permissions=None, components=None, success=True) -> AnalysisRes
 
 
 def _make_component(comp_type, name, exported=True, permissions_required=None,
-                    intent_actions=None) -> ComponentInfo:
+                    intent_actions=None, read_permission=None,
+                    write_permission=None, grant_uri_permissions=False) -> ComponentInfo:
     intent_filters = []
     if intent_actions:
         intent_filters = [{"actions": intent_actions}]
@@ -37,6 +38,9 @@ def _make_component(comp_type, name, exported=True, permissions_required=None,
         exported=exported,
         permissions_required=permissions_required,
         intent_filters=intent_filters,
+        read_permission=read_permission,
+        write_permission=write_permission,
+        grant_uri_permissions=grant_uri_permissions,
     )
 
 
@@ -347,9 +351,42 @@ def test_ipc_provider_redelegation_unprotected():
 def test_ipc_provider_redelegation_protected_no_trigger():
     provider = _make_component("provider", "com.example.DataProvider",
                                 exported=True,
-                                permissions_required=["com.example.READ_DATA"])
+                                permissions_required=["com.example.READ_DATA"],
+                                read_permission="com.example.READ_DATA",
+                                write_permission="com.example.READ_DATA")
     result = _make_result(components=[provider])
     assert "IPC_PROVIDER_REDELEGATION" not in _ids(check_combinations(result))
+
+
+def test_ipc_provider_redelegation_partial_protection_triggers():
+    provider = _make_component("provider", "com.example.PartialProvider",
+                                exported=True,
+                                read_permission="com.example.READ",
+                                write_permission=None)
+    result = _make_result(components=[provider])
+    assert "IPC_PROVIDER_REDELEGATION" in _ids(check_combinations(result))
+
+
+def test_ipc_provider_uri_grant_bypass_triggers_when_protected():
+    provider = _make_component("provider", "com.example.UriGrantProvider",
+                                exported=True,
+                                read_permission="com.example.READ",
+                                write_permission="com.example.READ",
+                                grant_uri_permissions=True)
+    result = _make_result(components=[provider])
+    ids = _ids(check_combinations(result))
+    assert "IPC_PROVIDER_URI_GRANT_BYPASS" in ids
+    assert "IPC_PROVIDER_REDELEGATION" not in ids
+
+
+def test_ipc_provider_uri_grant_bypass_not_duplicated_when_fully_open():
+    provider = _make_component("provider", "com.example.ExposedProvider",
+                                exported=True,
+                                grant_uri_permissions=True)
+    result = _make_result(components=[provider])
+    ids = _ids(check_combinations(result))
+    assert "IPC_PROVIDER_REDELEGATION" in ids
+    assert "IPC_PROVIDER_URI_GRANT_BYPASS" not in ids
 
 
 def test_ipc_provider_redelegation_severity_critical():

@@ -33,6 +33,8 @@ def test_provider_read_permission_is_in_permissions_required():
     assert provider.permissions_required == [
         "com.example.permission.READ_PROVIDER",
     ]
+    assert provider.read_permission == "com.example.permission.READ_PROVIDER"
+    assert provider.write_permission is None
 
 
 def test_provider_write_permission_is_in_permissions_required():
@@ -43,6 +45,8 @@ def test_provider_write_permission_is_in_permissions_required():
     assert provider.permissions_required == [
         "com.example.permission.WRITE_PROVIDER",
     ]
+    assert provider.read_permission is None
+    assert provider.write_permission == "com.example.permission.WRITE_PROVIDER"
 
 
 def test_provider_general_and_read_permissions_are_both_required():
@@ -55,12 +59,42 @@ def test_provider_general_and_read_permissions_are_both_required():
         "com.example.permission.ACCESS_PROVIDER",
         "com.example.permission.READ_PROVIDER",
     ]
+    assert provider.read_permission == "com.example.permission.READ_PROVIDER"
+    assert provider.write_permission == "com.example.permission.ACCESS_PROVIDER"
 
 
 def test_provider_without_permissions_keeps_permissions_required_none():
     provider = _extract_provider("")
 
     assert provider.permissions_required is None
+    assert provider.read_permission is None
+    assert provider.write_permission is None
+
+
+def test_provider_generic_permission_covers_both_sides():
+    provider = _extract_provider(
+        'android:permission="com.example.permission.ACCESS_PROVIDER"'
+    )
+
+    assert provider.read_permission == "com.example.permission.ACCESS_PROVIDER"
+    assert provider.write_permission == "com.example.permission.ACCESS_PROVIDER"
+
+
+def test_provider_read_permission_only_write_open():
+    provider = _extract_provider('android:readPermission="com.example.READ"')
+
+    assert provider.read_permission == "com.example.READ"
+    assert provider.write_permission is None
+
+
+def test_provider_read_permission_overrides_generic_for_that_side():
+    provider = _extract_provider(
+        'android:permission="com.example.ALL" '
+        'android:readPermission="com.example.READ"'
+    )
+
+    assert provider.read_permission == "com.example.READ"
+    assert provider.write_permission == "com.example.ALL"
 
 
 def test_provider_grant_uri_permissions_true_is_extracted():

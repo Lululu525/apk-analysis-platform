@@ -125,6 +125,11 @@ class ComponentInfo:
     intent_filters: Optional[List[Dict[str, Union[str, List[str]]]]] = None
     permissions_required: Optional[List[str]] = None
     grant_uri_permissions: bool = False
+    # Effective per-side permissions for ContentProviders only.
+    # A generic android:permission covers both sides unless read/write-specific
+    # permissions override that side.
+    read_permission: Optional[str] = None
+    write_permission: Optional[str] = None
 
 
 @dataclass
@@ -275,6 +280,8 @@ def _extract_components(apk) -> List[ComponentInfo]:
             for permission in (permissions, read_permission, write_permission)
             if permission is not None
         ]
+        effective_read_permission = read_permission or permissions
+        effective_write_permission = write_permission or permissions
 
         # ContentProviders are exported by default
         if authority and not exported:
@@ -286,6 +293,8 @@ def _extract_components(apk) -> List[ComponentInfo]:
             exported=exported,
             permissions_required=permissions_required or None,
             grant_uri_permissions=grant_uri_permissions,
+            read_permission=effective_read_permission,
+            write_permission=effective_write_permission,
         ))
 
     # ── Broadcast Receivers ───────────────────────────────────────────────
