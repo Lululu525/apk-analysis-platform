@@ -1,8 +1,8 @@
 # Toy APK 場景設計藍圖
 
 **專案**：NSTC 大專生研究計畫 — Android APK 越權行為靜態分析  
-**版本**：v1.1  
-**更新日期**：2026-07-09  
+**版本**：v1.2  
+**更新日期**：2026-07-10  
 **總 APK 數**：30 個（5 種場景 × 6 個 APK）
 
 > **v1.1 修訂紀錄（2026-07-09）**：修正場景 E 的 E-2/E-5 設計矛盾。原本 E-2 只設定
@@ -14,6 +14,16 @@
 > （有保護但 `grantUriPermissions=true` 可能被繞過）。E-5 原本完全無保護，會跟
 > E-1 產生一模一樣的 finding，測不到「URI 授權誤用」的設計初衷，故改為兩側皆
 > 保護 + `grantUriPermissions=true`，才能真正測到「保護被繞過」的情境。
+
+> **v1.2 修訂紀錄（2026-07-10）**：修正場景 C 的 C-3 設計缺陷。原始設計只對
+> `ContactsActivity` 加了 permission 保護，`MainActivity` 仍是 `exported="true"`
+> 且無保護——但 `IPC_CONFUSED_DEPUTY` 的觸發條件是「持有危險權限 AND 存在任一
+> exported 且無保護的 component」，並不會判斷哪個 component 語意上對應該權限。
+> 實際建置驗證後，C-3 因為 `MainActivity` 未受保護而被規則正確判定為觸發，
+> 與預期的 label=0 不符（規則本身沒有 bug，是案例設計沒把所有 exported
+> component 都保護到）。已修正為 `MainActivity` 與 `ContactsActivity` 皆套用
+> 同一個自訂 permission，重跑驗證後 PASS（`IPC_CONFUSED_DEPUTY` 與
+> `EXPORTED_UNPROTECTED_ACTIVITY` 皆不再觸發）。
 
 ---
 
@@ -466,7 +476,7 @@
 | **C-0** | `com.toyapk.scenario_c.case0` | 持有 `READ_SMS`，但所有 Activity `exported="false"` | **0** | 對照組 |
 | **C-1** | `com.toyapk.scenario_c.case1` | 持有 `READ_SMS` + exported Activity 無 permission | **1** | 典型 Confused Deputy |
 | **C-2** | `com.toyapk.scenario_c.case2` | 持有 `CAMERA` + exported Activity 無 permission | **1** | 相機權限委派 |
-| **C-3** | `com.toyapk.scenario_c.case3` | 持有 `READ_CONTACTS` + exported Activity **有** permission 保護 | **0** | 正確保護，不觸發 |
+| **C-3** | `com.toyapk.scenario_c.case3` | 持有 `READ_CONTACTS` + **兩個** exported Activity（MainActivity、ContactsActivity）皆**有** permission 保護 | **0** | 正確保護，不觸發 |
 | **C-4** | `com.toyapk.scenario_c.case4` | 持有 `READ_SMS` + `READ_CALL_LOG` + 多個 exported Activity 無保護 | **1** | 高嚴重度：多重危險權限 |
 | **C-5** | `com.toyapk.scenario_c.case5` | 只持有 `INTERNET`（非危險權限）+ exported Activity 無保護 | **0** | 邊界案例：INTERNET 不觸發規則 |
 
@@ -569,9 +579,15 @@
         android:allowBackup="true"
         android:label="ToyApk C3"
         android:theme="@style/Theme.AppCompat">
+        <!-- 安全：MainActivity 也有 permission 保護，不觸發規則 -->
+        <!-- 原始設計只保護了 ContactsActivity，MainActivity 仍 exported 且無保護，
+             導致 IPC_CONFUSED_DEPUTY 規則（任一 exported component 無保護即觸發）
+             實際跑出來是誤判為觸發（規則本身沒錯，是案例設計沒把所有 exported
+             component 都保護到）。已修正為兩個 Activity 皆套用同一個 permission。 -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.toyapk.scenario_c.case3.ACCESS_CONTACTS">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -1134,7 +1150,7 @@ scenario_b_case5.apk,com.toyapk.scenario_b.case5,B,5,1,manual,多服務裸露：
 scenario_c_case0.apk,com.toyapk.scenario_c.case0,C,0,0,manual,對照組：持有READ_SMS但所有Activity exported=false
 scenario_c_case1.apk,com.toyapk.scenario_c.case1,C,1,1,manual,典型Confused Deputy：READ_SMS+exported Activity無保護
 scenario_c_case2.apk,com.toyapk.scenario_c.case2,C,2,1,manual,相機權限委派：CAMERA+exported Activity無保護
-scenario_c_case3.apk,com.toyapk.scenario_c.case3,C,3,0,manual,正確保護：READ_CONTACTS但exported Activity有permission
+scenario_c_case3.apk,com.toyapk.scenario_c.case3,C,3,0,manual,正確保護：READ_CONTACTS，MainActivity與ContactsActivity皆有permission保護
 scenario_c_case4.apk,com.toyapk.scenario_c.case4,C,4,1,manual,高嚴重度：READ_SMS+READ_CALL_LOG+多個exported Activity無保護
 scenario_c_case5.apk,com.toyapk.scenario_c.case5,C,5,0,manual,邊界案例：只有INTERNET（非危險權限）不觸發規則
 scenario_d_case0.apk,com.toyapk.scenario_d.case0,D,0,0,manual,對照組：自訂action且exported=false

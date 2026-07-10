@@ -11,6 +11,12 @@ scenario_b_case2.apk,com.toyapk.scenario_b.case2,B,2,0,manual,Service exported=t
 scenario_b_case3.apk,com.toyapk.scenario_b.case3,B,3,1,manual,兩個 Service：ProtectedService 有保護；UnprotectedService 無保護（exported）→ rule engine 對 UnprotectedService 觸發 IPC_SERVICE_HIJACK
 scenario_b_case4.apk,com.toyapk.scenario_b.case4,B,4,1,manual,Service exported=true 有 intent-filter 無 permission
 scenario_b_case5.apk,com.toyapk.scenario_b.case5,B,5,1,manual,兩個 Service 皆 exported 有 intent-filter 無 permission
+scenario_c_case0.apk,com.toyapk.scenario_c.case0,C,0,0,manual,對照組：持有READ_SMS但所有Activity exported=false
+scenario_c_case1.apk,com.toyapk.scenario_c.case1,C,1,1,manual,典型Confused Deputy：READ_SMS+exported Activity無保護
+scenario_c_case2.apk,com.toyapk.scenario_c.case2,C,2,1,manual,相機權限委派：CAMERA+exported Activity無保護
+scenario_c_case3.apk,com.toyapk.scenario_c.case3,C,3,0,manual,正確保護：READ_CONTACTS，MainActivity與ContactsActivity皆有permission保護
+scenario_c_case4.apk,com.toyapk.scenario_c.case4,C,4,1,manual,高嚴重度：READ_SMS+READ_CALL_LOG+多個exported Activity無保護
+scenario_c_case5.apk,com.toyapk.scenario_c.case5,C,5,0,manual,邊界案例：只有INTERNET（非危險權限）不觸發規則
 scenario_e_case0.apk,com.toyapk.scenario_e.case0,E,0,0,manual,對照組：Provider exported=false
 scenario_e_case1.apk,com.toyapk.scenario_e.case1,E,1,1,manual,完全裸露：exported=true無readPermission/writePermission
 scenario_e_case2.apk,com.toyapk.scenario_e.case2,E,2,0,manual,完整保護：readPermission+writePermission皆設定（原設計僅設readPermission與E-3衝突，已修正）
