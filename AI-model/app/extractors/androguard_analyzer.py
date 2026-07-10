@@ -283,10 +283,6 @@ def _extract_components(apk) -> List[ComponentInfo]:
         effective_read_permission = read_permission or permissions
         effective_write_permission = write_permission or permissions
 
-        # ContentProviders are exported by default
-        if authority and not exported:
-            exported = True
-
         components.append(ComponentInfo(
             type="provider",
             name=name,

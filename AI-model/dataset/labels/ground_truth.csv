@@ -11,3 +11,9 @@ scenario_b_case2.apk,com.toyapk.scenario_b.case2,B,2,0,manual,Service exported=t
 scenario_b_case3.apk,com.toyapk.scenario_b.case3,B,3,1,manual,兩個 Service：ProtectedService 有保護；UnprotectedService 無保護（exported）→ rule engine 對 UnprotectedService 觸發 IPC_SERVICE_HIJACK
 scenario_b_case4.apk,com.toyapk.scenario_b.case4,B,4,1,manual,Service exported=true 有 intent-filter 無 permission
 scenario_b_case5.apk,com.toyapk.scenario_b.case5,B,5,1,manual,兩個 Service 皆 exported 有 intent-filter 無 permission
+scenario_e_case0.apk,com.toyapk.scenario_e.case0,E,0,0,manual,對照組：Provider exported=false
+scenario_e_case1.apk,com.toyapk.scenario_e.case1,E,1,1,manual,完全裸露：exported=true無readPermission/writePermission
+scenario_e_case2.apk,com.toyapk.scenario_e.case2,E,2,0,manual,完整保護：readPermission+writePermission皆設定（原設計僅設readPermission與E-3衝突，已修正）
+scenario_e_case3.apk,com.toyapk.scenario_e.case3,E,3,1,manual,部分保護：有readPermission但無writePermission
+scenario_e_case4.apk,com.toyapk.scenario_e.case4,E,4,1,manual,混合案例：一個完整保護一個完全裸露
+scenario_e_case5.apk,com.toyapk.scenario_e.case5,E,5,1,manual,URI授權誤用：readPermission+writePermission皆保護，但grantUriPermissions=true可繞過（IPC_PROVIDER_URI_GRANT_BYPASS）

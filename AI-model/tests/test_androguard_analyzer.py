@@ -107,3 +107,19 @@ def test_provider_grant_uri_permissions_defaults_to_false():
     provider = _extract_provider("")
 
     assert provider.grant_uri_permissions is False
+
+def test_provider_explicit_exported_false_with_authorities_stays_false():
+    """authorities 存在時不應覆寫明確宣告的 exported=false（pre-API-17 legacy 行為，
+    在 minSdk=23 場景下不適用；這正是 Scenario E-0 / AndroidX InitializationProvider
+    誤判為 exported=true 的根因）"""
+    provider = _extract_provider(
+        'android:authorities="com.example.provider" '
+        'android:exported="false"'
+    )
+    assert provider.exported is False
+
+
+def test_provider_no_exported_attr_with_authorities_defaults_to_false():
+    """未指定 exported 時，即使有 authorities，也應維持預設值 false（targetSdk>=17 的正確預設）"""
+    provider = _extract_provider('android:authorities="com.example.provider"')
+    assert provider.exported is False

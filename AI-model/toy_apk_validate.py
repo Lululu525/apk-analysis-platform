@@ -72,7 +72,21 @@ SCENARIO_CASES = {
         4: {"label": 1, "trigger": ["COMBO_CALL_INTERCEPT"], "note": "宣告 RECORD_AUDIO + READ_CALL_LOG"},
         5: {"label": 0, "trigger": ["DANGEROUS_PERMISSIONS_高"], "note": "宣告 READ_CONTACTS，但 Activity 有 permission 保護（邊界案例）"},
     },
-    # 新增 Scenario C/D/E 時在這裡補定義
+    "E": {
+        0: {"label": 0, "trigger": ["IPC_PROVIDER_REDELEGATION", "IPC_PROVIDER_URI_GRANT_BYPASS"],
+            "note": "對照組：Provider exported=false"},
+        1: {"label": 1, "trigger": ["IPC_PROVIDER_REDELEGATION"],
+            "note": "完全裸露：exported=true 無 readPermission/writePermission"},
+        2: {"label": 0, "trigger": ["IPC_PROVIDER_REDELEGATION", "IPC_PROVIDER_URI_GRANT_BYPASS"],
+            "note": "完整保護：readPermission+writePermission 皆設定"},
+        3: {"label": 1, "trigger": ["IPC_PROVIDER_REDELEGATION"],
+            "note": "部分保護：有 readPermission 但無 writePermission"},
+        4: {"label": 1, "trigger": ["IPC_PROVIDER_REDELEGATION"],
+            "note": "混合案例：一個完整保護、一個完全裸露"},
+        5: {"label": 1, "trigger": ["IPC_PROVIDER_URI_GRANT_BYPASS"],
+            "note": "URI 授權誤用：兩側皆保護，但 grantUriPermissions=true 可繞過"},
+    },
+    # 新增 Scenario C/D 時在這裡補定義
 }
 
 # ==============================================================================
@@ -150,6 +164,28 @@ def run_pipeline(jid: str, apk_path: Path) -> dict:
 # 報告產生
 # ==============================================================================
 
+def _format_evidence(evidence: dict) -> str:
+    """把 Finding.evidence 轉成適合放進 Markdown 表格單一儲存格的精簡字串。
+    優先抓常見的元件清單欄位（providers/services/receivers/activities/
+    components），components 可能是字串或帶 name 欄位的 dict。辨識不出的
+    形狀就退回印出精簡 JSON（截斷避免表格被撐爆）。
+    """
+    if not evidence:
+        return ""
+    for key in ("providers", "services", "receivers", "activities", "components"):
+        values = evidence.get(key)
+        if values:
+            names = [
+                v.get("name", str(v)) if isinstance(v, dict) else str(v)
+                for v in values
+            ]
+            text = "; ".join(names)
+            return text.replace("|", "\\|")
+    text = json.dumps(evidence, ensure_ascii=False)
+    if len(text) > 200:
+        text = text[:200] + "…"
+    return text.replace("|", "\\|")
+
 def generate_report(jid: str, case_def: dict | None, report: dict, scenario: str = "", case_id: int = -1) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -215,11 +251,12 @@ def generate_report(jid: str, case_def: dict | None, report: dict, scenario: str
 
     lines += [
         "## 所有 Findings",
-        "| Finding | Severity |",
-        "|---------|----------|",
+        "| Finding | Severity | Evidence |",
+        "|---------|----------|----------|",
     ]
     for f in findings:
-        lines.append(f"| `{f.get('id', '')}` | {f.get('severity', '')} |")
+        evidence_str = _format_evidence(f.get("evidence") or {})
+        lines.append(f"| `{f.get('id', '')}` | {f.get('severity', '')} | {evidence_str} |")
 
     if case_def and case_def.get("note"):
         lines += ["", "## 備註", case_def["note"]]

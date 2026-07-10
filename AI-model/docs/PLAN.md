@@ -149,11 +149,11 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 完成一份資料策略說明，主資料用 APK-level feature dataset，AndroCom 優劣明確，自建資料本標記成本低於模型作業成本，AndroCom 本身特徵與標籤不對齊。
 
 **Toy APK 場景進度**
-- [ ] Scenario A — OVER_PRIVILEGE
+- [x] Scenario A — OVER_PRIVILEGE ✅ 6 cases, ground_truth.csv updated
 - [x] Scenario B — IPC_SERVICE_HIJACK ✅ 6 cases, ground_truth.csv updated
 - [ ] Scenario C — IPC_CONFUSED_DEPUTY
 - [ ] Scenario D — IPC_BROADCAST_THEFT
-- [ ] Scenario E — IPC_PROVIDER_REDELEGATION
+- [x] Scenario E — IPC_PROVIDER_REDELEGATION / IPC_PROVIDER_URI_GRANT_BYPASS ✅ 6 cases, ground_truth.csv updated
 
 ---
 
