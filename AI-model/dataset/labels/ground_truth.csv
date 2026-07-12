@@ -1,31 +1,31 @@
-apk_filename,package_name,scenario,case_id,label,label_source,note
-scenario_a_case0.apk,com.toyapk.scenario_a.case0,A,0,0,manual,對照組：只宣告 INTERNET，無危險權限
-scenario_a_case1.apk,com.toyapk.scenario_a.case1,A,1,1,manual,宣告 READ_SMS + INTERNET（短訊 App 過度宣告）
-scenario_a_case2.apk,com.toyapk.scenario_a.case2,A,2,1,manual,宣告 READ_CONTACTS + CAMERA + INTERNET（計算機 App 過度宣告）
-scenario_a_case3.apk,com.toyapk.scenario_a.case3,A,3,1,manual,宣告 ACCESS_FINE_LOCATION（靜態 App，沒有地圖功能）
-scenario_a_case4.apk,com.toyapk.scenario_a.case4,A,4,1,manual,宣告 RECORD_AUDIO + READ_CALL_LOG（過度宣告）
-scenario_a_case5.apk,com.toyapk.scenario_a.case5,A,5,0,manual,宣告 READ_CONTACTS 但 Activity 有 permission 保護（邊界案例）
-scenario_b_case0.apk,com.toyapk.scenario_b.case0,B,0,0,manual,對照組：Service exported=false
-scenario_b_case1.apk,com.toyapk.scenario_b.case1,B,1,1,manual,Service exported=true 無 permission
-scenario_b_case2.apk,com.toyapk.scenario_b.case2,B,2,0,manual,Service exported=true 有 signature permission 保護
-scenario_b_case3.apk,com.toyapk.scenario_b.case3,B,3,1,manual,兩個 Service：ProtectedService 有保護；UnprotectedService 無保護（exported）→ rule engine 對 UnprotectedService 觸發 IPC_SERVICE_HIJACK
-scenario_b_case4.apk,com.toyapk.scenario_b.case4,B,4,1,manual,Service exported=true 有 intent-filter 無 permission
-scenario_b_case5.apk,com.toyapk.scenario_b.case5,B,5,1,manual,兩個 Service 皆 exported 有 intent-filter 無 permission
-scenario_c_case0.apk,com.toyapk.scenario_c.case0,C,0,0,manual,對照組：持有READ_SMS但所有Activity exported=false
-scenario_c_case1.apk,com.toyapk.scenario_c.case1,C,1,1,manual,典型Confused Deputy：READ_SMS+exported Activity無保護
-scenario_c_case2.apk,com.toyapk.scenario_c.case2,C,2,1,manual,相機權限委派：CAMERA+exported Activity無保護
-scenario_c_case3.apk,com.toyapk.scenario_c.case3,C,3,0,manual,正確保護：READ_CONTACTS，MainActivity與ContactsActivity皆有permission保護
-scenario_c_case4.apk,com.toyapk.scenario_c.case4,C,4,1,manual,高嚴重度：READ_SMS+READ_CALL_LOG+多個exported Activity無保護
-scenario_c_case5.apk,com.toyapk.scenario_c.case5,C,5,0,manual,邊界案例：只有INTERNET（非危險權限）不觸發規則
-scenario_d_case0.apk,com.toyapk.scenario_d.case0,D,0,0,manual,對照組：自訂action且exported=false
-scenario_d_case1.apk,com.toyapk.scenario_d.case1,D,1,1,manual,短訊廣播竊取：SMS_RECEIVED無permission保護
-scenario_d_case2.apk,com.toyapk.scenario_d.case2,D,2,1,manual,開機廣播竊取：BOOT_COMPLETED無permission保護
-scenario_d_case3.apk,com.toyapk.scenario_d.case3,D,3,0,manual,正確保護：SMS_RECEIVED有BROADCAST_SMS permission
-scenario_d_case4.apk,com.toyapk.scenario_d.case4,D,4,0,manual,邊界案例：自訂非敏感action不觸發規則
-scenario_d_case5.apk,com.toyapk.scenario_d.case5,D,5,1,manual,混合案例：一個敏感Receiver有保護一個無保護
-scenario_e_case0.apk,com.toyapk.scenario_e.case0,E,0,0,manual,對照組：Provider exported=false
-scenario_e_case1.apk,com.toyapk.scenario_e.case1,E,1,1,manual,完全裸露：exported=true無readPermission/writePermission
-scenario_e_case2.apk,com.toyapk.scenario_e.case2,E,2,0,manual,完整保護：readPermission+writePermission皆設定（原設計僅設readPermission與E-3衝突，已修正）
-scenario_e_case3.apk,com.toyapk.scenario_e.case3,E,3,1,manual,部分保護：有readPermission但無writePermission
-scenario_e_case4.apk,com.toyapk.scenario_e.case4,E,4,1,manual,混合案例：一個完整保護一個完全裸露
-scenario_e_case5.apk,com.toyapk.scenario_e.case5,E,5,1,manual,URI授權誤用：readPermission+writePermission皆保護，但grantUriPermissions=true可繞過（IPC_PROVIDER_URI_GRANT_BYPASS）
+apk_filename,package_name,version_name,apk_sha256,source,origin_dataset,scenario,case_id,label,label_source,origin_label,note
+scenario_a_case0.apk,com.toyapk.scenario_a.case0,1.0,,toy,,A,0,0,manual,,對照組：只宣告 INTERNET，無危險權限
+scenario_a_case1.apk,com.toyapk.scenario_a.case1,1.0,,toy,,A,1,1,manual,,宣告 READ_SMS + INTERNET（短訊 App 過度宣告）
+scenario_a_case2.apk,com.toyapk.scenario_a.case2,1.0,,toy,,A,2,1,manual,,宣告 READ_CONTACTS + CAMERA + INTERNET（計算機 App 過度宣告）
+scenario_a_case3.apk,com.toyapk.scenario_a.case3,1.0,,toy,,A,3,1,manual,,宣告 ACCESS_FINE_LOCATION（靜態 App，沒有地圖功能）
+scenario_a_case4.apk,com.toyapk.scenario_a.case4,1.0,,toy,,A,4,1,manual,,宣告 RECORD_AUDIO + READ_CALL_LOG（過度宣告）
+scenario_a_case5.apk,com.toyapk.scenario_a.case5,1.0,,toy,,A,5,0,manual,,宣告 READ_CONTACTS 但 Activity 有 permission 保護（邊界案例）
+scenario_b_case0.apk,com.toyapk.scenario_b.case0,1.0,,toy,,B,0,0,manual,,對照組：Service exported=false
+scenario_b_case1.apk,com.toyapk.scenario_b.case1,1.0,,toy,,B,1,1,manual,,Service exported=true 無 permission
+scenario_b_case2.apk,com.toyapk.scenario_b.case2,1.0,,toy,,B,2,0,manual,,Service exported=true 有 signature permission 保護
+scenario_b_case3.apk,com.toyapk.scenario_b.case3,1.0,,toy,,B,3,1,manual,,兩個 Service：ProtectedService 有保護；UnprotectedService 無保護（exported）→ rule engine 對 UnprotectedService 觸發 IPC_SERVICE_HIJACK
+scenario_b_case4.apk,com.toyapk.scenario_b.case4,1.0,,toy,,B,4,1,manual,,Service exported=true 有 intent-filter 無 permission
+scenario_b_case5.apk,com.toyapk.scenario_b.case5,1.0,,toy,,B,5,1,manual,,兩個 Service 皆 exported 有 intent-filter 無 permission
+scenario_c_case0.apk,com.toyapk.scenario_c.case0,1.0,,toy,,C,0,0,manual,,對照組：持有READ_SMS但所有Activity exported=false
+scenario_c_case1.apk,com.toyapk.scenario_c.case1,1.0,,toy,,C,1,1,manual,,典型Confused Deputy：READ_SMS+exported Activity無保護
+scenario_c_case2.apk,com.toyapk.scenario_c.case2,1.0,,toy,,C,2,1,manual,,相機權限委派：CAMERA+exported Activity無保護
+scenario_c_case3.apk,com.toyapk.scenario_c.case3,1.0,,toy,,C,3,0,manual,,正確保護：READ_CONTACTS，MainActivity與ContactsActivity皆有permission保護
+scenario_c_case4.apk,com.toyapk.scenario_c.case4,1.0,,toy,,C,4,1,manual,,高嚴重度：READ_SMS+READ_CALL_LOG+多個exported Activity無保護
+scenario_c_case5.apk,com.toyapk.scenario_c.case5,1.0,,toy,,C,5,0,manual,,邊界案例：只有INTERNET（非危險權限）不觸發規則
+scenario_d_case0.apk,com.toyapk.scenario_d.case0,1.0,,toy,,D,0,0,manual,,對照組：自訂action且exported=false
+scenario_d_case1.apk,com.toyapk.scenario_d.case1,1.0,,toy,,D,1,1,manual,,短訊廣播竊取：SMS_RECEIVED無permission保護
+scenario_d_case2.apk,com.toyapk.scenario_d.case2,1.0,,toy,,D,2,1,manual,,開機廣播竊取：BOOT_COMPLETED無permission保護
+scenario_d_case3.apk,com.toyapk.scenario_d.case3,1.0,,toy,,D,3,0,manual,,正確保護：SMS_RECEIVED有BROADCAST_SMS permission
+scenario_d_case4.apk,com.toyapk.scenario_d.case4,1.0,,toy,,D,4,0,manual,,邊界案例：自訂非敏感action不觸發規則
+scenario_d_case5.apk,com.toyapk.scenario_d.case5,1.0,,toy,,D,5,1,manual,,混合案例：一個敏感Receiver有保護一個無保護
+scenario_e_case0.apk,com.toyapk.scenario_e.case0,1.0,,toy,,E,0,0,manual,,對照組：Provider exported=false
+scenario_e_case1.apk,com.toyapk.scenario_e.case1,1.0,,toy,,E,1,1,manual,,完全裸露：exported=true無readPermission/writePermission
+scenario_e_case2.apk,com.toyapk.scenario_e.case2,1.0,,toy,,E,2,0,manual,,完整保護：readPermission+writePermission皆設定（原設計僅設readPermission與E-3衝突，已修正）
+scenario_e_case3.apk,com.toyapk.scenario_e.case3,1.0,,toy,,E,3,1,manual,,部分保護：有readPermission但無writePermission
+scenario_e_case4.apk,com.toyapk.scenario_e.case4,1.0,,toy,,E,4,1,manual,,混合案例：一個完整保護一個完全裸露
+scenario_e_case5.apk,com.toyapk.scenario_e.case5,1.0,,toy,,E,5,1,manual,,URI授權誤用：readPermission+writePermission皆保護，但grantUriPermissions=true可繞過（IPC_PROVIDER_URI_GRANT_BYPASS）

@@ -151,8 +151,8 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 **Toy APK 場景進度**
 - [x] Scenario A — OVER_PRIVILEGE ✅ 6 cases, ground_truth.csv updated
 - [x] Scenario B — IPC_SERVICE_HIJACK ✅ 6 cases, ground_truth.csv updated
-- [ ] Scenario C — IPC_CONFUSED_DEPUTY
-- [ ] Scenario D — IPC_BROADCAST_THEFT
+- [x] Scenario C — IPC_CONFUSED_DEPUTY ✅ 6 cases, ground_truth.csv updated
+- [x] Scenario D — IPC_BROADCAST_THEFT ✅ 6 cases, ground_truth.csv updated
 - [x] Scenario E — IPC_PROVIDER_REDELEGATION / IPC_PROVIDER_URI_GRANT_BYPASS ✅ 6 cases, ground_truth.csv updated
 
 ---
