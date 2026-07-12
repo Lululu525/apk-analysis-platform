@@ -87,20 +87,39 @@ SCENARIO_CASES = {
             "note": "URI 授權誤用：兩側皆保護，但 grantUriPermissions=true 可繞過"},
     },
     "C": {
-    0: {"label": 0, "trigger": "IPC_CONFUSED_DEPUTY",
-        "note": "對照組：持有 READ_SMS 但所有 Activity exported=false"},
-    1: {"label": 1, "trigger": "IPC_CONFUSED_DEPUTY",
-        "note": "典型 Confused Deputy：READ_SMS + exported Activity 無 permission 保護"},
-    2: {"label": 1, "trigger": "IPC_CONFUSED_DEPUTY",
-        "note": "相機權限委派：CAMERA + exported Activity 無 permission 保護"},
-    3: {"label": 0, "trigger": "IPC_CONFUSED_DEPUTY",
-        "note": "正確保護：READ_CONTACTS，MainActivity 與 ContactsActivity 皆有 permission 保護"},
-    4: {"label": 1, "trigger": "IPC_CONFUSED_DEPUTY",
-        "note": "高嚴重度：READ_SMS + READ_CALL_LOG + 多個 exported Activity 無保護"},
-    5: {"label": 0, "trigger": "IPC_CONFUSED_DEPUTY",
-        "note": "邊界案例：只有 INTERNET（非危險權限）不觸發規則"},
+        0: {"label": 0, "trigger": "IPC_CONFUSED_DEPUTY",
+            "note": "對照組：持有 READ_SMS 但所有 Activity exported=false"},
+        1: {"label": 1, "trigger": "IPC_CONFUSED_DEPUTY",
+            "note": "典型 Confused Deputy：READ_SMS + exported Activity 無 permission 保護"},
+        2: {"label": 1, "trigger": "IPC_CONFUSED_DEPUTY",
+            "note": "相機權限委派：CAMERA + exported Activity 無 permission 保護"},
+        3: {"label": 0, "trigger": "IPC_CONFUSED_DEPUTY",
+            "note": "正確保護：READ_CONTACTS，MainActivity 與 ContactsActivity 皆有 permission 保護"},
+        4: {"label": 1, "trigger": "IPC_CONFUSED_DEPUTY",
+            "note": "高嚴重度：READ_SMS + READ_CALL_LOG + 多個 exported Activity 無保護"},
+        5: {"label": 0, "trigger": "IPC_CONFUSED_DEPUTY",
+            "note": "邊界案例：只有 INTERNET（非危險權限）不觸發規則"},
     },
-    # 新增 Scenario D 時在這裡補定義
+    "D": {
+        # NOTE: IPC_BROADCAST_THEFT 的 finding id 是動態組合的
+        # （IPC_BROADCAST_THEFT_{RECEIVER_SHORT_NAME}，見 privilege_rules.py），
+        # 這裡的 trigger 用字串 "IPC_BROADCAST_THEFT" 即可，因為 validate 邏輯是
+        # `cand in fid` 子字串比對，能對到 IPC_BROADCAST_THEFT_SMSRECEIVER 等
+        # 動態 id。此規則是逐一 receiver 判斷（exported + 敏感 action + 無
+        # permission），不像 C 的 IPC_CONFUSED_DEPUTY 是 app 層級規則。
+        0: {"label": 0, "trigger": "IPC_BROADCAST_THEFT",
+            "note": "對照組：Receiver 監聽自訂 action，exported=false"},
+        1: {"label": 1, "trigger": "IPC_BROADCAST_THEFT",
+            "note": "短訊廣播竊取：SmsReceiver 監聽 SMS_RECEIVED，exported=true 無 permission"},
+        2: {"label": 1, "trigger": "IPC_BROADCAST_THEFT",
+            "note": "開機廣播竊取：BootReceiver 監聽 BOOT_COMPLETED，exported=true 無 permission"},
+        3: {"label": 0, "trigger": "IPC_BROADCAST_THEFT",
+            "note": "正確保護：SmsReceiver 監聽 SMS_RECEIVED，有 BROADCAST_SMS permission"},
+        4: {"label": 0, "trigger": "IPC_BROADCAST_THEFT",
+            "note": "邊界案例：NotificationReceiver 監聽自訂非敏感 action，不觸發規則"},
+        5: {"label": 1, "trigger": "IPC_BROADCAST_THEFT",
+            "note": "混合案例：ProtectedSmsReceiver 有保護、ExposedBootReceiver 無保護 → 應只有 ExposedBootReceiver 觸發（驗證時建議核對 evidence.receiver 是否確實指向 ExposedBootReceiver）"},
+    },
 }
 
 # ==============================================================================

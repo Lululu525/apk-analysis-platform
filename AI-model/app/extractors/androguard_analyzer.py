@@ -229,13 +229,14 @@ def _extract_components(apk) -> List[ComponentInfo]:
     # ── Activities ────────────────────────────────────────────────────────
     for activity in manifest_xml.findall(".//activity"):
         name = activity.get("{http://schemas.android.com/apk/res/android}name")
-        exported = activity.get("{http://schemas.android.com/apk/res/android}exported", "false").lower() == "true"
+        exported_attr = activity.get("{http://schemas.android.com/apk/res/android}exported")
         intent_filters = _extract_intent_filters(activity)
         permissions = activity.get("{http://schemas.android.com/apk/res/android}permission")
 
-        # Activities with intent-filter are implicitly exported
-        if intent_filters:
-            exported = True
+        if exported_attr is not None:
+            exported = exported_attr.lower() == "true"
+        else:
+            exported = bool(intent_filters)
 
         components.append(ComponentInfo(
             type="activity",
@@ -248,12 +249,14 @@ def _extract_components(apk) -> List[ComponentInfo]:
     # ── Services ──────────────────────────────────────────────────────────
     for service in manifest_xml.findall(".//service"):
         name = service.get("{http://schemas.android.com/apk/res/android}name")
-        exported = service.get("{http://schemas.android.com/apk/res/android}exported", "false").lower() == "true"
+        exported_attr = service.get("{http://schemas.android.com/apk/res/android}exported")
         intent_filters = _extract_intent_filters(service)
         permissions = service.get("{http://schemas.android.com/apk/res/android}permission")
 
-        if intent_filters:
-            exported = True
+        if exported_attr is not None:
+            exported = exported_attr.lower() == "true"
+        else:
+            exported = bool(intent_filters)
 
         components.append(ComponentInfo(
             type="service",
@@ -296,12 +299,14 @@ def _extract_components(apk) -> List[ComponentInfo]:
     # ── Broadcast Receivers ───────────────────────────────────────────────
     for receiver in manifest_xml.findall(".//receiver"):
         name = receiver.get("{http://schemas.android.com/apk/res/android}name")
-        exported = receiver.get("{http://schemas.android.com/apk/res/android}exported", "false").lower() == "true"
+        exported_attr = receiver.get("{http://schemas.android.com/apk/res/android}exported")
         intent_filters = _extract_intent_filters(receiver)
         permissions = receiver.get("{http://schemas.android.com/apk/res/android}permission")
 
-        if intent_filters:
-            exported = True
+        if exported_attr is not None:
+            exported = exported_attr.lower() == "true"
+        else:
+            exported = bool(intent_filters)
 
         components.append(ComponentInfo(
             type="receiver",

@@ -1,8 +1,8 @@
 # Toy APK 場景設計藍圖
 
 **專案**：NSTC 大專生研究計畫 — Android APK 越權行為靜態分析  
-**版本**：v1.2  
-**更新日期**：2026-07-10  
+**版本**：v1.3  
+**更新日期**：2026-07-12  
 **總 APK 數**：30 個（5 種場景 × 6 個 APK）
 
 > **v1.1 修訂紀錄（2026-07-09）**：修正場景 E 的 E-2/E-5 設計矛盾。原本 E-2 只設定
@@ -24,6 +24,26 @@
 > component 都保護到）。已修正為 `MainActivity` 與 `ContactsActivity` 皆套用
 > 同一個自訂 permission，重跑驗證後 PASS（`IPC_CONFUSED_DEPUTY` 與
 > `EXPORTED_UNPROTECTED_ACTIVITY` 皆不再觸發）。
+
+> **v1.3 修訂紀錄（2026-07-12）**：Scenario D 驗證時發現 `androguard_analyzer.py`
+> 的 `_extract_components()` 存在 exported 屬性解析 bug，與 v1.1 修正的 Provider
+> exported-override 屬同一類問題，但這次出現在 Activity/Service/Receiver 三個
+> 解析區塊：只要元件有 `<intent-filter>`，就無條件把 `exported` 覆寫成 `true`，
+> 完全無視 manifest 是否已明確宣告 `exported="false"`。D-0 的 `CustomReceiver`
+> 明確宣告 `exported="false"` 且帶 intent-filter，是第一個曝出此 bug 的案例——
+> 之前 A/B/C/E 的既有設計都沒有出現「明確 `exported=false` + 有 intent-filter」
+> 這個屬性組合，才沒有更早發現。已修復：`android:exported` 屬性明確存在時以
+> 明確值為準，屬性缺席時才套用「有 intent-filter 則預設 `exported=true`」的
+> Android 原生規則。修復範圍僅限 Activity/Service/Receiver 三段解析邏輯（line
+> 232 起），Provider 解析區塊、`_extract_intent_filters()`、`privilege_rules.py`
+> 皆未修改；新增 6 個 regression test 於 `test_androguard_analyzer.py`（line 53
+> 起）。修復前後重跑 Scenario A/B/C/E 全數案例的風險分數與 finding 數量完全
+> 一致，確認零 regression；D-0 風險分數由 58 降為 34（`EXPORTED_UNPROTECTED_
+> RECEIVER` 誤報消除，只留下正確的 `EXPORTED_UNPROTECTED_ACTIVITY`），
+> `IPC_BROADCAST_THEFT` 六案例維持全數 PASS。此 bug 對真實世界 APK 蒐集階段的
+> `exported` 特徵正確性影響較大（Android 12+ 強制要求明確宣告 exported，「顯式
+> false + 有 intent-filter」在真實 App 中會很常見），已於 AndroZoo 蒐集開始前
+> 修復完成。詳見 `STATUS_2026-07-12.md`。
 
 ---
 
@@ -672,6 +692,10 @@
 **漏洞本質**：`BroadcastReceiver` 設定 `exported="true"` 且 `intent-filter` 包含敏感系統 action（如 `SMS_RECEIVED`、`BOOT_COMPLETED`），惡意 App 可攔截這些廣播或注入偽造廣播，竊取敏感事件資訊。
 
 **觸發規則**：`IPC_BROADCAST_THEFT`（exported=true AND intent-filter 含敏感 action AND 無 permission）
+
+> ⚠️ **注意**：D-0 的 `CustomReceiver` 明確宣告 `exported="false"` 且帶
+> intent-filter，這個屬性組合曾在 2026-07-12 曝出 `androguard_analyzer.py` 的
+> exported 解析 bug（詳見文件開頭 v1.3 修訂紀錄），目前已修復並驗證。
 
 ### APK 設計表
 
