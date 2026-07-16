@@ -19,3 +19,10 @@ venv/
 # Misc
 .DS_Store
 *.log
+
+# TXT files
+*.txt
+
+# Labels and training artifacts (not pushed)
+dataset/labels/
+dataset/training/

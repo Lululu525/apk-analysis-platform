@@ -120,7 +120,7 @@ class PermissionInfo:
 class ComponentInfo:
     """Android component information"""
     type: str  # "activity", "service", "provider", "receiver"
-    name: str
+    name: Optional[str] = None   # 封裝過的 manifest 可能抓不到元件名稱
     exported: bool = False
     intent_filters: Optional[List[Dict[str, Union[str, List[str]]]]] = None
     permissions_required: Optional[List[str]] = None
@@ -226,12 +226,22 @@ def _extract_components(apk) -> List[ComponentInfo]:
     assert _axml is not None, "APK has no AndroidManifest.xml"
     manifest_xml = _axml.get_xml_obj()
 
+    def _get_android_attr(elem, attr_name: str, default=None):
+        """讀取 android: namespace 的屬性值。部分惡意程式會產生「被封裝」的
+        AndroidManifest.xml，讓某些屬性的 namespace 前綴消失。這裡在 namespace
+        版本找不到時，回退嘗試沒有 namespace 的同名屬性。
+        """
+        value = elem.get(f"{{http://schemas.android.com/apk/res/android}}{attr_name}")
+        if value is None:
+            value = elem.get(attr_name)
+        return value if value is not None else default
+
     # ── Activities ────────────────────────────────────────────────────────
     for activity in manifest_xml.findall(".//activity"):
-        name = activity.get("{http://schemas.android.com/apk/res/android}name")
-        exported_attr = activity.get("{http://schemas.android.com/apk/res/android}exported")
+        name = _get_android_attr(activity, "name")
+        exported_attr = _get_android_attr(activity, "exported")
         intent_filters = _extract_intent_filters(activity)
-        permissions = activity.get("{http://schemas.android.com/apk/res/android}permission")
+        permissions = _get_android_attr(activity, "permission")
 
         if exported_attr is not None:
             exported = exported_attr.lower() == "true"
@@ -248,10 +258,10 @@ def _extract_components(apk) -> List[ComponentInfo]:
 
     # ── Services ──────────────────────────────────────────────────────────
     for service in manifest_xml.findall(".//service"):
-        name = service.get("{http://schemas.android.com/apk/res/android}name")
-        exported_attr = service.get("{http://schemas.android.com/apk/res/android}exported")
+        name = _get_android_attr(service, "name")
+        exported_attr = _get_android_attr(service, "exported")
         intent_filters = _extract_intent_filters(service)
-        permissions = service.get("{http://schemas.android.com/apk/res/android}permission")
+        permissions = _get_android_attr(service, "permission")
 
         if exported_attr is not None:
             exported = exported_attr.lower() == "true"
@@ -268,15 +278,14 @@ def _extract_components(apk) -> List[ComponentInfo]:
 
     # ── Content Providers ─────────────────────────────────────────────────
     for provider in manifest_xml.findall(".//provider"):
-        name = provider.get("{http://schemas.android.com/apk/res/android}name")
-        exported = provider.get("{http://schemas.android.com/apk/res/android}exported", "false").lower() == "true"
-        authority = provider.get("{http://schemas.android.com/apk/res/android}authorities")
-        permissions = provider.get("{http://schemas.android.com/apk/res/android}permission")
-        read_permission = provider.get("{http://schemas.android.com/apk/res/android}readPermission")
-        write_permission = provider.get("{http://schemas.android.com/apk/res/android}writePermission")
-        grant_uri_permissions = provider.get(
-            "{http://schemas.android.com/apk/res/android}grantUriPermissions",
-            "false",
+        name = _get_android_attr(provider, "name")
+        exported = _get_android_attr(provider, "exported", "false").lower() == "true"
+        authority = _get_android_attr(provider, "authorities")
+        permissions = _get_android_attr(provider, "permission")
+        read_permission = _get_android_attr(provider, "readPermission")
+        write_permission = _get_android_attr(provider, "writePermission")
+        grant_uri_permissions = _get_android_attr(
+            provider, "grantUriPermissions", "false"
         ).lower() == "true"
         permissions_required = [
             permission
@@ -298,10 +307,10 @@ def _extract_components(apk) -> List[ComponentInfo]:
 
     # ── Broadcast Receivers ───────────────────────────────────────────────
     for receiver in manifest_xml.findall(".//receiver"):
-        name = receiver.get("{http://schemas.android.com/apk/res/android}name")
-        exported_attr = receiver.get("{http://schemas.android.com/apk/res/android}exported")
+        name = _get_android_attr(receiver, "name")
+        exported_attr = _get_android_attr(receiver, "exported")
         intent_filters = _extract_intent_filters(receiver)
-        permissions = receiver.get("{http://schemas.android.com/apk/res/android}permission")
+        permissions = _get_android_attr(receiver, "permission")
 
         if exported_attr is not None:
             exported = exported_attr.lower() == "true"
