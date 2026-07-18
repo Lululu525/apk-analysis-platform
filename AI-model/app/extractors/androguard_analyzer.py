@@ -130,6 +130,11 @@ class ComponentInfo:
     # permissions override that side.
     read_permission: Optional[str] = None
     write_permission: Optional[str] = None
+    # ContentProvider-only. Raw android:authorities value, kept as-is (not
+    # split on ";" even though the platform allows multiple authorities in
+    # one attribute) — splitting is a separate design decision left for when
+    # a concrete consumer actually needs the individual authority strings.
+    authorities: Optional[str] = None
 
 
 @dataclass
@@ -303,6 +308,7 @@ def _extract_components(apk) -> List[ComponentInfo]:
             grant_uri_permissions=grant_uri_permissions,
             read_permission=effective_read_permission,
             write_permission=effective_write_permission,
+            authorities=authority,
         ))
 
     # ── Broadcast Receivers ───────────────────────────────────────────────

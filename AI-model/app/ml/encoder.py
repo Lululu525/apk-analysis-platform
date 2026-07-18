@@ -13,9 +13,34 @@ features 轉成訓練用的數值特徵矩陣。
   - multi_hot_prefixes（has_action_/has_category_/has_data_type_）：
     對應到原始的 actions/categories/data_types 三個 list 欄位，用
     MultiLabelBinarizer 各自獨立 fit（同樣只用 train split）。
-    ⚠ data_schemes 目前依 feature_schema.json 現有規格排除，未列入
-    multi_hot_prefixes，若之後確認這是遺漏而非刻意排除，需要另外加一組
-    MultiLabelBinarizer 處理，這個腳本目前尚未支援。
+
+    【2026-07-18 確認】data_schemes 不列入 multi_hot_prefixes 是刻意排除，
+    不是設計時遺漏——`PLAN.md`（Task 1 決策）與 `vector_spec_v1.md`
+    §通用規則 第 3 點自 2026-05-20（v1.0）就明確記載「data_scheme 保留為
+    輔助欄位，v1 encoder 不使用」，v1.1（2026-06-19）沿用不變，
+    `training_data_spec.md` 的 filter_row 欄位表也從未把它列進動態
+    multi-hot 欄位。維持排除的理由：目前唯一觀察到的真實世界自訂 scheme
+    （如 `neuronation://`、`sonos://`）都是單一 App 專屬字串，30 個 toy
+    APK 案例目前也完全沒有設計任何自訂 scheme 情境；在 100–150 APK 規模的
+    資料集上對每個 literal scheme 字串各開一個 one-hot 欄位，預期只會拿到
+    幾乎零變異的稀疏欄位，增加維度但沒有真正鑑別力，跟 v1「驗證架構、
+    誠實揭露限制」優先於「窮舉所有可能特徵」的定位相違。若之後想低成本
+    捕捉「用了非標準 scheme」這個訊號，比較務實的做法是加一個粗粒度布林
+    欄位（例如 `has_custom_data_scheme`，非 http/https/content/file 等
+    標準 scheme 才算 True），而不是逐一 scheme 字串展開；這是尚未實作、
+    留待有需要時再評估的選項，不在 v1 範圍內。
+
+    技術備註：`data_schemes` 原始 list 欄位已經完整流過
+    `parse_manifest._build_filter_rows()`，filter_row 的 `features` 裡
+    本來就有這個欄位，只是這個 encoder 目前沒有讀它。如果之後真的要加，
+    只需要在下面的 MULTI_HOT_FIELDS 字典多加一組
+    `"data_schemes": "has_data_scheme_"`，不需要動
+    `parse_manifest.py`——這個 encoder 是直接從 actions/categories/
+    data_types 三個原始 list 欄位重新 fit MultiLabelBinarizer，並不是讀
+    `parse_manifest._add_multi_hot_fields()` 寫進 row 裡的攤平
+    `has_action_*` 布林欄位（那組欄位目前實際上没有任何程式碼在讀，只有
+    測試在斷言它們存在；這是另一個獨立觀察到的小備註，跟本次
+    data_scheme 決策無關，先記在這裡避免遺忘）。
 
 用法（通常由 trainer.py 呼叫，也可以單獨測試）：
     from encoder import FilterRowEncoder

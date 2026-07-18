@@ -22,7 +22,3 @@ venv/
 
 # TXT files
 *.txt
-
-# Labels and training artifacts (not pushed)
-dataset/labels/
-dataset/training/

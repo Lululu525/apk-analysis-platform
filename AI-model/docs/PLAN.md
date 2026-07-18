@@ -122,7 +122,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
    - `filter_row` → `label = 1 if (exported == True and protected == False) else 0`
    - `resolution_row` → `label = 1 if (risk_hint is not None and risk_hint != "<NONE>") else 0`
    - `intent_row` → v1 不產生 label，不進入訓練
-5. Inference format 不含 `label/split`，但必須含 `schema_version`, `encoder_version`, `sample_id`, `features`, `row_type`。
+5. Inference format 不含 `label/split`，但必須含 `schema_version`, `encoder_version`, `sample_id`, `component_name`, `features`, `row_type`（`component_name` 為 §1 v1.1 新增欄位，用於組出 §2 的 `row_id`，詳見 `inference_data_spec.md` 2026-07-18 決策）。
 6. 模型輸出格式固定為：`row_id`, `row_type`, `risk_probability`, `predicted_label`, `top_features`, `model_version`。
 7. Report 彙整邏輯：row-level 預測彙整為 app-level risk，與 rule findings 合併。
 
