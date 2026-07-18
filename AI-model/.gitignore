@@ -22,3 +22,6 @@ venv/
 
 # TXT files
 *.txt
+
+# tmp
+tmp/

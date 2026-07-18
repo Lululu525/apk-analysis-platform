@@ -90,6 +90,9 @@ ENCODER_VERSION = "1.0"
 MODEL_VERSION = "rf_filter_v1"
 TOP_FEATURES_K = 5
 
+AI_MODEL_ROOT = Path(__file__).resolve().parent.parent.parent  # app/ml/predictor.py → AI-model 根目錄
+sys.path.insert(0, str(AI_MODEL_ROOT))
+
 # 跟 build_training_data.py 的 NON_FEATURE_KEYS 保持同步；這裡刻意不 import
 # build_training_data（它是一支帶 argparse main 的腳本，不適合當 library 依賴），
 # 兩處各自維護時如果其中一邊改了欄位，要記得同步改另一邊。
