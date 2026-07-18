@@ -122,7 +122,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
    - `filter_row` → `label = 1 if (exported == True and protected == False) else 0`
    - `resolution_row` → `label = 1 if (risk_hint is not None and risk_hint != "<NONE>") else 0`
    - `intent_row` → v1 不產生 label，不進入訓練
-5. Inference format 不含 `label/split`，但必須含 `schema_version`, `encoder_version`, `sample_id`, `component_name`, `features`, `row_type`（`component_name` 為 §1 v1.1 新增欄位，用於組出 §2 的 `row_id`，詳見 `inference_data_spec.md` 2026-07-18 決策）。
+5. Inference format 不含 `label/split`，但必須含 `schema_version`, `encoder_version`, `sample_id`, `features`, `row_type`。
 6. 模型輸出格式固定為：`row_id`, `row_type`, `risk_probability`, `predicted_label`, `top_features`, `model_version`。
 7. Report 彙整邏輯：row-level 預測彙整為 app-level risk，與 rule findings 合併。
 
@@ -220,6 +220,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 4. 產出一份實驗紀錄：資料來源、標註方式、模型版本、metrics、已知限制。
 5. 報告中明確寫出：本專案是單一 App 越權風險模型，不宣稱完整偵測跨 App n-order chain。
 6. 報告中標注 resolution_row 模型的 v2 依賴：bytecode 補強後方可啟用，v1 實驗結果僅代表 filter_row 模型效能。
+7. 報告已知限制段落須涵蓋 `IPC_CONFUSED_DEPUTY` 對真實世界 App 的語意落差（2026-07-18 決定採路線 B，詳見 `NOTES_realworld_exported_semantics.md`）：現行規則不區分「純 launcher／第三方 SDK／平台機制強制／真正自訂進入點」四種 exported 元件性質，人工抽查 7 筆真實世界樣本中 4 筆因此誤判；須引用四類元件表與案例分析，不能只用一句話帶過。
 
 **完成檢查目標**
 測試可重現；模型結果可解釋；對題報告能清楚說明第一階段到第四階段的技術連接與研究目標。
