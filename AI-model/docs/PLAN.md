@@ -185,7 +185,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 
 ---
 
-## Task 7：整合 Inference 至現有分析平台
+## Task 7：整合 Inference 至現有分析平台 ✅ 已完成
 
 **任務名稱與核心功能**
 讓上傳 APK 的現有 pipeline 可以生成 row-level features、取得模型、輸出 ML findings。
@@ -237,5 +237,5 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 | T4 資料格式 | 3 天 | 低 | label 轉換規則需與 dataset builder 對齊 ✅ 已完成|
 | T5 資料蒐集 | 2–3 週 | **高** | APK 取得 + 標記耗時，需遵守 150 上限 |
 | T6 MVP ML | 1.5–2 週 | 中 | v1 只訓練 filter_row；resolution_row 待 bytecode v2 |
-| T7 Inference 整合 | 1 週 | 低 | 現有 pipeline API 相容性 |
+| T7 Inference 整合 | 1 週 | 低 | 現有 pipeline API 相容性 ✅ 已完成 |
 | T8 驗證交付 | 1.5 週 | 中 | golden dataset 5 種場景需人工設計 |

@@ -83,6 +83,10 @@ from typing import Optional
 
 import joblib
 
+_APP_ML_DIR = Path(__file__).resolve().parent
+if str(_APP_ML_DIR) not in sys.path:
+    sys.path.insert(0, str(_APP_ML_DIR))
+
 from encoder import FilterRowEncoder, load_jsonl
 
 SCHEMA_VERSION = "1.0"

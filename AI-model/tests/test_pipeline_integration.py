@@ -353,6 +353,131 @@ def test_ml_feature_extraction_failure_is_non_fatal(tmp_path, monkeypatch):
     assert "ML_FEATURE_EXTRACTION_FAILED" in ids
 
 
+def test_ml_predictions_written_when_model_available(tmp_path, monkeypatch):
+    """Pipeline writes model predictions and surfaces the app-level ML risk."""
+    import app.pipeline_apk as pipeline_apk
+
+    apk = _make_apk(tmp_path, "ml-predict.apk")
+    out_dir = tmp_path / "artifacts"
+    ag = _make_ag_result()
+    predictions = [{
+        "row_id": "ml-predict-job__filter__com.example.DataService",
+        "row_type": "filter",
+        "risk_probability": 0.9,
+        "predicted_label": 1,
+        "top_features": [],
+        "model_version": "rf_filter_v1",
+    }]
+
+    class FakePredictor:
+        def predict_raw_rows(self, raw_filter_rows):
+            assert raw_filter_rows == _model_features_stub("ml-predict-job")["filter_rows"]
+            return predictions
+
+    monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
+    monkeypatch.setattr(
+        pipeline_apk.FilterRowPredictor,
+        "load",
+        lambda _model_dir: FakePredictor(),
+    )
+
+    report = run_pipeline(_make_request(apk, "ml-predict-job"), output_dir=out_dir)
+    ids = {f.id for f in report.findings}
+
+    assert report.status == "success"
+    assert report.artifacts.ml_predictions_path == str(
+        out_dir / "ml-predict-job.ml_predictions.json"
+    )
+    predictions_file = out_dir / "ml-predict-job.ml_predictions.json"
+    assert predictions_file.exists()
+    assert json.loads(predictions_file.read_text(encoding="utf-8")) == predictions
+    assert "ML_RISK_ASSESSMENT" in ids
+    from app.report.builder import summarize
+
+    scored_findings = [
+        finding.model_copy(deep=True)
+        for finding in report.findings
+        if finding.id != "ML_RISK_ASSESSMENT"
+    ]
+    assert report.summary.risk_score == summarize(scored_findings).risk_score
+    assert report.summary.counts["info"] == sum(
+        finding.severity == "info" for finding in report.findings
+    )
+
+
+def test_model_not_available_finding_when_model_missing(tmp_path, monkeypatch):
+    """A missing model is reported without failing the static-analysis pipeline."""
+    import app.pipeline_apk as pipeline_apk
+
+    apk = _make_apk(tmp_path, "ml-model-missing.apk")
+    out_dir = tmp_path / "artifacts"
+    ag = _make_ag_result()
+
+    monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
+
+    def missing_model(_model_dir):
+        raise FileNotFoundError("missing")
+
+    monkeypatch.setattr(
+        pipeline_apk.FilterRowPredictor,
+        "load",
+        missing_model,
+    )
+
+    report = run_pipeline(_make_request(apk, "ml-model-missing-job"), output_dir=out_dir)
+    ids = {f.id for f in report.findings}
+
+    assert report.status == "success"
+    assert "MODEL_NOT_AVAILABLE" in ids
+    assert report.artifacts.ml_predictions_path is None
+
+
+def test_ml_prediction_failure_is_non_fatal(tmp_path, monkeypatch):
+    """Prediction errors do not fail the report or leave a partial artifact."""
+    import app.pipeline_apk as pipeline_apk
+
+    apk = _make_apk(tmp_path, "ml-prediction-fail.apk")
+    out_dir = tmp_path / "artifacts"
+    ag = _make_ag_result()
+
+    class FailingPredictor:
+        def predict_raw_rows(self, _raw_filter_rows):
+            raise RuntimeError("prediction boom")
+
+    monkeypatch.setattr(pipeline_apk, "ANDROGUARD_AVAILABLE", True)
+    monkeypatch.setattr(pipeline_apk, "analyze_apk", lambda _: ag)
+    monkeypatch.setattr(
+        pipeline_apk,
+        "build_model_features",
+        lambda _apk, sample_id=None: _model_features_stub(sample_id or "test-job"),
+    )
+    monkeypatch.setattr(
+        pipeline_apk.FilterRowPredictor,
+        "load",
+        lambda _model_dir: FailingPredictor(),
+    )
+
+    report = run_pipeline(_make_request(apk, "ml-prediction-fail-job"), output_dir=out_dir)
+    ids = {f.id for f in report.findings}
+
+    assert report.status == "success"
+    assert "ML_PREDICTION_FAILED" in ids
+    assert report.artifacts.ml_predictions_path is None
+    assert not (out_dir / "ml-prediction-fail-job.ml_predictions.json").exists()
+
+
 def test_androguard_missing_produces_info_finding(tmp_path, monkeypatch):
     """When androguard is unavailable, an info-level finding must be produced."""
     import app.pipeline_apk as pipeline_apk

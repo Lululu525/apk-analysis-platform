@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import zipfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -17,9 +18,18 @@ from .extractors.androguard_analyzer import (
     analyze_apk,
     ANDROGUARD_AVAILABLE,
 )
+from app.ml.predictor import FilterRowPredictor, app_level_risk, MODEL_VERSION
 from .detectors.privilege_rules import check_combinations as check_privilege_escalation
 from .tools.parse_manifest import build_model_features
 from .report.builder import build_report
+
+AI_MODEL_ROOT = Path(__file__).resolve().parent.parent
+FILTER_ROW_MODEL_DIR = Path(
+    os.environ.get(
+        "FILTER_ROW_MODEL_DIR",
+        str(AI_MODEL_ROOT / "dataset" / "training" / "model_v1"),
+    )
+)
 
 
 def _now_iso() -> str:
@@ -190,6 +200,7 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
     started_at = _now_iso()
     errors: list[str] = []
     findings: list[Finding] = []
+    ml_risk_assessment: Finding | None = None
 
     fp = req.firmware.file_path
     if not fp:
@@ -357,6 +368,68 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
                 )
                 artifacts.ml_features_path = str(ml_features_path)
 
+                try:
+                    predictor = FilterRowPredictor.load(FILTER_ROW_MODEL_DIR)
+                except FileNotFoundError:
+                    findings.append(
+                        Finding(
+                            id="MODEL_NOT_AVAILABLE",
+                            title="ML risk model not available",
+                            severity="info",
+                            confidence=1.0,
+                            category="analysis_limitation",
+                            evidence={"model_dir": str(FILTER_ROW_MODEL_DIR)},
+                            remediation=(
+                                "Train the filter_row model (see docs/PLAN.md Task 6) "
+                                "to enable ML risk assessment."
+                            ),
+                            tags=["analysis_limitation", "ml_prediction"],
+                        )
+                    )
+                else:
+                    try:
+                        predictions = predictor.predict_raw_rows(ml_features["filter_rows"])
+                    except Exception as exc:
+                        findings.append(
+                            Finding(
+                                id="ML_PREDICTION_FAILED",
+                                title="ML risk prediction failed",
+                                severity="info",
+                                confidence=1.0,
+                                category="analysis_limitation",
+                                evidence={"error": str(exc)},
+                                tags=["analysis_limitation", "ml_prediction"],
+                            )
+                        )
+                    else:
+                        ml_predictions_path = (
+                            output_dir / f"{req.job_id}.ml_predictions.json"
+                        )
+                        ml_predictions_path.write_text(
+                            json.dumps(predictions, indent=2, ensure_ascii=False),
+                            encoding="utf-8",
+                        )
+                        artifacts.ml_predictions_path = str(ml_predictions_path)
+
+                        risk = app_level_risk(predictions)
+                        if risk is not None:
+                            ml_risk_assessment = Finding(
+                                id="ML_RISK_ASSESSMENT",
+                                title=(
+                                    "ML model risk assessment "
+                                    f"(app_risk_probability={risk:.2f})"
+                                ),
+                                severity="info",
+                                confidence=1.0,
+                                category="ml_risk_assessment",
+                                evidence={
+                                    "app_risk_probability": risk,
+                                    "model_version": MODEL_VERSION,
+                                    "component_predictions": predictions,
+                                },
+                                tags=["ml_prediction"],
+                            )
+
         strings_path = output_dir / f"{req.job_id}.strings.txt"
         strings_path.write_text(
             "\n".join(strings_list[:2000]),
@@ -368,4 +441,8 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         if extract_dir:
             artifacts.extracted_path = str(extract_dir)
 
-    return build_report(req.job_id, started_at, findings, artifacts, errors)
+    report = build_report(req.job_id, started_at, findings, artifacts, errors)
+    if ml_risk_assessment is not None:
+        report.findings.append(ml_risk_assessment)
+        report.summary.counts["info"] = report.summary.counts.get("info", 0) + 1
+    return report
