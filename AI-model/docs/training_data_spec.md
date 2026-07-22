@@ -76,7 +76,8 @@ builder 在呼叫 `build_model_features()` 之後產出。
 | `callee_permission` | `str` | `<NONE>` | 接收端（receiver）的 permission。 |
 | `risk_hint` | `str` | `<NONE>` | 弱風險提示，例如 `IPC_SERVICE_HIJACK`。 |
 
-resolution_row 模型框架已於 Task 6 實作，但仍列為 pending v2。在 v1 中，
+resolution_row 目前僅完成特徵產生與 schema 欄位預留，尚未實作可執行的
+dataset builder、encoder 或 trainer，狀態仍為 `pending_v2`。在 v1 中，
 `intent_row` record 是由 `filter_row` record 以 1:1 方式推斷而來，sender
 固定為 `<UNKNOWN>`，因此 `match_*` 欄位恆為 `True`，不具鑑別力。
 

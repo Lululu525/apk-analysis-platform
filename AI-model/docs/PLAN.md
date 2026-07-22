@@ -168,7 +168,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 |----------|------|------|
 | `filter_row` | **Random Forest** | multi-hot 稀疏特徵天生友善；`feature_importances_` 直接支援可解釋性報告；小資料不易 overfit |
 | `resolution_row` | **Logistic Regression** | action/permission 對稱性為強線性關係；`action_match` 等布林欄位維度低；係數可直接解讀 |
-| `intent_row` | **不訓練** | v1 manifest-only 階段 intent 從 filter 1:1 反推，sender 為 `<UNKNOWN>`，match_* 欄位全為 True，無鑑別力；待 bytecode v2 補強後再啟用 |
+| `intent_row` | **非獨立訓練目標** | v1 manifest-only 階段 intent 從 filter 1:1 反推，sender 為 `<UNKNOWN>`，match_* 欄位全為 True，無鑑別力；作為中繼特徵表示，供 `resolution_row` 配對使用，`intent_row` 本身不會被單獨訓練（v2 啟用的是 `resolution_row`） |
 
 > **注意**：resolution_row 模型程式碼框架可先實作，但在文件中標注「需 bytecode v2 補強後啟用」。v1 階段只正式訓練 `filter_row` 模型。
 
@@ -181,7 +181,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 6. 訓練資料不足時，允許先用 Detector weak labels 作 baseline，但文件中標明不是終結學術標籤。
 
 **完成檢查目標**
-可用一個命令完成 filter_row 資料讀取、訓練、評估與模型輸出；任何一筆 inference feature 可以被 encoder 正確轉換並得到預測；resolution_row trainer 框架存在但有明確的「待 v2 啟用」標記。
+可用一個命令完成 filter_row 資料讀取、訓練、評估與模型輸出；任何一筆 inference feature 可以被 encoder 正確轉換並得到預測；resolution_row 目前僅完成特徵產生與 schema 欄位預留，尚無可執行的 dataset builder、encoder 或 trainer，狀態為 `pending_v2`，待 bytecode v2 補強後實作並啟用。
 
 ---
 
@@ -202,7 +202,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 
 ---
 
-## Task 8：驗證、測試與研究交付
+## Task 8：驗證、測試與研究交付 ✅ 已完成
 
 **任務名稱與核心功能**
 建立技術驗證與研究報告素材，讓下一階段能對齊審查者與對照模型作業。
@@ -210,13 +210,7 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 **詳細執行指示**
 1. 補完單元測試：vector schema、feature builder、encoder unknown category、missing permission。
 2. 補完整合測試：APK pipeline 生成 features、模型存在/不存在兩種情境。
-3. 建立小型 golden dataset，**覆蓋全部 5 種場景**：
-   - 正常（normal）
-   - 過度越權（overprivilege）
-   - exported unprotected service
-   - provider leak
-   - receiver broadcast theft
-   - 每種至少 5 個可重現的測試案例
+3. golden dataset 沿用 Task 5 已完成的 Scenario A–E（30 個 toy APK，涵蓋 OVER_PRIVILEGE／IPC_SERVICE_HIJACK／IPC_CONFUSED_DEPUTY／IPC_BROADCAST_THEFT／IPC_PROVIDER_REDELEGATION 五類，每場景 6 案例），正常對照組取自各場景既有 label=0 案例，2026-07-19 確認已滿足
 4. 產出一份實驗紀錄：資料來源、標註方式、模型版本、metrics、已知限制。
 5. 報告中明確寫出：本專案是單一 App 越權風險模型，不宣稱完整偵測跨 App n-order chain。
 6. 報告中標注 resolution_row 模型的 v2 依賴：bytecode 補強後方可啟用，v1 實驗結果僅代表 filter_row 模型效能。
@@ -237,5 +231,5 @@ KAN-39（提取敏感 API 使用行為）目前已有組員提供的原型實作
 | T4 資料格式 | 3 天 | 低 | label 轉換規則需與 dataset builder 對齊 ✅ 已完成|
 | T5 資料蒐集 | 2–3 週 | **高** | APK 取得 + 標記耗時，需遵守 150 上限 |
 | T6 MVP ML | 1.5–2 週 | 中 | v1 只訓練 filter_row；resolution_row 待 bytecode v2 |
-| T7 Inference 整合 | 1 週 | 低 | 現有 pipeline API 相容性 ✅ 已完成 |
-| T8 驗證交付 | 1.5 週 | 中 | golden dataset 5 種場景需人工設計 |
+| T7 Inference 整合 | 1 週 | 低 | ✅ 已完成 |
+| T8 驗證交付 | 1.5 週 | 低 | golden dataset 5 種場景需人工設計 ✅ 已完成 |
