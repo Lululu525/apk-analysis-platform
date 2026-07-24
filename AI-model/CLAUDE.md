@@ -11,3 +11,7 @@ Default five canonical triage roles, label string equal to role name (`needs-tri
 ### Domain docs
 
 Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## CLI / shell tooling
+
+Prefer the PowerShell tool (pwsh 7+) for CLI commands; fall back to the Bash tool if a PowerShell invocation errors. See `docs/agents/shell-conventions.md` for dual-write examples of repo-specific commands (e.g. the heredoc pattern in `docs/agents/issue-tracker.md`).
