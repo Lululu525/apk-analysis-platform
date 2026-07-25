@@ -57,36 +57,46 @@
 重新定義 `filter_row` 的 label 來源，讓 label 不再與模型輸入特徵同源；用 KAN-39 敏感 API 掃描
 模組（組員已提供 `sensitive_api_detector.py`，尚未整合進 repo）取代既有的 `_find_sensitive_apis()`
 簡化版，接成真正的、**逐元件**計算的 `is_used`，作為獨立於 `exported`/`protected` 的判斷訊號。
-詳細決策見 `CONTEXT.md`（「元件曝露型越權」/「宣告不符型越權」的區分）與
-`docs/adr/0001-sensitive-api-scan-replaces-exposure-only-label.md`。
+**ML 訓練範圍明確收斂到 `IPC_CONFUSED_DEPUTY`（元件曝露型越權）**——`IPC_SERVICE_HIJACK`／
+`IPC_BROADCAST_THEFT`／`IPC_PROVIDER_REDELEGATION` 不需要危險權限這個條件，純粹是可從 manifest
+直接算出的布林規則，不存在洩漏問題，維持交由 `privilege_rules.py` 處理，不在本次範圍內。詳細
+決策見 `CONTEXT.md`（「元件曝露型越權」/「宣告不符型越權」/「IPC 曝露風險」的三方區分）與
+`docs/adr/0001-sensitive-api-scan-replaces-exposure-only-label.md`、
+`docs/adr/0002-scenario-a-out-of-filter-row-scope.md`、
+`docs/adr/0003-ml-scope-narrowed-to-confused-deputy.md`。
 
 **詳細執行指示**
 1. 停用 `build_training_data.py:61` 目前的 `label = 1 if exported and not protected else 0` 直接公式；
    新 label 定義為「元件 exported 且無保護，且該元件的 class 實際呼叫過其持有權限對應的敏感
    API（is_used=True）」——`is_used` 不屬於 encoder 輸入特徵，滿足洩漏排除條件。
 2. 把 toy APK 的人工標記（`ground_truth_with_split.csv` 的 `label` 欄）接入訓練資料，範圍限定
-   **Scenario B/C/D/E 共 24 個案例**（IPC 曝露型，跟 `filter_row` 同粒度）；**Scenario A 的 6 個
-   案例明確排除**，因為它們的 label 差異來自 `COMBO_RULES`（App 層級的宣告不符型越權），跟任何
-   元件的 exported/protected 無關，無法對應到 `filter_row` 的逐元件 schema（詳見
-   `docs/adr/0002-scenario-a-out-of-filter-row-scope.md`）。24 案例中 B-3、D-5、E-4 三個「同一
-   APK 內一個元件有保護、一個沒有」的混合案例，需要把原本一整支 APK 一個 label 的紀錄拆成逐
-   元件的獨立 label，其餘 21 個可直接沿用整支 APK 的 label。人工標記樣本的 `label_source` 需與
-   `rule_weak_label` 樣本區分，訓練/評估時分別報告兩種來源的表現。
-3. 用 KAN-39 的 `sensitive_api_detector.py`（`scan_with_androguard()`）取代 `androguard_analyzer.py`
+   **Scenario C 共 6 個案例**（唯一符合 `IPC_CONFUSED_DEPUTY` 模式的 toy 場景）；Scenario A（宣告
+   不符型）與 Scenario B/D/E（純 IPC 曝露風險，不需要危險權限）共 24 個案例明確排除，理由與範圍
+   見上述三份 ADR。人工標記樣本的 `label_source` 需與 `rule_weak_label` 樣本區分，訓練/評估時
+   分別報告兩種來源的表現。
+3. **Scenario C 的 6 個 toy APK 目前是空殼元件、完全沒有呼叫任何敏感 API**（已與組員確認），新
+   label 公式套用後 `is_used` 會全數為 False，無法拿來驗證新公式。需要在 C-1（`SmsViewerActivity`）、
+   C-2（`CameraActivity`）、C-4（`SmsViewerActivity`/`CallLogActivity`）等「應觸發」案例的元件
+   程式碼中，補上真正呼叫對應危險權限敏感 API 的程式碼（例如讀取簡訊、開啟相機），讓 `is_used`
+   在這些案例下能真實計算出 True；C-0/C-3/C-5（「不應觸發」案例）維持空殼即可，不需要補程式碼，
+   因為它們的 label=0 本來就不依賴 is_used（不是 exported+unprotected，或沒有危險權限）。
+4. 用 KAN-39 的 `sensitive_api_detector.py`（`scan_with_androguard()`）取代 `androguard_analyzer.py`
    現有的 `SENSITIVE_API_PATTERNS`/`_find_sensitive_apis()`；`is_used` 改為逐元件計算：比對元件
    的 class 是否曾作為 `SensitiveApiCall.caller_class`，出現在該元件所持有權限對應的敏感 API
    群組呼叫紀錄中。
-4. 建立「permission → 對應敏感 API 群組（KAN-39 的 `group_id`）→ 是否被實際呼叫」的對應表，作為
+5. 建立「permission → 對應敏感 API 群組（KAN-39 的 `group_id`）→ 是否被實際呼叫」的對應表，作為
    `is_used` 與新 label 計算的必要黏著層，不直接進入 label 計算公式本身。
-5. 補測試：確認新 label 來源下，`exported`/`protected` 兩欄位單獨不能 100% 預測 label
+6. 補測試：確認新 label 來源下，`exported`/`protected` 兩欄位單獨不能 100% 預測 label
    （用簡單基準模型跑一次「只用 exported+protected 兩欄」應該明顯低於 1.0 F1，作為洩漏已排除的
-   驗收證據）。
+   驗收證據；建議同時用 Scenario C 重建後的 6 案例與 Task 9 item 3 修正後的真實世界樣本一起測，
+   避免樣本數過少）。
 
 **完成檢查目標**
-`filter_row` 訓練資料的 label 計算邏輯與 encoder 輸入特徵無直接同源關係；Scenario B/C/D/E 共
-24 個 toy APK 案例（逐元件拆分後）可被追蹤為獨立 `label_source`，Scenario A 6 案例明確排除並
-留在 `COMBO_RULES` 範圍；`is_used` 反映真實、逐元件的 API 使用狀況而非恆為 True；有一份「僅用
-exported+protected 預測 label」的對照實驗證明洩漏已消除。
+`filter_row` 訓練資料的 label 計算邏輯與 encoder 輸入特徵無直接同源關係，且 ML 訓練範圍明確
+限定在 `IPC_CONFUSED_DEPUTY`；Scenario C 的 6 個 toy APK 案例（已補上真實敏感 API 呼叫）可被
+追蹤為獨立 `label_source`；Scenario A/B/D/E 共 24 案例明確排除並留在 `privilege_rules.py` 規則
+引擎範圍（偵測能力不受影響）；`is_used` 反映真實、逐元件的 API 使用狀況而非恆為 True；有一份
+「僅用 exported+protected 預測 label」的對照實驗證明洩漏已消除。
 
 ---
 
