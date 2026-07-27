@@ -98,7 +98,7 @@ def download_filename(original_filename: str) -> str:
 
 
 def _risk_score_display(score: Any) -> str:
-    return "Not available" if score is None or score == "" else f"{score} / 100"
+    return "Not available" if score is None or score == "" else f"{score}/100"
 
 
 def _decorate_page(canvas, doc) -> None:
