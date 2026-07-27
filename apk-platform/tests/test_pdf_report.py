@@ -31,6 +31,8 @@ def test_pdf_is_generated_non_empty_and_multi_page(tmp_path):
     generate_pdf_report(_row(), _report(), output)
     assert output.stat().st_size > 0
     assert len(PdfReader(str(output)).pages) >= 4
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(str(output)).pages)
+    assert "25 / 100" in text
 
 
 def test_finding_without_evidence_and_chinese_content(tmp_path):

@@ -97,6 +97,10 @@ def download_filename(original_filename: str) -> str:
     return f"{stem}_security_report.pdf"
 
 
+def _risk_score_display(score: Any) -> str:
+    return "Not available" if score is None or score == "" else f"{score} / 100"
+
+
 def _decorate_page(canvas, doc) -> None:
     width, height = A4
     canvas.saveState()
@@ -229,7 +233,7 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
         _table([
             ["Application", application, "Package", package_name],
             ["File", filename, "Generated", generated],
-            ["Risk Score", summary.get("risk_score"), "Risk Level", summary.get("risk_level")],
+            ["Risk Score", _risk_score_display(summary.get("risk_score")), "Risk Level", summary.get("risk_level")],
             ["Scoring Method", scoring_method, "Formula", formula],
         ], [28*mm, 61*mm, 32*mm, 57*mm], styles, header=False),
         Paragraph("Executive Summary", styles["h1"]),
