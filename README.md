@@ -1,5 +1,26 @@
 # APK Analysis Platform
 
+## Multi-page security PDF report
+
+`GET /v1/samples/{sample_id}/report.pdf` now returns a structured A4 security report built with ReportLab Platypus. The four report sections cover the score and executive summary, evidence and extracted features, findings and permissions, and sensitive APIs/reverse-engineering methodology. Tables wrap long and multilingual text, and an installed CJK font is embedded when available so Chinese findings and filenames render correctly. Missing analysis inputs are shown as `Not available`; modules that are not executed, such as Sandbox, are shown as `Not run`.
+
+The server continues to store PDFs by `sample_id`, while downloads use `<original_apk_name>_security_report.pdf`. Existing reports can be rebuilt with:
+
+```powershell
+python regenerate_reports.py
+python regenerate_reports.py <sample_id>
+```
+
+### Windows verification
+
+```powershell
+setup.bat
+.venv\Scripts\python -m pytest
+.venv\Scripts\python regenerate_reports.py <sample_id>
+```
+
+Open `http://127.0.0.1:8000/v1/samples/<sample_id>/report.pdf` and verify that the report contains multiple pages, wrapped table cells, the dark-blue header and `Generated report | Page N` footer.
+
 APK Analysis Platform 是一個 **Android APK 安全分析平台原型
 (Prototype)**。
 

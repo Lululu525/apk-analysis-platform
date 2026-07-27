@@ -9,6 +9,7 @@ import json
 
 from celery_app import celery_app
 from .tasks import analyze_sample_task
+from .pdf_report import download_filename
 from .db import (
     init_db,
     insert_sample,
@@ -253,7 +254,7 @@ def download_sample_pdf(sample_id: str):
     if not out_pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found")
 
-    download_name = f"{row[2]}.report.pdf"
+    download_name = download_filename(row[2])
     return FileResponse(
         path=str(out_pdf_path),
         media_type="application/pdf",
