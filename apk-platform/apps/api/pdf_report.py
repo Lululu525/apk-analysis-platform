@@ -205,6 +205,13 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
     features = _artifact_json(report, artifact_dir, "features_path", "features.json")
     ml_predictions = _artifact_json(report, artifact_dir, "ml_predictions_path", "ml_predictions.json")
     findings = [item for item in (report.get("findings") or []) if isinstance(item, dict)]
+    ml_findings = [
+        item
+        for item in findings
+        if item.get("category") == "ml_risk_assessment"
+        or item.get("id") == "ML_RISK_ASSESSMENT"
+    ]
+    static_findings = [item for item in findings if item not in ml_findings]
     summary = report.get("summary") or {}
     styles = _styles()
     story: list[Any] = []
@@ -228,27 +235,29 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
         Paragraph("Executive Summary", styles["h1"]),
         Paragraph(
             f"Analysis status: {_value(report.get('status') or status)}. "
-            f"The report contains {len(findings)} recorded finding(s). Values shown below come from the analysis report and available artifacts; unavailable modules are not estimated.",
+            f"Static analysis contains {len(static_findings)} recorded finding(s). "
+            f"Machine-learning output is reported separately and is not included in the static finding count or scored twice. "
+            f"Values shown below come from the analysis report and available artifacts; unavailable modules are not estimated.",
             styles["body"],
         ),
         Paragraph("Risk Score Breakdown", styles["h1"]),
     ])
     breakdown: dict[str, Any] = {}
-    for finding in findings:
+    for finding in static_findings:
         for key, value in (finding.get("score_breakdown") or {}).items():
             if isinstance(value, (int, float)):
                 breakdown[key] = round(float(breakdown.get(key, 0)) + value, 4)
     rows = [["Evidence Category", "Points"]] + ([[k.replace("_", " ").title(), v] for k, v in breakdown.items()] if breakdown else [["Finding score breakdown", "Not available"]])
     story.extend([_table(rows, [135*mm, 43*mm], styles), PageBreak()])
 
-    evidence_counts = {level: sum(len(_flatten_evidence(f.get("evidence"))) for f in findings if str(f.get("severity", "")).lower() == level.lower()) for level in ("high", "medium", "low")}
-    finding_counts = {level: sum(1 for f in findings if str(f.get("severity", "")).lower() == level) for level in ("high", "medium", "low")}
+    evidence_counts = {level: sum(len(_flatten_evidence(f.get("evidence"))) for f in static_findings if str(f.get("severity", "")).lower() == level.lower()) for level in ("high", "medium", "low")}
+    finding_counts = {level: sum(1 for f in static_findings if str(f.get("severity", "")).lower() == level) for level in ("high", "medium", "low")}
     permissions = manifest.get("permissions") or features.get("permissions")
     exported = manifest.get("exported_components") or features.get("exported_components")
     sensitive_hits = features.get("api_calls") or _feature_value(features, ("sensitive_api_hits",), ("api", "hits"))
     story.extend([
         Paragraph("Evidence Used by Risk Level", styles["h1"]),
-        _risk_chart(findings, styles),
+        _risk_chart(static_findings, styles),
         _table([["Risk Level", "Finding Count", "Evidence Used Count"]] + [[level.title(), finding_counts[level], evidence_counts[level]] for level in ("high", "medium", "low")], [60*mm, 59*mm, 59*mm], styles),
         Paragraph("Core Extracted Features", styles["h1"]),
         _table([
@@ -260,9 +269,29 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
             ["Strings Count", _feature_value(features, ("stats", "strings_count"))],
             ["ML Prediction Artifact", "Available" if ml_predictions else "Not available"],
         ], [102*mm, 76*mm], styles),
+        Paragraph("Machine Learning Assessment", styles["h1"]),
+    ])
+    if ml_findings:
+        ml_evidence = ml_findings[0].get("evidence") or {}
+        component_predictions = ml_evidence.get("component_predictions")
+        story.append(_table([
+            ["ML Field", "Value"],
+            ["Status", "Available"],
+            ["Model Version", ml_evidence.get("model_version")],
+            ["App Risk Probability", ml_evidence.get("app_risk_probability")],
+            ["Component Prediction Count", len(component_predictions) if isinstance(component_predictions, list) else None],
+            ["Scoring Relationship", "Reported separately; not added to the static risk score"],
+        ], [74*mm, 104*mm], styles))
+    else:
+        story.append(_table([
+            ["ML Field", "Value"],
+            ["Status", "Not available"],
+            ["Scoring Relationship", "Not included in the static risk score"],
+        ], [74*mm, 104*mm], styles))
+    story.extend([
         Paragraph("User Recommendations", styles["h1"]),
     ])
-    recommendations = [f.get("remediation") for f in findings if f.get("remediation")]
+    recommendations = [f.get("remediation") for f in static_findings if f.get("remediation")]
     if recommendations:
         for recommendation in recommendations:
             story.append(Paragraph(f"- {escape(str(recommendation))}", styles["body"]))
@@ -278,8 +307,8 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
         ["Community Insight", "Not available", "No community insight data source is currently connected"],
     ]
     finding_rows = [["#", "Severity", "Finding", "Explanation", "Evidence Used"]]
-    if findings:
-        for index, finding in enumerate(findings, 1):
+    if static_findings:
+        for index, finding in enumerate(static_findings, 1):
             finding_rows.append([index, finding.get("severity"), finding.get("title"), finding.get("description"), "; ".join(_flatten_evidence(finding.get("evidence"))) or "Not available"])
     else:
         finding_rows.append(["-", "Not available", "No findings recorded", "Not available", "Not available"])

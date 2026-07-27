@@ -58,3 +58,31 @@ def test_download_filename_removes_apk_extension():
     assert download_filename("DemoRiskyApp.apk") == "DemoRiskyApp_security_report.pdf"
     assert download_filename("中文檔名.APK") == "中文檔名_security_report.pdf"
     assert download_filename("sample") == "sample_security_report.pdf"
+
+
+def test_ml_assessment_is_separate_from_static_findings(tmp_path):
+    output = tmp_path / "separate.pdf"
+    report = _report({
+        "id": "STATIC-001",
+        "category": "android_component",
+        "severity": "medium",
+        "title": "Static finding",
+        "evidence": {"component": "ExampleActivity"},
+    })
+    report["findings"].append({
+        "id": "ML_RISK_ASSESSMENT",
+        "category": "ml_risk_assessment",
+        "severity": "info",
+        "title": "ML model risk assessment",
+        "evidence": {
+            "app_risk_probability": 0.75,
+            "model_version": "test-model",
+            "component_predictions": [{"row_id": "must-not-be-expanded"}],
+        },
+    })
+    generate_pdf_report(_row(), report, output)
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(str(output)).pages)
+    assert "Machine Learning Assessment" in text
+    assert "Static finding" in text
+    assert "test-model" in text
+    assert "must-not-be-expanded" not in text
