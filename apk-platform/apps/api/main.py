@@ -6,6 +6,7 @@ from celery.result import AsyncResult
 import uuid
 import math
 import json
+import os
 
 from celery_app import celery_app
 from .tasks import analyze_sample_task
@@ -42,6 +43,11 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
+    allow_origin_regex=(
+        r"https://[a-z0-9-]+\.trycloudflare\.com"
+        if os.getenv("ALLOW_TUNNEL_ORIGINS", "0") == "1"
+        else None
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
