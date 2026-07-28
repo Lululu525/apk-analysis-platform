@@ -323,10 +323,12 @@ function ClearIcon() {
 function ReportModal({
   open,
   onClose,
+  onDownloadPdf,
   result,
 }: {
   open: boolean;
   onClose: () => void;
+  onDownloadPdf: (sampleId: string) => void;
   result: ResultResponse | null;
 }) {
   if (!open || !result?.result) return null;
@@ -395,19 +397,35 @@ function ReportModal({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            style={{
-              borderRadius: 14,
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
-              padding: "10px 16px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={() => onDownloadPdf(result.sample_id)}
+              style={{
+                borderRadius: 14,
+                border: "1px solid #1d4ed8",
+                background: "#2563eb",
+                color: "#ffffff",
+                padding: "10px 16px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Download PDF
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                borderRadius: 14,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                padding: "10px 16px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: 24 }}>
@@ -1281,21 +1299,6 @@ export default function App() {
                         Result
                       </button>
 
-                      <button
-                        onClick={() => openPdf(sample.sample_id)}
-                        disabled={sample.status !== "finished"}
-                        style={{
-                          borderRadius: 12,
-                          border: "1px solid #cbd5e1",
-                          background: sample.status === "finished" ? "#ffffff" : "#f8fafc",
-                          padding: "8px 12px",
-                          fontWeight: 700,
-                          cursor: sample.status === "finished" ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        PDF
-                      </button>
-
                       {(sample.status === "received" || sample.status === "failed") && (
                         <button
                           onClick={() => startAnalysis(sample.sample_id)}
@@ -1397,6 +1400,7 @@ export default function App() {
       <ReportModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
+        onDownloadPdf={openPdf}
         result={modalResult}
       />
 
