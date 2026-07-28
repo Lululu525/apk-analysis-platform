@@ -97,18 +97,6 @@ const statusBgMap: Record<SampleStatus, string> = {
   failed: "#fef2f2",
 };
 
-const navLinkStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: 40,
-  padding: "8px 13px",
-  borderRadius: 12,
-  color: "#334155",
-  textDecoration: "none",
-  fontSize: 14,
-  fontWeight: 700,
-};
-
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -379,6 +367,7 @@ function ReportModal({
         }}
       >
         <div
+          className="apionix-nav-wrap"
           style={{
             padding: "22px 24px 18px 24px",
             borderBottom: "1px solid #e5e7eb",
@@ -1065,57 +1054,80 @@ export default function App() {
           position: "sticky",
           top: 0,
           zIndex: 100,
-          background: "rgba(255,255,255,0.96)",
-          borderBottom: "1px solid #e2e8f0",
-          backdropFilter: "blur(12px)",
+          background: "linear-gradient(180deg, rgba(244,247,251,.95), rgba(238,242,247,.92))",
+          borderBottom: "1px solid rgba(8,18,33,.10)",
+          boxShadow: "0 10px 30px rgba(10,22,40,.08)",
+          backdropFilter: "blur(18px)",
           fontFamily:
             'Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         }}
       >
         <div
           style={{
-            width: "min(1180px, 100%)",
-            minHeight: 72,
+            width: "min(calc(100% - 56px), 1260px)",
+            height: 92,
             margin: "0 auto",
-            padding: "12px 20px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: 20,
-            flexWrap: "wrap",
+            gap: 28,
           }}
         >
           <a
             href={PORTAL_BASE}
-            style={{
-              color: "#0b2454",
-              fontSize: 25,
-              fontWeight: 900,
-              letterSpacing: 0.4,
-              textDecoration: "none",
-            }}
+            aria-label="Apionix 首頁"
+            style={{ display: "flex", alignItems: "center", textDecoration: "none" }}
           >
-            Apionix
+            <img
+              src={`${PORTAL_BASE}/assets/apionix-wordmark.png`}
+              alt="Apionix"
+              style={{ width: 190, height: 58, objectFit: "contain" }}
+            />
           </a>
-          <nav style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <a href={PORTAL_BASE} style={navLinkStyle}>首頁</a>
-            <span style={{ ...navLinkStyle, color: "#2563eb", background: "#eff6ff" }}>
-              APK 分析
-            </span>
-            <a href={`${PORTAL_BASE}/iot-system.html`} style={navLinkStyle}>IoT 系統</a>
+          <nav className="apionix-nav-links" style={{ display: "flex", gap: 36, color: "#21324f", fontWeight: 800 }}>
+            <a href={`${PORTAL_BASE}#home`} style={{ color: "inherit", textDecoration: "none" }}>首頁</a>
+            <a href={`${PORTAL_BASE}#product`} style={{ color: "inherit", textDecoration: "none" }}>平台介紹</a>
+            <a href={`${PORTAL_BASE}#services`} style={{ color: "inherit", textDecoration: "none" }}>核心服務</a>
+            <a href={`${PORTAL_BASE}#flow`} style={{ color: "inherit", textDecoration: "none" }}>使用流程</a>
+            <a href={`${PORTAL_BASE}#contact`} style={{ color: "inherit", textDecoration: "none" }}>聯絡我們</a>
+          </nav>
+          <div className="apionix-nav-actions" style={{ display: "flex", gap: 14 }}>
             <a
-              href={PORTAL_BASE}
+              href={`${PORTAL_BASE}#product`}
               style={{
-                ...navLinkStyle,
-                marginLeft: 6,
-                color: "#ffffff",
-                background: "#2563eb",
-                border: "1px solid #1d4ed8",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 999,
+                padding: "13px 24px",
+                fontWeight: 900,
+                border: "1px solid rgba(8,18,33,.22)",
+                color: "#18263d",
+                background: "rgba(255,255,255,.62)",
+                textDecoration: "none",
               }}
             >
-              返回首頁
+              了解平台
             </a>
-          </nav>
+            <a
+              href={`${PORTAL_BASE}#services`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 999,
+                padding: "13px 24px",
+                fontWeight: 900,
+                border: "1px solid transparent",
+                color: "#ffffff",
+                background: "linear-gradient(135deg,#2f7dff,#1154e5)",
+                boxShadow: "0 16px 36px rgba(29,114,255,.22)",
+                textDecoration: "none",
+              }}
+            >
+              立即開始
+            </a>
+          </div>
         </div>
       </header>
 

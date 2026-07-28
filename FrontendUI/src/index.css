@@ -32,3 +32,19 @@ button,
 input {
   outline: none;
 }
+
+@media (max-width: 1100px) {
+  .apionix-nav-links {
+    display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .apionix-nav-wrap {
+    width: min(calc(100% - 28px), 1260px) !important;
+  }
+
+  .apionix-nav-actions a:first-child {
+    display: none !important;
+  }
+}
