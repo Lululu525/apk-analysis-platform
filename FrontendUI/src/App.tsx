@@ -1087,7 +1087,19 @@ export default function App() {
           <nav className="apionix-nav-links" style={{ display: "flex", gap: 36, color: "#21324f", fontWeight: 800 }}>
             <a href={`${PORTAL_BASE}#home`} style={{ color: "inherit", textDecoration: "none" }}>首頁</a>
             <a href={`${PORTAL_BASE}#product`} style={{ color: "inherit", textDecoration: "none" }}>平台介紹</a>
-            <a href={`${PORTAL_BASE}#services`} style={{ color: "inherit", textDecoration: "none" }}>核心服務</a>
+            <div className="apionix-service-dropdown">
+              <a
+                className="apionix-service-trigger"
+                href={`${PORTAL_BASE}#services`}
+                aria-haspopup="true"
+              >
+                核心服務 <span aria-hidden="true">⌄</span>
+              </a>
+              <div className="apionix-service-menu" aria-label="核心服務選單">
+                <a href="/">APK 安全分析</a>
+                <a href={`${PORTAL_BASE}/iot-system.html`}>IoT 裝置檢測</a>
+              </div>
+            </div>
             <a href={`${PORTAL_BASE}#flow`} style={{ color: "inherit", textDecoration: "none" }}>使用流程</a>
             <a href={`${PORTAL_BASE}#contact`} style={{ color: "inherit", textDecoration: "none" }}>聯絡我們</a>
           </nav>
