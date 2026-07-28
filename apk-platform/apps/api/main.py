@@ -1,5 +1,5 @@
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import BackgroundTasks, FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from celery.result import AsyncResult
@@ -7,6 +7,7 @@ import uuid
 import math
 import json
 import os
+import threading
 
 from celery_app import celery_app
 from .tasks import analyze_sample_task
@@ -269,14 +270,19 @@ def download_sample_pdf(sample_id: str):
 
 
 @app.post("/v1/samples/{sample_id}/run-analysis")
-def run_analysis(sample_id: str, background_tasks: BackgroundTasks):
+def run_analysis(sample_id: str):
     _row_or_404(sample_id)
 
     update_sample_status(sample_id, "queued")
 
     if celery_app.conf.task_always_eager:
         task_id = str(uuid.uuid4())
-        background_tasks.add_task(analyze_sample_task.run, sample_id)
+        threading.Thread(
+            target=analyze_sample_task.run,
+            args=(sample_id,),
+            name=f"apk-analysis-{sample_id}",
+            daemon=True,
+        ).start()
         return {
             "sample_id": sample_id,
             "status": "queued",
