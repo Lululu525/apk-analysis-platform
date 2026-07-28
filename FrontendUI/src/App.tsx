@@ -79,6 +79,7 @@ type ResultResponse = {
 };
 
 const API_BASE = "http://127.0.0.1:8000";
+const PORTAL_BASE = "http://127.0.0.1:8080";
 
 const statusColorMap: Record<SampleStatus, string> = {
   received: "#94a3b8",
@@ -94,6 +95,18 @@ const statusBgMap: Record<SampleStatus, string> = {
   running: "#eff6ff",
   finished: "#ecfdf5",
   failed: "#fef2f2",
+};
+
+const navLinkStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 40,
+  padding: "8px 13px",
+  borderRadius: 12,
+  color: "#334155",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 700,
 };
 
 function sleep(ms: number) {
@@ -1041,16 +1054,74 @@ export default function App() {
       style={{
         minHeight: "100vh",
         background: "#f3f6fb",
-        padding: "24px 20px",
+        padding: 0,
         fontFamily:
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         color: "#0f172a",
       }}
     >
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          background: "rgba(255,255,255,0.96)",
+          borderBottom: "1px solid #e2e8f0",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        <div
+          style={{
+            width: "min(1180px, 100%)",
+            minHeight: 72,
+            margin: "0 auto",
+            padding: "12px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 20,
+            flexWrap: "wrap",
+          }}
+        >
+          <a
+            href={PORTAL_BASE}
+            style={{
+              color: "#0b2454",
+              fontSize: 25,
+              fontWeight: 900,
+              letterSpacing: 0.4,
+              textDecoration: "none",
+            }}
+          >
+            Apionix
+          </a>
+          <nav style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <a href={PORTAL_BASE} style={navLinkStyle}>首頁</a>
+            <span style={{ ...navLinkStyle, color: "#2563eb", background: "#eff6ff" }}>
+              APK 分析
+            </span>
+            <a href={`${PORTAL_BASE}/iot-system.html`} style={navLinkStyle}>IoT 系統</a>
+            <a
+              href={PORTAL_BASE}
+              style={{
+                ...navLinkStyle,
+                marginLeft: 6,
+                color: "#ffffff",
+                background: "#2563eb",
+                border: "1px solid #1d4ed8",
+              }}
+            >
+              返回首頁
+            </a>
+          </nav>
+        </div>
+      </header>
+
       <div
         style={{
           width: "min(1100px, 100%)",
           margin: "0 auto",
+          padding: "24px 20px",
         }}
       >
         <div
@@ -1396,6 +1467,38 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      <footer
+        style={{
+          marginTop: 28,
+          padding: "28px 20px",
+          color: "#cbd5e1",
+          background: "#07152f",
+          borderTop: "1px solid #16315f",
+        }}
+      >
+        <div
+          style={{
+            width: "min(1100px, 100%)",
+            margin: "0 auto",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <strong style={{ color: "#ffffff", fontSize: 18 }}>Apionix</strong>
+            <div style={{ marginTop: 6, fontSize: 13 }}>
+              APK Security Analysis Platform
+            </div>
+          </div>
+          <a href={PORTAL_BASE} style={{ color: "#93c5fd", textDecoration: "none", fontWeight: 700 }}>
+            返回 Apionix 首頁 →
+          </a>
+        </div>
+      </footer>
 
       <ReportModal
         open={modalOpen}
