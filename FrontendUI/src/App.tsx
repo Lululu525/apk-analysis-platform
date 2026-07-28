@@ -65,16 +65,16 @@ type ResultResponse = {
       id?: string;
       severity?: string;
       title?: string;
-      description?: string;
-      remediation?: string;
-      evidence?: string;
+      description?: unknown;
+      remediation?: unknown;
+      evidence?: unknown;
       score_weight?: number;
     }>;
     artifacts?: {
       pdf_path?: string | null;
       features_path?: string | null;
     };
-    errors?: string[];
+    errors?: unknown[];
   };
 };
 
@@ -126,6 +126,18 @@ function formatDate(value?: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
+}
+
+function formatReportValue(value: unknown, fallback = "Not available") {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return fallback;
+  }
 }
 
 function escapeRegExp(text: string) {
@@ -505,8 +517,8 @@ function ReportModal({
                         </span>
                       </div>
 
-                      <div style={{ color: "#475569", marginBottom: 10 }}>
-                        {finding.description || "No description."}
+                      <div style={{ color: "#475569", marginBottom: 10, whiteSpace: "pre-wrap" }}>
+                        {formatReportValue(finding.description, "No description.")}
                       </div>
 
                       {finding.evidence ? (
@@ -522,7 +534,16 @@ function ReportModal({
                           }}
                         >
                           <strong>Evidence</strong>
-                          <div style={{ marginTop: 6 }}>{finding.evidence}</div>
+                          <pre
+                            style={{
+                              margin: "6px 0 0",
+                              whiteSpace: "pre-wrap",
+                              overflowWrap: "anywhere",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            {formatReportValue(finding.evidence)}
+                          </pre>
                         </div>
                       ) : null}
 
@@ -538,7 +559,9 @@ function ReportModal({
                           }}
                         >
                           <strong>Remediation</strong>
-                          <div style={{ marginTop: 6 }}>{finding.remediation}</div>
+                          <div style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
+                            {formatReportValue(finding.remediation)}
+                          </div>
                         </div>
                       ) : null}
                     </div>
@@ -573,7 +596,7 @@ function ReportModal({
                       padding: 12,
                     }}
                   >
-                    {error}
+                    {formatReportValue(error)}
                   </div>
                 ))}
               </div>
