@@ -1056,7 +1056,7 @@ export default function App() {
         background: "#f3f6fb",
         padding: 0,
         fontFamily:
-          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          'Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         color: "#0f172a",
       }}
     >
@@ -1068,6 +1068,8 @@ export default function App() {
           background: "rgba(255,255,255,0.96)",
           borderBottom: "1px solid #e2e8f0",
           backdropFilter: "blur(12px)",
+          fontFamily:
+            'Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         }}
       >
         <div
@@ -1475,6 +1477,8 @@ export default function App() {
           color: "#cbd5e1",
           background: "#07152f",
           borderTop: "1px solid #16315f",
+          fontFamily:
+            'Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         }}
       >
         <div
