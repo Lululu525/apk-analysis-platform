@@ -1,5 +1,5 @@
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from celery.result import AsyncResult
@@ -269,10 +269,21 @@ def download_sample_pdf(sample_id: str):
 
 
 @app.post("/v1/samples/{sample_id}/run-analysis")
-def run_analysis(sample_id: str):
+def run_analysis(sample_id: str, background_tasks: BackgroundTasks):
     _row_or_404(sample_id)
 
     update_sample_status(sample_id, "queued")
+
+    if celery_app.conf.task_always_eager:
+        task_id = str(uuid.uuid4())
+        background_tasks.add_task(analyze_sample_task.run, sample_id)
+        return {
+            "sample_id": sample_id,
+            "status": "queued",
+            "task_id": task_id,
+            "message": "Analysis has started in the local background worker.",
+        }
+
     task = analyze_sample_task.delay(sample_id)
 
     return {
