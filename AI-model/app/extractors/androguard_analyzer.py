@@ -9,9 +9,19 @@ Capabilities:
 """
 from __future__ import annotations
 
+import locale
+
 from pathlib import Path
 from typing import Optional, Dict, List, Union
 from dataclasses import dataclass
+
+# Androguard's bundled resource loaders (e.g. core/resources/public.py,
+# core/api_specific_resources/__init__.py) call open(path, "r") without an
+# explicit encoding, so on non-UTF-8 locales (e.g. Windows cp950) they crash
+# with UnicodeDecodeError on their own UTF-8 data files. Force UTF-8 as the
+# platform "preferred" encoding before androguard is imported so its open()
+# calls decode correctly regardless of OS locale.
+locale.getpreferredencoding = lambda do_setlocale=True: "utf-8"
 
 try:
     from androguard.misc import AnalyzeAPK

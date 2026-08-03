@@ -196,11 +196,15 @@ def run(req: AnalyzeRequest, output_dir: Path | None = None) -> AnalyzeReport:
         }
 
         features_path = output_dir / f"{req.job_id}.features.json"
-        features_path.write_text(json.dumps(features, indent=2, ensure_ascii=False))
+        features_path.write_text(
+            json.dumps(features, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         artifacts.features_path = str(features_path)
 
         strings_path = output_dir / f"{req.job_id}.strings.txt"
-        strings_path.write_text("\n".join(strings_list[:2000]), errors="ignore")
+        strings_path.write_text(
+            "\n".join(strings_list[:2000]), encoding="utf-8", errors="ignore"
+        )
         artifacts.strings_path = str(strings_path)
 
         if extracted_dir:
