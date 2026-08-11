@@ -33,6 +33,8 @@ def test_pdf_is_generated_non_empty_and_multi_page(tmp_path):
     assert len(PdfReader(str(output)).pages) >= 4
     text = "\n".join(page.extract_text() or "" for page in PdfReader(str(output)).pages)
     assert "25/100" in text
+    assert "Static Analysis Score" in text
+    assert "Evidence Distribution by Finding Risk Level" in text
 
 
 def test_finding_without_evidence_and_chinese_content(tmp_path):
@@ -85,6 +87,11 @@ def test_ml_assessment_is_separate_from_static_findings(tmp_path):
     generate_pdf_report(_row(), report, output)
     text = "\n".join(page.extract_text() or "" for page in PdfReader(str(output)).pages)
     assert "Machine Learning Assessment" in text
+    assert "Static Analysis Score" in text
+    assert "Machine Learning Score" in text
+    assert "75/100" in text
+    assert "0.7500" in text
+    assert "not added to the static risk score" in text
     assert "Static finding" in text
     assert "test-model" in text
     assert "must-not-be-expanded" not in text

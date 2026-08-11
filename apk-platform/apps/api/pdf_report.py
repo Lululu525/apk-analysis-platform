@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Iterable
 import json
 
-from reportlab.graphics.charts.barcharts import HorizontalBarChart
+from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.shapes import Drawing, String
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
@@ -30,6 +30,9 @@ TEXT = colors.HexColor("#182534")
 MUTED = colors.HexColor("#607086")
 BORDER = colors.HexColor("#CAD6E2")
 ORANGE = colors.HexColor("#F5A15F")
+HIGH = colors.HexColor("#E85D4A")
+MEDIUM = colors.HexColor("#F5A15F")
+LOW = colors.HexColor("#3B82C4")
 
 
 def _register_fonts() -> tuple[str, str]:
@@ -71,7 +74,7 @@ def _paragraph(value: Any, style: ParagraphStyle) -> Paragraph:
     return Paragraph(escape(text).replace("\n", "<br/>"), style)
 
 
-def _read_json(path: Any) -> dict[str, Any]:
+def _read_json(path: Any) -> Any:
     if not path:
         return {}
     try:
@@ -81,7 +84,7 @@ def _read_json(path: Any) -> dict[str, Any]:
         return {}
 
 
-def _artifact_json(report: dict[str, Any], artifact_dir: Path, key: str, suffix: str) -> dict[str, Any]:
+def _artifact_json(report: dict[str, Any], artifact_dir: Path, key: str, suffix: str) -> Any:
     artifacts = report.get("artifacts") or {}
     explicit = _read_json(artifacts.get(key))
     if explicit:
@@ -99,6 +102,50 @@ def download_filename(original_filename: str) -> str:
 
 def _risk_score_display(score: Any) -> str:
     return "Not available" if score is None or score == "" else f"{score}/100"
+
+
+def _probability(value: Any) -> float | None:
+    try:
+        probability = float(value)
+    except (TypeError, ValueError):
+        return None
+    return probability if 0.0 <= probability <= 1.0 else None
+
+
+def _ml_probability(ml_findings: list[dict[str, Any]], ml_predictions: Any) -> float | None:
+    for finding in ml_findings:
+        evidence = finding.get("evidence") or {}
+        if isinstance(evidence, dict):
+            probability = _probability(evidence.get("app_risk_probability"))
+            if probability is not None:
+                return probability
+
+    if isinstance(ml_predictions, dict):
+        probability = _probability(ml_predictions.get("app_risk_probability"))
+        if probability is not None:
+            return probability
+        predictions = ml_predictions.get("predictions") or ml_predictions.get("component_predictions")
+    else:
+        predictions = ml_predictions
+
+    if isinstance(predictions, list):
+        probabilities = [
+            probability
+            for item in predictions
+            if isinstance(item, dict)
+            for probability in [_probability(item.get("risk_probability"))]
+            if probability is not None
+        ]
+        return max(probabilities) if probabilities else None
+    return None
+
+
+def _ml_score_display(probability: float | None) -> str:
+    return "Not available" if probability is None else f"{round(probability * 100)}/100"
+
+
+def _probability_display(probability: float | None) -> str:
+    return "Not available" if probability is None else f"{probability:.4f}"
 
 
 def _decorate_page(canvas, doc) -> None:
@@ -173,23 +220,36 @@ def _flatten_evidence(evidence: Any) -> list[str]:
 def _risk_chart(findings: list[dict[str, Any]], styles: dict[str, ParagraphStyle]) -> Drawing:
     levels = ["High", "Medium", "Low"]
     values = [sum(len(_flatten_evidence(f.get("evidence"))) for f in findings if str(f.get("severity", "")).lower() == level.lower()) for level in levels]
-    drawing = Drawing(470, 120)
-    chart = HorizontalBarChart()
-    chart.x = 85
-    chart.y = 20
-    chart.height = 78
-    chart.width = 350
-    chart.data = [values]
-    chart.categoryAxis.categoryNames = levels
-    chart.categoryAxis.labels.fontName = FONT_BOLD
-    chart.categoryAxis.labels.fontSize = 8
-    chart.valueAxis.valueMin = 0
-    chart.valueAxis.valueMax = max(max(values, default=0), 1)
-    chart.valueAxis.visible = False
-    chart.bars[0].fillColor = ORANGE
-    chart.barWidth = 10
-    drawing.add(chart)
-    drawing.add(String(0, 108, "Evidence Used Count by Finding Risk Level", fontName=FONT_BOLD, fontSize=9, fillColor=NAVY))
+    total = sum(values)
+    drawing = Drawing(470, 145)
+    drawing.add(String(0, 132, "Evidence Distribution by Finding Risk Level", fontName=FONT_BOLD, fontSize=9, fillColor=NAVY))
+
+    if total:
+        nonzero = [(level, value, color) for level, value, color in zip(levels, values, (HIGH, MEDIUM, LOW)) if value]
+        chart = Pie()
+        chart.x = 38
+        chart.y = 10
+        chart.width = 112
+        chart.height = 112
+        chart.data = [value for _level, value, _color in nonzero]
+        chart.labels = [f"{level} {value / total:.0%}" for level, value, _color in nonzero]
+        chart.sideLabels = True
+        chart.simpleLabels = False
+        chart.slices.fontName = FONT
+        chart.slices.fontSize = 7.5
+        chart.slices.strokeWidth = 0.7
+        chart.slices.strokeColor = colors.white
+        for index, (_level, _value, color) in enumerate(nonzero):
+            chart.slices[index].fillColor = color
+        drawing.add(chart)
+    else:
+        drawing.add(String(38, 68, "No evidence available", fontName=FONT, fontSize=9, fillColor=MUTED))
+
+    for index, (level, value, color) in enumerate(zip(levels, values, (HIGH, MEDIUM, LOW))):
+        y = 96 - index * 28
+        percentage = value / total if total else 0
+        drawing.add(String(255, y, "■", fontName=FONT_BOLD, fontSize=12, fillColor=color))
+        drawing.add(String(273, y + 1, f"{level}: {value} ({percentage:.0%})", fontName=FONT, fontSize=8.5, fillColor=TEXT))
     return drawing
 
 
@@ -217,6 +277,7 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
     ]
     static_findings = [item for item in findings if item not in ml_findings]
     summary = report.get("summary") or {}
+    ml_probability = _ml_probability(ml_findings, ml_predictions)
     styles = _styles()
     story: list[Any] = []
 
@@ -233,8 +294,9 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
         _table([
             ["Application", application, "Package", package_name],
             ["File", filename, "Generated", generated],
-            ["Risk Score", _risk_score_display(summary.get("risk_score")), "Risk Level", summary.get("risk_level")],
-            ["Scoring Method", scoring_method, "Formula", formula],
+            ["Static Analysis Score", _risk_score_display(summary.get("risk_score")), "Static Risk Level", summary.get("risk_level")],
+            ["Machine Learning Score", _ml_score_display(ml_probability), "ML Probability", _probability_display(ml_probability)],
+            ["Static Scoring Method", scoring_method, "Static Formula", formula],
         ], [28*mm, 61*mm, 32*mm, 57*mm], styles, header=False),
         Paragraph("Executive Summary", styles["h1"]),
         Paragraph(
@@ -244,7 +306,7 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
             f"Values shown below come from the analysis report and available artifacts; unavailable modules are not estimated.",
             styles["body"],
         ),
-        Paragraph("Risk Score Breakdown", styles["h1"]),
+        Paragraph("Static Analysis Score Breakdown", styles["h1"]),
     ])
     breakdown: dict[str, Any] = {}
     for finding in static_findings:
@@ -282,8 +344,10 @@ def generate_pdf_report(sample_row, report: dict[str, Any], output_pdf_path: Pat
             ["ML Field", "Value"],
             ["Status", "Available"],
             ["Model Version", ml_evidence.get("model_version")],
-            ["App Risk Probability", ml_evidence.get("app_risk_probability")],
+            ["Machine Learning Score", _ml_score_display(ml_probability)],
+            ["App Risk Probability", _probability_display(ml_probability)],
             ["Component Prediction Count", len(component_predictions) if isinstance(component_predictions, list) else None],
+            ["ML Score Method", "max(component risk_probability) x 100"],
             ["Scoring Relationship", "Reported separately; not added to the static risk score"],
         ], [74*mm, 104*mm], styles))
     else:

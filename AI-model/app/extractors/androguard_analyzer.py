@@ -9,9 +9,17 @@ Capabilities:
 """
 from __future__ import annotations
 
+import locale
+
 from pathlib import Path
 from typing import Optional, Dict, List, Union
 from dataclasses import dataclass
+
+# Androguard's bundled resource loaders open UTF-8 text resources without an
+# explicit encoding. On Windows systems using cp950/Big5 this can raise a
+# UnicodeDecodeError before an APK is analyzed. Make the preferred encoding
+# deterministic before importing Androguard.
+locale.getpreferredencoding = lambda do_setlocale=True: "utf-8"
 
 try:
     from androguard.misc import AnalyzeAPK

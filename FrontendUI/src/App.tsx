@@ -63,6 +63,7 @@ type ResultResponse = {
     };
     findings?: Array<{
       id?: string;
+      category?: string;
       severity?: string;
       title?: string;
       description?: unknown;
@@ -139,6 +140,19 @@ function formatReportValue(value: unknown, fallback = "Not available") {
   } catch {
     return fallback;
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function probabilityValue(value: unknown) {
+  const probability = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(probability) && probability >= 0 && probability <= 1
+    ? probability
+    : null;
 }
 
 function escapeRegExp(text: string) {
@@ -336,9 +350,22 @@ function ReportModal({
 
   const report = result.result;
   const summary = report.summary || {};
-  const counts = summary.counts || {};
   const findings = report.findings || [];
   const errors = report.errors || [];
+  const mlFindings = findings.filter(
+    (finding) =>
+      finding.category === "ml_risk_assessment" || finding.id === "ML_RISK_ASSESSMENT"
+  );
+  const staticFindings = findings.filter((finding) => !mlFindings.includes(finding));
+  const mlEvidence = asRecord(mlFindings[0]?.evidence);
+  const mlProbability = probabilityValue(mlEvidence?.app_risk_probability);
+  const mlScore = mlProbability === null ? null : Math.round(mlProbability * 100);
+  const modelVersion = mlEvidence?.model_version;
+  const staticCounts = staticFindings.reduce<Record<string, number>>((acc, finding) => {
+    const severity = (finding.severity || "info").toLowerCase();
+    acc[severity] = (acc[severity] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div
@@ -434,15 +461,22 @@ function ReportModal({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
               gap: 14,
               marginBottom: 18,
             }}
           >
             <SummaryBox title="Sample ID" value={result.sample_id} />
             <SummaryBox title="Report Status" value={report.status || result.status} />
-            <SummaryBox title="Risk Score" value={summary.risk_score ?? "N/A"} />
-            <SummaryBox title="Risk Level" value={summary.risk_level || "N/A"} />
+            <SummaryBox
+              title="Static Analysis Score"
+              value={summary.risk_score === undefined ? "N/A" : `${summary.risk_score}/100`}
+            />
+            <SummaryBox title="Static Risk Level" value={summary.risk_level || "N/A"} />
+            <SummaryBox
+              title="Machine Learning Score"
+              value={mlScore === null ? "Not available" : `${mlScore}/100`}
+            />
           </div>
 
           <div
@@ -453,11 +487,41 @@ function ReportModal({
               marginBottom: 22,
             }}
           >
-            <CountCard label="Critical" value={counts.critical || 0} color="#ef4444" bg="#fef2f2" />
-            <CountCard label="High" value={counts.high || 0} color="#f97316" bg="#fff7ed" />
-            <CountCard label="Medium" value={counts.medium || 0} color="#eab308" bg="#fefce8" />
-            <CountCard label="Low" value={counts.low || 0} color="#0ea5e9" bg="#f0f9ff" />
-            <CountCard label="Info" value={counts.info || 0} color="#64748b" bg="#f8fafc" />
+            <CountCard label="Critical" value={staticCounts.critical || 0} color="#ef4444" bg="#fef2f2" />
+            <CountCard label="High" value={staticCounts.high || 0} color="#f97316" bg="#fff7ed" />
+            <CountCard label="Medium" value={staticCounts.medium || 0} color="#eab308" bg="#fefce8" />
+            <CountCard label="Low" value={staticCounts.low || 0} color="#0ea5e9" bg="#f0f9ff" />
+            <CountCard label="Info" value={staticCounts.info || 0} color="#64748b" bg="#f8fafc" />
+          </div>
+
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #dbeafe",
+              borderRadius: 22,
+              padding: 18,
+              marginBottom: 18,
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12 }}>
+              Machine Learning Assessment
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 12,
+                color: "#334155",
+              }}
+            >
+              <div><strong>Status:</strong> {mlProbability === null ? "Not available" : "Available"}</div>
+              <div><strong>Model:</strong> {formatReportValue(modelVersion)}</div>
+              <div><strong>Probability:</strong> {mlProbability === null ? "Not available" : mlProbability.toFixed(4)}</div>
+              <div><strong>ML Score:</strong> {mlScore === null ? "Not available" : `${mlScore}/100`}</div>
+            </div>
+            <div style={{ color: "#64748b", fontSize: 13, marginTop: 12 }}>
+              ML score = max(component risk probability) × 100. It is reported separately and is not added to the static analysis score.
+            </div>
           </div>
 
           <div
@@ -469,13 +533,13 @@ function ReportModal({
               marginBottom: 18,
             }}
           >
-            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 14 }}>Findings</div>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 14 }}>Static Analysis Findings</div>
 
-            {findings.length === 0 ? (
+            {staticFindings.length === 0 ? (
               <div style={{ color: "#64748b" }}>No findings reported.</div>
             ) : (
               <div style={{ display: "grid", gap: 14 }}>
-                {findings.map((finding, index) => {
+                {staticFindings.map((finding, index) => {
                   const sev = (finding.severity || "info").toLowerCase();
                   const sevColor =
                     sev === "critical"
@@ -1085,8 +1149,8 @@ export default function App() {
             />
           </a>
           <nav className="apionix-nav-links" style={{ display: "flex", gap: 36, color: "#21324f", fontWeight: 800 }}>
-            <a href={`${PORTAL_BASE}#home`} style={{ color: "inherit", textDecoration: "none" }}>首頁</a>
-            <a href={`${PORTAL_BASE}#product`} style={{ color: "inherit", textDecoration: "none" }}>平台介紹</a>
+            <a href={`${PORTAL_BASE}/`} style={{ color: "inherit", textDecoration: "none" }}>首頁</a>
+            <a href={`${PORTAL_BASE}/platform.html`} style={{ color: "inherit", textDecoration: "none" }}>平台介紹</a>
             <div className="apionix-service-dropdown">
               <a
                 className="apionix-service-trigger"
@@ -1100,8 +1164,8 @@ export default function App() {
                 <a href={`${PORTAL_BASE}/iot-system.html`}>IoT 裝置檢測</a>
               </div>
             </div>
-            <a href={`${PORTAL_BASE}#flow`} style={{ color: "inherit", textDecoration: "none" }}>使用流程</a>
-            <a href={`${PORTAL_BASE}#contact`} style={{ color: "inherit", textDecoration: "none" }}>聯絡我們</a>
+            <a href={`${PORTAL_BASE}/workflow.html`} style={{ color: "inherit", textDecoration: "none" }}>使用流程</a>
+            <a href={`${PORTAL_BASE}/contact.html`} style={{ color: "inherit", textDecoration: "none" }}>聯絡我們</a>
           </nav>
           <div className="apionix-nav-actions" style={{ display: "flex", gap: 14 }}>
             <a
