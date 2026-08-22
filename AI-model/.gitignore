@@ -25,3 +25,11 @@ venv/
 
 # tmp
 tmp/
+
+# Local agent state and linked worktrees
+.claude/
+
+# Local pytest output created by Codex review/test runs
+.codex-pytest-tmp/
+.codex-*-pytest-tmp/
+.pytest_cache/
