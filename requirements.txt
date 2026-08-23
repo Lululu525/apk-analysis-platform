@@ -7,3 +7,6 @@ networkx
 scikit-learn
 celery
 redis
+reportlab
+pypdf
+pytest

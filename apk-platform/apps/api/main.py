@@ -6,9 +6,12 @@ from celery.result import AsyncResult
 import uuid
 import math
 import json
+import os
+import threading
 
 from celery_app import celery_app
 from .tasks import analyze_sample_task
+from .pdf_report import download_filename
 from .db import (
     init_db,
     insert_sample,
@@ -41,6 +44,11 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
+    allow_origin_regex=(
+        r"https://[a-z0-9-]+\.trycloudflare\.com"
+        if os.getenv("ALLOW_TUNNEL_ORIGINS", "0") == "1"
+        else None
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -253,7 +261,7 @@ def download_sample_pdf(sample_id: str):
     if not out_pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found")
 
-    download_name = f"{row[2]}.report.pdf"
+    download_name = download_filename(row[2])
     return FileResponse(
         path=str(out_pdf_path),
         media_type="application/pdf",
@@ -266,6 +274,22 @@ def run_analysis(sample_id: str):
     _row_or_404(sample_id)
 
     update_sample_status(sample_id, "queued")
+
+    if celery_app.conf.task_always_eager:
+        task_id = str(uuid.uuid4())
+        threading.Thread(
+            target=analyze_sample_task.run,
+            args=(sample_id,),
+            name=f"apk-analysis-{sample_id}",
+            daemon=True,
+        ).start()
+        return {
+            "sample_id": sample_id,
+            "status": "queued",
+            "task_id": task_id,
+            "message": "Analysis has started in the local background worker.",
+        }
+
     task = analyze_sample_task.delay(sample_id)
 
     return {
