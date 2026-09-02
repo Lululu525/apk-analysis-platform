@@ -2,10 +2,27 @@
 import xml.etree.ElementTree as ET
 from unittest.mock import MagicMock
 
-from app.extractors.androguard_analyzer import _extract_components
+from app.extractors.androguard_analyzer import (
+    ANDROGUARD_AVAILABLE,
+    _extract_components,
+    _open_androguard_text_resource,
+)
 
 
 ANDROID_NS = "http://schemas.android.com/apk/res/android"
+
+
+def test_androguard_resource_files_are_explicitly_opened_as_utf8(tmp_path):
+    resource = tmp_path / "resource.json"
+    resource.write_bytes('{"value": "ellipsis …"}'.encode("utf-8"))
+
+    with _open_androguard_text_resource(resource, "r") as handle:
+        assert handle.read() == '{"value": "ellipsis …"}'
+
+    if ANDROGUARD_AVAILABLE:
+        from androguard.core import api_specific_resources
+
+        assert api_specific_resources.open is _open_androguard_text_resource
 
 
 def _extract_provider(attributes: str):
@@ -318,12 +335,11 @@ def test_provider_mixed_namespace_and_bare_attributes_both_resolved():
     mock_axml.get_xml_obj.return_value = manifest_xml
     mock_apk = MagicMock()
     mock_apk.get_android_manifest_axml.return_value = mock_axml
- 
+
     components = _extract_components(mock_apk)
     provider = next(c for c in components if c.type == "provider")
- 
+
     assert provider.name == "com.example.MixedProvider"
     assert provider.exported is True
     assert provider.read_permission == "com.example.READ"
     assert provider.write_permission == "com.example.READ"
- 

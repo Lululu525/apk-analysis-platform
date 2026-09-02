@@ -25,7 +25,9 @@ Output (JSON on stdout, or to --out FILE):
          "data_type": str | None, "permission": str | None},
         ...
       ],
-      "exported_unprotected": [str, ...]
+      "exported_unprotected": [str, ...],
+      "sensitive_api_callers": [{...}, ...],
+      "sensitive_api_scan_status": str
     }
 
 Matches the feature vector used by El-Zawawy & Hamdy (ASE 2025) for the
@@ -133,15 +135,24 @@ def _summarize(result: AnalysisResult) -> Dict[str, Any]:
     components_by_type: Dict[str, List[str]] = {v: [] for v in _COMPONENT_KEY.values()}
     intents: List[Dict[str, Optional[str]]] = []
     exported_unprotected: List[str] = []
+    sensitive_api_callers = list(result.sensitive_api_callers or [])
+    distinct_sensitive_callers = {
+        (
+            str(row.get("caller_class") or ""),
+            str(row.get("caller_method") or ""),
+            str(row.get("caller_descriptor") or ""),
+        )
+        for row in sensitive_api_callers
+    }
 
     for comp in result.components or []:
         key = _COMPONENT_KEY.get(comp.type)
         if key is None:
             continue
-        components_by_type[key].append(comp.name)
+        components_by_type[key].append(comp.name or "")
         intents.extend(_flatten_intents(comp))
         if comp.exported and _component_permission(comp) is None:
-            exported_unprotected.append(comp.name)
+            exported_unprotected.append(comp.name or "")
 
     return {
         "package_name": result.package_name,
@@ -154,6 +165,12 @@ def _summarize(result: AnalysisResult) -> Dict[str, Any]:
         "components": components_by_type,
         "intents": intents,
         "exported_unprotected": exported_unprotected,
+        "sensitive_api_callers": sensitive_api_callers,
+        "sensitive_api_call_site_count": len(sensitive_api_callers),
+        "sensitive_api_caller_count": len(distinct_sensitive_callers),
+        "sensitive_api_scan_status": result.sensitive_api_scan_status,
+        "sensitive_api_scan_error_count": result.sensitive_api_scan_error_count,
+        "sensitive_api_scan_error_message": result.sensitive_api_scan_error_message,
     }
 
 

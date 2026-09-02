@@ -9,22 +9,36 @@ Capabilities:
 """
 from __future__ import annotations
 
+import builtins
 import locale
 
 from pathlib import Path
 from typing import Optional, Dict, List, Union
 from dataclasses import dataclass
 
-# Androguard's bundled resource loaders (e.g. core/resources/public.py,
-# core/api_specific_resources/__init__.py) call open(path, "r") without an
-# explicit encoding, so on non-UTF-8 locales (e.g. Windows cp950) they crash
-# with UnicodeDecodeError on their own UTF-8 data files. Force UTF-8 as the
-# platform "preferred" encoding before androguard is imported so its open()
-# calls decode correctly regardless of OS locale.
+from .sensitive_api_callers import scan_sensitive_api_callers
+
+# Androguard's bundled resource loaders call open(path, "r") without an
+# explicit encoding. On non-UTF-8 locales (e.g. Windows cp950), JSON resources
+# loaded later by api_specific_resources can therefore raise UnicodeDecodeError.
+# Keep the locale shim before importing Androguard for import-time resources,
+# then bind the explicit wrapper below to the later JSON loaders.
 locale.getpreferredencoding = lambda do_setlocale=True: "utf-8"
+
+
+def _open_androguard_text_resource(file, mode="r", *args, **kwargs):
+    """Open Androguard's bundled text resources as UTF-8 on every locale."""
+    if "b" not in mode:
+        kwargs.setdefault("encoding", "utf-8")
+    return builtins.open(file, mode, *args, **kwargs)
 
 try:
     from androguard.misc import AnalyzeAPK
+    from androguard.core import api_specific_resources as _api_resources
+
+    # These vendor functions call an unqualified module-global open(). Point
+    # that name at a UTF-8 wrapper without replacing builtins.open globally.
+    _api_resources.open = _open_androguard_text_resource  # type: ignore[attr-defined]
     ANDROGUARD_AVAILABLE = True
 except ImportError:
     ANDROGUARD_AVAILABLE = False
@@ -87,35 +101,6 @@ DANGEROUS_PERMISSIONS = {
     "android.permission.NFC": "中風險",
 }
 
-# ── Sensitive API calls that may indicate privilege escalation ──────────────
-
-SENSITIVE_API_PATTERNS = {
-    # Runtime permissions (Runtime.exec)
-    "java/lang/Runtime/exec": "CWE-78",  # OS Command Injection
-
-    # Reflection APIs
-    "java/lang/reflect/Method/invoke": "CWE-95",  # Improper Neutralization (reflection abuse)
-    "java/lang/Class/forName": "CWE-95",
-
-    # Native code execution
-    "java/lang/System/load": "CWE-95",
-    "java/lang/System/loadLibrary": "CWE-95",
-
-    # File operations on system paths
-    "java/io/File/<init>": "CWE-269",  # Check if accessing /system paths
-    "java/nio/file/Files": "CWE-269",
-
-    # Dangerous intent handling
-    "android/content/Intent": "CWE-927",  # Improper Intent validation
-
-    # ContentProvider access without proper validation
-    "android/content/ContentProvider/query": "CWE-276",  # Incorrect DEFAULT permissions
-
-    # JavaScript interface (WebView)
-    "android/webkit/WebView/addJavascriptInterface": "CWE-94",  # Improper Control of Generation
-}
-
-
 @dataclass
 class PermissionInfo:
     """Extracted permission information"""
@@ -160,6 +145,10 @@ class AnalysisResult:
     permissions: Optional[Dict[str, PermissionInfo]] = None
     components: Optional[List[ComponentInfo]] = None
     sensitive_api_calls: Optional[List[str]] = None
+    sensitive_api_callers: Optional[List[Dict[str, object]]] = None
+    sensitive_api_scan_status: str = "not_attempted"
+    sensitive_api_scan_error_count: int = 0
+    sensitive_api_scan_error_message: Optional[str] = None
 
     errors: Optional[List[str]] = None
 
@@ -178,7 +167,7 @@ def analyze_apk(apk_path: Path) -> AnalysisResult:
         )
 
     try:
-        apk, dexes, _ = AnalyzeAPK(str(apk_path))
+        apk, dexes, analysis = AnalyzeAPK(str(apk_path))
     except Exception as e:
         return AnalysisResult(
             success=False,
@@ -211,7 +200,15 @@ def analyze_apk(apk_path: Path) -> AnalysisResult:
     result.components = _extract_components(apk)
 
     # ── Sensitive API detection ───────────────────────────────────────────
-    result.sensitive_api_calls = _find_sensitive_apis(dexes)
+    caller_scan = scan_sensitive_api_callers(analysis)
+    result.sensitive_api_callers = caller_scan.callers
+    result.sensitive_api_scan_status = caller_scan.status
+    result.sensitive_api_scan_error_count = caller_scan.error_count
+    result.sensitive_api_scan_error_message = caller_scan.error_message
+    result.sensitive_api_calls = sorted({
+        f"{row['api_class']}.{row['api_method']}"
+        for row in caller_scan.callers
+    })
 
     return result
 
@@ -393,33 +390,3 @@ def _extract_intent_filters(component_elem) -> List[Dict[str, Union[str, List[st
             filters.append(filter_info)
 
     return filters
-
-
-def _find_sensitive_apis(dexes) -> List[str]:
-    """Scan bytecode for sensitive API calls"""
-    sensitive_calls = []
-
-    try:
-        for dex in dexes:
-            # Enumerate all method calls
-            for method in dex.get_methods():
-                code = method.get_code()
-                if not code:
-                    continue
-
-                for instruction in code.get_instructions():
-                    # Check for method invocation instructions
-                    if instruction.get_name().startswith("invoke"):
-                        # Extract method reference
-                        method_id = instruction.get_referred_method()
-                        if method_id:
-                            method_sig = method_id.get_name()
-                            # Check against known sensitive patterns
-                            for pattern, cwe in SENSITIVE_API_PATTERNS.items():
-                                if pattern in method_sig or pattern.replace("/", ".") in method_sig:
-                                    sensitive_calls.append(method_sig)
-    except Exception:
-        # Androguard analysis may fail on obfuscated code
-        pass
-
-    return list(set(sensitive_calls))  # deduplicate
