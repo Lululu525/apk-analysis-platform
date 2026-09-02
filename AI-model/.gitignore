@@ -26,6 +26,9 @@ venv/
 # tmp
 tmp/
 
+# Local canonical-dataset pilot evidence (may be large and machine-specific)
+output/canonical_pilot/
+
 # Local agent state and linked worktrees
 .claude/
 
