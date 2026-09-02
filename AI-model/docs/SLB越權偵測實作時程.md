@@ -1,6 +1,7 @@
 # SLB 越權偵測實作時程
 
 - **建立日期**：2026-08-22
+- **最近更新**：2026-09-02
 - **預定開始日**：2026-08-24
 - **主要開發截止日**：2026-11-30
 - **資料來源**：MalDroid-2020 與 F-Droid APK
@@ -10,28 +11,28 @@
 
 ## 先看這一段：現在只需要做什麼？
 
-現在**不要先寫 SLB trainer，也不要直接分析全部 25,358 個 APK**。
+300 APK 六層 pilot 已完成；現在仍然**不要先寫 SLB trainer，也不要直接分析全部 25,358 個 APK**。
 
 目前第一個任務只有一個：
 
-> 建立一個唯讀的 canonical dataset consumer，從 `canonical_balanced_dataset.csv` 選出 300 個 APK，逐筆驗證 `source_path` 與 SHA-256，跑一輪小型 pilot，測量解析時間、成功率與可產生的 component/path 證據量。
+> 先完成 FlowDroid bounded CLI PoC，再完成 MobSF Docker sidecar PoC，使用固定 6 APK matched-pair benchmark 比較 baseline manual review 與 tool-assisted review；通過後才套用到 50 APK Golden Set。
 
-為什麼要先做 pilot：
+Pilot 已確認目前 evidence 仍以 Manifest candidate、component row 與 sensitive caller/XREF 為主；尚不足以把所有 candidate 稱為 concrete component path。現階段先凍結語意，原因如下：
 
-1. 我們已經有可信的 APK 母體，但還不知道 `AI-model` 分析一個 APK 實際要多久。
-2. 我們不知道 25,358 個 APK 中，有多少能產生可用的 exported component、sensitive sink 與 runtime guard 證據。
-3. 沒有這些數字，就無法決定後續應深度分析 2,000、5,000 或全部 APK。
-4. SLB 需要的是 component/path-level weak authorization labels，不是 MalDroid 的 benign/non-benign label。
+1. Positive、negative、unknown/abstain 必須先有互斥且可稽核的 R/I/S/A 證據要求。
+2. `exported && !protected`、`risk_hint`、allowlist match 與 direct lifecycle identity 都只能是 weak evidence。
+3. `binary_label`／MalDroid family 只能作 metadata 與 subgroup analysis，不能成為 authorization label。
+4. `observed_authz_label`、`gold_authz_label`、`revised_authz_label` 必須保留獨立 provenance，不得互相覆寫。
+5. Pilot 的 sequential planning estimate 約 31.8 小時，另有 111 秒單 APK 長尾；300 APK sensitive caller JSONL 已約 47.8 MB，現階段不合理直接外推全量 DEX/XREF。
 
-第一週完成後，只要能回答以下問題，就算成功：
+本階段完成後，必須能回答：
 
-- 300 個 APK 有多少成功／失敗？
-- 每個 APK 平均與最慢需要多少時間？
-- 產生多少 component rows？
-- 其中多少是 exported components？
-- 有多少敏感 API caller？
-- 目前能否把 component entry 與 sensitive API caller 串起來？
-- 哪些證據目前仍只能標成 `unknown/abstain`？
+- 一筆 analysis attempt、candidate 與 concrete component-path row 如何區分？
+- R/I/S/A 各自需要什麼 confirmed/refuted/unknown evidence？
+- parser failure、no caller、no guard、reflection/native 如何標記而不誤判 negative？
+- 哪些欄位 reviewer 可以看，哪些 weak label／malware metadata 必須盲化？
+- 6 APK benchmark 是否證明 MobSF／FlowDroid 能降低人工時間並提供非重複 evidence？
+- 50 APK Golden membership、review units 與 append-only review events 如何保持可稽核？
 
 ---
 
@@ -189,29 +190,27 @@ authz_label = 1 if binary_label == "non_benign" else 0
 ```text
 Canonical CSV consumer
         ↓
-300 APK pilot
+300 APK pilot（297 parse-success）
         ↓
-全量 Manifest screening
+FlowDroid CLI PoC → MobSF sidecar PoC
         ↓
-選出 2,000～5,000 APK 深度分析子集
+6 APK baseline-vs-assisted benchmark
         ↓
-Component → entry → guard → sink evidence
+Clustering 選出並凍結 50 APK Golden Set
         ↓
-Weak labeling functions
+指定 reviewer 依 R/I/S/A 建立 Gold
         ↓
-observed_authz_label
+Golden lineage isolation → 最多 247 APK weak-training pool
         ↓
-Gold review + package-group split
+Weak labeling functions + observed_authz_label
         ↓
-Baseline models
+凍結 anti_leakage_feature_profile 與 configuration
         ↓
-SLB Data Split
+Vanilla／SLB 各 3 fixed seeds
         ↓
-EMA + Continuous Revision
+SLB revised_authz_label（training pool only）
         ↓
-revised_authz_label
-        ↓
-封存的 gold test 最終評估
+同一 Golden binary subset 最終評估
 ```
 
 SLB 位於流程後半段。若前面的 label 與 evidence 尚未建立，先寫 SLB 沒有意義。
@@ -288,15 +287,22 @@ docs/experiments/pilot_300_report.md
 - 定義 component-path row。
 - 定義 positive／negative／unknown。
 - 定義 gold evidence 等級。
-- 定義 reviewer disagreement 的處理方式。
+- 定義指定 reviewer 的 append-only review 與補充 evidence 修訂方式。
 - 定義 label 欄位不可互相覆寫。
+- 區分 `candidate_id` 與僅供 concrete entry-to-sink chain 使用的 `path_id`。
+- 定義 R（reachability）、I（attacker input）、S（sensitive effect）、A（authorization failure）四項 predicate 與 evidence status。
+- 依會議決策由指定 reviewer 覆核 50 APK Golden Set；證據不足時保留 unknown，不因沒有第二位 reviewer 而停止。
 
 交付物：
 
 ```text
 docs/authz_label_spec.md
 docs/authz_annotation_guide.md
+dataset/authz_v2/golden_50_membership.csv
+dataset/authz_v2/golden_50_annotation_template.csv
 ```
+
+上述兩份 CSV 的 human label、confidence、reason 與 timestamp 欄位建立時必須為空；identity、cluster selection 與 evidence references 可以預填。Reviewer packet 必須隱藏 observed/revised/model verdict。
 
 必須分開保存：
 
@@ -371,29 +377,22 @@ dataset/authz_v2/path_coverage_summary.json
 
 ### Week 5～8：2026-09-21～2026-10-18（平行工作）
 
-**目標：建立 Gold set**
+**目標：建立唯一一組 50 APK Golden Set**
 
-Gold component-path rows 目標：240～360 筆。
-
-建議來源：
-
-| 類型 | 目標數量 |
-| --- | ---: |
-| Toy／答案已知 | 40～60 |
-| F-Droid real-world | 60～90 |
-| MalDroid benign | 40～60 |
-| MalDroid non-benign | 60～90 |
-| LF disagreement／unknown 補強 | 40～60 |
+- Golden membership 固定為 50 個 APK，從 300-APK pilot 的 297 個 parse-success APK 以 clustering 後跨群集選樣。
+- KMeans 固定 `K=17`、seed `20260823`、`n_init=50`，以 `K=15/17/20` 做敏感度檢查；每群優先選 representative、diverse 與第三候選。
+- Clustering 只提高 authorization 情境涵蓋，不傳播 label。每一種典型情境可先覆核約 2～3 筆，但所有實際 Gold 都必須由指定 reviewer 依 R/I/S/A 判定。
+- 50 是 APK 數；一個 APK 可包含多個 candidate/path review units。Membership 凍結後，不因工具失敗、沒有 path、unknown 或結果不理想而替換 APK。
 
 交付物：
 
 ```text
-dataset/authz_v2/gold_labels.csv
+dataset/authz_v2/golden_50_membership.csv
+dataset/authz_v2/golden_50_annotations.csv
 dataset/authz_v2/gold_review_log.jsonl
-dataset/authz_v2/gold_disagreements.csv
 ```
 
-Gold test 不得參與：
+Golden Set 僅作獨立評估，不參與：
 
 - LF threshold 調整；
 - SLB clean/noisy split；
@@ -402,6 +401,8 @@ Gold test 不得參與：
 - Continuous Revision；
 - model selection。
 
+正式評估前建立 configuration lock；Golden label 不得用來選 feature、epoch、threshold 或 hyperparameters。Golden Set 不強制產生 `revised_authz_label`。
+
 ### Week 8：2026-10-12～2026-10-18
 
 **目標：資料凍結與 package-group split**
@@ -409,10 +410,13 @@ Gold test 不得參與：
 切分單位：
 
 ```text
-package_name / package lineage
+exact SHA-256 去重
+→ package / version / lineage group
+→ group-level split
+→ 最後展開 component-path rows
 ```
 
-禁止 row-level split。
+禁止 row-level split。相同 SHA-256、package 或已知 lineage 不得跨 Golden／training；signing certificate 只能作 lineage 輔助 evidence。Golden 50 APK 凍結後，其 sibling 從原 247 APK weak-training candidate pool 排除，因此 247 是上限；不得為補訓練數量而隨機拆散 lineage。
 
 交付物：
 
@@ -430,15 +434,14 @@ dataset/authz_v2/dataset_summary.json
 
 | ID | 方法 |
 | --- | --- |
-| R0 | `exported && !protected` exact rule |
-| M1 | 現有 leakage Random Forest |
-| M2 | Vanilla context-only model |
+| R0 | `exported && !protected` exact rule（leakage diagnostic） |
+| M1 | 現有 leakage Random Forest（rule-reconstruction diagnostic） |
+| M2 | Vanilla DNN，使用正式 anti-leakage features |
 
-Feature profiles：
+正式 Feature profile 只有一套：
 
 ```text
-strict_no_rule_features
-full_context_features
+anti_leakage_feature_profile
 ```
 
 交付物：
@@ -446,7 +449,7 @@ full_context_features
 ```text
 dataset/authz_v2/experiments/r0_rule/
 dataset/authz_v2/experiments/m1_leakage_rf/
-dataset/authz_v2/experiments/m2_context_only/
+dataset/authz_v2/experiments/m2_vanilla/
 ```
 
 ### Week 10～11：2026-10-26～2026-11-08
@@ -469,7 +472,7 @@ dataset/authz_v2/experiments/m2_context_only/
 ```text
 app/ml/slb_trainer.py
 tests/test_slb_trainer.py
-dataset/authz_v2/experiments/m3_slb_context_only/
+dataset/authz_v2/experiments/m3_slb/
 dataset/authz_v2/label_revision_audit.jsonl
 ```
 
@@ -477,7 +480,7 @@ dataset/authz_v2/label_revision_audit.jsonl
 
 ### Week 12：2026-11-09～2026-11-15
 
-**目標：正式 Gold test evaluation**
+**目標：正式 Golden Set evaluation**
 
 至少比較：
 
@@ -488,24 +491,20 @@ M2
 M3
 ```
 
-有餘裕再加入：
-
-```text
-M4：SLB + full-context features
-```
-
 至少報告：
 
-- Precision；
-- Recall；
-- positive F1；
-- Macro F1；
-- AUPRC；
-- confusion matrix；
-- 5 random seeds 的 mean ± standard deviation；
+- confusion matrix 原始 counts；
+- positive／negative precision、recall 與 F1；
+- Macro F1（主要指標）與 balanced accuracy（輔助指標）；
+- 3 個固定 seeds（20260823、20260824、20260825）的逐次結果、mean、standard deviation 與 Vanilla/SLB paired difference；
 - observed label vs gold；
-- revised label vs gold；
-- SLB 修對與修壞的數量。
+- Vanilla model decision vs gold；
+- SLB model decision vs gold；
+- parse、candidate、annotation、LF 與 model prediction coverage；
+- abstention rate 與 unknown reason distribution；
+- Golden APK count、review-unit count與 binary evaluation coverage。
+
+Human unknown 不轉成 negative，也不進入 binary metrics。Golden Set 不參與 revision，因此本版不直接計算 revised-vs-gold 或宣稱 individual revisions 正確；只報 revision count、direction、epoch 與 provenance。任何 F1 都要與 coverage 和原始 counts 一起解讀。
 
 ### Week 13：2026-11-16～2026-11-22
 
@@ -515,8 +514,7 @@ M4：SLB + full-context features
 
 - False positive 案例；
 - False negative 案例；
-- SLB correct revision 案例；
-- SLB harmful revision 案例；
+- SLB revision 行為案例（不得在沒有 Gold 的 training rows 上稱為 correct／harmful）；
 - F-Droid／MalDroid subgroup analysis；
 - 已知限制；
 - 可重現命令與 artifact fingerprint。
@@ -545,7 +543,7 @@ M4：SLB + full-context features
 2. Component-level／path-level label semantics。
 3. `observed / gold / revised` 三層標籤。
 4. Package-group split。
-5. Gold test 完全隔離。
+5. 50 APK Golden Set 完全排除於 training／revision。
 6. R0／M1／M2／M3 比較。
 7. SLB revision audit。
 
@@ -554,7 +552,7 @@ M4：SLB + full-context features
 1. 全量 25,358 APK 的 DEX 深度分析。
 2. 完整跨方法 taint analysis。
 3. 所有 reflection／native-code 支援。
-4. M4 full-context ablation。
+4. 第二套 feature profile 或其他 model ablation。
 5. 自動化 attacker APK 動態 exploit。
 6. 完整 app-level hybrid risk score 整合。
 
@@ -586,15 +584,7 @@ M4：SLB + full-context features
 
 ### Gate B：可用資料不足
 
-到 2026-10-11 若仍少於：
-
-```text
-500 筆可用 weak component-path rows
-或
-gold positive / negative 任一類少於 40 筆
-```
-
-則把成果定位為 pipeline feasibility，不強調模型效能。
+若 50 APK Golden Set 經人工覆核後，binary positive／negative 任一類過少，或原 247 APK weak-training candidate pool 在 package/lineage isolation 後不足以訓練，則把成果定位為 pipeline feasibility，不強調模型效能；不得把 human unknown 強迫轉成 positive／negative。
 
 ### Gate C：Path coverage 太低
 
@@ -606,17 +596,9 @@ gold positive / negative 任一類少於 40 筆
 
 完整 reachability 列入 future work。
 
-### Gate D：Reviewer disagreement 太高
+### Gate D：Reviewer ambiguity 太高
 
-若 gold reviewer 無法一致：
-
-```text
-保留 unknown
-→ 修 annotation guide
-→ 重標 disagreement subset
-```
-
-不得為了湊二分類數量而強迫標成 0 或 1。
+若指定 reviewer 對大量 units 無法取得足夠 R/I/S/A evidence，保留 unknown，先修 evidence schema／工具輸出或 annotation guide；不得為了湊二分類數量而強迫標成 0 或 1。Configuration lock 後不得因 Golden metrics 不理想而回頭挑 feature、threshold 或 model。
 
 ---
 
@@ -627,49 +609,28 @@ gold positive / negative 任一類少於 40 筆
 現在只需要確認並追蹤以下三件事：
 
 1. Canonical CSV 是唯一 APK membership authority。
-2. 第一個工程交付物是 300 APK pilot，不是 SLB model。
-3. Gold label 必須標在 component/path，不是直接使用 MalDroid benign/non-benign label。
+2. 300 APK pilot 已完成；下一個工程交付物是 FlowDroid／MobSF bounded PoC 與 6 APK reviewer-workload benchmark。
+3. Gold label 必須標在可稽核的 component/path unit，不是直接使用 MalDroid benign/non-benign label。
 
 建議第一個開發工作項目寫成：
 
-> 實作唯讀 canonical dataset consumer，依固定 seed 從 F-Droid Benign、MalDroid Benign、Adware、Banking、Riskware、SMS 各抽 50 個 APK；逐筆驗證 source path 與 SHA-256，執行 Manifest/component 與 sensitive API caller pilot，輸出 parse ledger、benchmark 與 coverage summary。不得修改或複製原始 APK，且單筆失敗不得中止整批。
+> 固定工具版本、設定、toy truth 與 6 APK membership；先完成 FlowDroid CLI PoC，再完成 MobSF Docker sidecar PoC。只有在工具提供可追溯且非重複 evidence、並實際降低人工工作量後，才套用到 50 APK Golden Set。
 
 完成這一步後，再根據 pilot 報告決定第二步。現在不需要同時處理整個 14 週計畫。
 
 ---
 
-## 九、預估總時間
+## 九、範圍與時間重估原則
 
-### 一人負責程式、另一人平行協助 Gold review
+本 Schedule 不再以前版雙 reviewer、240～360 Gold rows 或 2,000～5,000 APK 深度分析估算作為承諾。正式工期須在 6 APK baseline-vs-assisted benchmark 後，依 MobSF／FlowDroid machine time、failure/timeout rate、每 APK review units 與人工時間重新估算。
 
-```text
-12～15 週
-```
-
-### 一個人負責全部程式與人工標註
+本版固定範圍是：
 
 ```text
-15～18 週
-```
-
-### 只完成工程 MVP
-
-```text
-6～8 週
-```
-
-### 對 25,358 APK 全部做深度 DEX/path analysis
-
-```text
-至少 16～22 週，且必須依 300 APK pilot 實測重新估算
-```
-
-本 Schedule 採用的建議範圍是：
-
-```text
-全量 Manifest screening
-+ 2,000～5,000 APK 深度分析子集
-+ 240～360 筆 Gold component-path rows
-+ Genuine SLB
-+ 封存 Gold test
+300 APK pilot（已完成；297 parse-success）
++ 50 APK Golden Set（單一指定 reviewer）
++ 最多 247 APK weak-training candidate pool（lineage isolation 後可能更少）
++ 1 個 Vanilla DNN baseline
++ 1 個 Genuine SLB DNN
++ 3 fixed seeds，合計 6 training runs
 ```
