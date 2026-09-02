@@ -13,6 +13,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.gradle/
 .venv/
 venv/
 
@@ -22,12 +23,17 @@ venv/
 
 # TXT files
 *.txt
+!config/flowdroid/*.txt
 
 # tmp
 tmp/
 
 # Local canonical-dataset pilot evidence (may be large and machine-specific)
 output/canonical_pilot/
+
+# Version-pinned third-party tool binaries and bounded PoC outputs
+.external-tools/
+output/framework_poc/
 
 # Local agent state and linked worktrees
 .claude/
