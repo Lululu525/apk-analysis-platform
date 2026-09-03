@@ -26,4 +26,4 @@ date: 2026-09-03
 
 - 近期先驗證 controlled toy cases 能否區分 Manifest exposure、真實 Authorization-Risk Path 與 unknown；在此之前暫停 6-APK framework paired benchmark、50-APK Golden review、外部 framework 整合與 SLB 實作。
 - MobSF、FlowDroid 或其他 framework 只有在 toy validation 顯示特定 evidence gap，且 bounded PoC 能回答該缺口時才重新評估。
-- 舊計畫與既有產物保留為歷史證據；若其執行順序與本 ADR 衝突，以本 ADR 和 `docs/PLAN.md` 的 scope-reset 區段為準。
+- 舊計畫與既有產物保留為歷史證據；若其執行順序與本 ADR 衝突，以本 ADR 和 `docs/SLB越權偵測實作時程.md` 的 scope-reset 區段為準。

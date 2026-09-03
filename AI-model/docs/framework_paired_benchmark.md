@@ -1,6 +1,6 @@
 # MobSF／FlowDroid 6-APK paired benchmark
 
-> **狀態：已暫停（2026-09-03）。** 本 benchmark 的 membership、ledger、reviewer blinding 與既有產物保留，但目前不得繼續 tool runs 或人工 review。依 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md)，先完成 controlled toy cases 的 single-target-APK Component-path validation；只有該驗證指出明確 evidence gap，且 bounded framework PoC 能回答該缺口時，才重新啟動本 benchmark。
+> **狀態：已暫停（2026-09-03）。** 本 benchmark 的 membership、ledger、reviewer blinding 與既有產物保留，但目前不得繼續 tool runs 或人工 review。依 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md) 與 [`SLB越權偵測實作時程.md`](SLB越權偵測實作時程.md) 的 scope-reset 順序，先完成 controlled toy cases 的 single-target-APK Component-path validation；只有該驗證指出明確 evidence gap，且 bounded framework PoC 能回答該缺口時，才重新啟動本 benchmark。
 
 ## 與 50-APK Golden Set 的關係
 
