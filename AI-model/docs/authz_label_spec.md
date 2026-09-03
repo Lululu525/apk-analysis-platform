@@ -4,6 +4,7 @@
 - 狀態：依 2026-09-02 會議決策更新；採單一 reviewer 與 50 APK Golden Set
 - 適用範圍：`dataset/authz_v2/` 及後續 authorization-risk labeling、Gold review、SLB label revision
 - 最後更新：2026-09-02
+- 範圍決策：依 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md) 採 single-target-APK Component-path risk，不偵測 order-n multi-app chain
 
 ## 1. 目的與規範性用語
 
@@ -44,7 +45,14 @@ v0.1-draft 同時涵蓋：
 
 動態註冊的 BroadcastReceiver、深度 reflection、native code、無法解析的 dynamic dispatch 等能力可以被記錄，但若現有分析無法回答必要條件，結果必須是 `unknown`／`abstain` 或保留空值，不得以「沒有找到」推論為安全。
 
-### 2.3 不在標籤內的主張
+### 2.3 Single-target-APK 邊界
+
+- 每次 analysis attempt 只接受一個目標 APK；外部呼叫者是威脅模型中的抽象主體，不要求提供或共同分析第二個 APK。
+- Candidate/path 必須位於目標 APK 內，從可由正常 Android IPC 到達的 Component entry 連到目標 App 所執行的敏感效果。
+- 本版不建立跨 APK escalation graph，也不偵測 El-Zawawy 與 Hamdy 所定義的 order-n multi-app escalation chain。
+- 「單一目標 APK」不表示忽略 privilege boundary；越權風險仍以不同 UID 的外部呼叫者借用目標 App 權限或敏感能力為前提。
+
+### 2.4 不在標籤內的主張
 
 下列概念不得混入 authorization label：
 

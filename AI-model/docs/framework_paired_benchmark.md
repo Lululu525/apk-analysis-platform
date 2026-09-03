@@ -1,5 +1,7 @@
 # MobSF／FlowDroid 6-APK paired benchmark
 
+> **狀態：已暫停（2026-09-03）。** 本 benchmark 的 membership、ledger、reviewer blinding 與既有產物保留，但目前不得繼續 tool runs 或人工 review。依 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md)，先完成 controlled toy cases 的 single-target-APK Component-path validation；只有該驗證指出明確 evidence gap，且 bounded framework PoC 能回答該缺口時，才重新啟動本 benchmark。
+
 ## 與 50-APK Golden Set 的關係
 
 本 benchmark 不是 Golden Set，也不產生 authorization labels。它只在擴大人工覆核前回答兩個問題：
@@ -60,6 +62,8 @@ review_inputs/<兩位數 benchmark_rank>_<SHA-256 前 12 碼>.apk
 每個 APK 至少取 2 個 review units；若 APK 沒有足夠候選 unit，必須如實記錄，不能任意把其他 component 當成 positive。
 
 ## Decision gate
+
+本節是 benchmark **重新啟動後**的 decision gate；暫停期間不填寫 `manual_review_ledger.csv`，也不以 pending／未執行結果決定是否進入 Golden Set。
 
 完成 12 個 tool runs 與 6 個 paired manual reviews 後才判斷是否進入 50-APK Golden Set。至少報告：
 

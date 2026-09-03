@@ -4,6 +4,7 @@
 - 文件性質：技術選型研究筆記；不是 production integration spec，也不是法律意見
 - 查核範圍：官方文件、官方原始碼庫、官方 release/package metadata 與論文原文
 - 專題範圍：Android component-path authorization-risk evidence pipeline 與後續 SLB；不以 APK malware/benign classification 取代 authorization label
+- 執行狀態：**deferred（2026-09-03）**；本文件保留為工具能力參考，不代表目前已決定整合 MobSF、FlowDroid 或其他 framework。依 [`ADR-0001`](../adr/0001-single-target-apk-authorization-risk.md)，先以 controlled toy cases 找出 single-target-APK evidence gap，再決定是否重啟 bounded PoC。
 
 ## 一、結論先行
 

@@ -1,5 +1,7 @@
 # SLB 越權偵測實作時程
 
+> **狀態：近期執行順序已由 2026-09-03 scope reset 取代。** 本文件保留先前資料、標籤與評估設計，但日期及「先完成 6-APK benchmark／50-APK Golden Set」不再是目前承諾。依 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md) 與 [`PLAN.md`](PLAN.md) 的 scope-reset 區段，現在先驗證 controlled toy cases 的 single-target-APK Component-path semantics；candidate/path、weak-label noise 與獨立 evaluation 可行後，才啟動 SLB。
+
 - **建立日期**：2026-08-22
 - **最近更新**：2026-09-02
 - **預定開始日**：2026-08-24

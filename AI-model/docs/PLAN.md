@@ -1,5 +1,50 @@
 # 安卓 App 越權分析模型開發計畫
 
+## 2026-09-03 Scope Reset：目前執行順序
+
+本節是目前唯一有效的近期執行順序；下方 Month 1–4 與 Task 1–8 保留為第一階段歷史計畫與既有成果清單。若舊內容、舊日期或「不可更動」字樣與本節或 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md) 衝突，以 ADR-0001 與本節為準。領域術語以根目錄 [`CONTEXT.md`](../CONTEXT.md) 為準。
+
+### 凍結後的研究主張
+
+本專題一次只分析一個目標 APK，假設一個不同 UID 且無特殊能力的外部呼叫者，偵測該 caller 是否可能透過正常 Android IPC 觸發目標 APK 內未經有效授權的敏感能力。Prediction unit 是 concrete Component entry-to-sensitive-effect path；不偵測 order-n multi-app escalation chain，也不以 APK malware/benign label 代替 authorization label。
+
+原始 `filter_row` Random Forest 保留為洩漏基線，不能再作為已驗證的越權偵測器。`exported && !protected` 只是一項 Manifest exposure weak signal；SLB 只負責研究 weak-label revision，不定義越權、不產生 Gold。
+
+### 現在只做一件事
+
+稽核既有 Scenario A–E controlled toy cases，確認它們能否以可追溯 evidence 區分：
+
+1. 只有 Manifest exposure、但不構成越權的 negative；
+2. 外部 caller 可影響並觸發未經授權敏感效果的 positive；
+3. 因 reflection、native code、dynamic dispatch 或 coverage limitation 無法判斷的 unknown。
+
+每個案例都必須能以 R（external reachability）、I（attacker-controlled input）、S（sensitive effect reachability）、A（authorization failure）推導結果；不得以 `exported && !protected`、`risk_hint` 或 toy case 名稱直接倒推標籤。
+
+### 完成條件
+
+- 至少有一個 evidence-complete positive、一個 evidence-complete negative，以及一個明確保留 unknown 的受控案例。
+- Candidate/path identity 能穩定指出 Component entry、sensitive effect 與 authorization-distinct path variant。
+- 「沒有觀察到」與「已確認不存在」在輸出中可區分。
+- 原始 RF 的 label-rule inputs／proxies 已列為 leakage baseline，不進入下一版 anti-leakage feature profile。
+- 產出 toy-case coverage ledger 與缺口清單後，才決定補 toy APK、修改 candidate builder 或評估外部 framework。
+
+### 目前暫停
+
+- 不繼續 MobSF／FlowDroid 6-APK paired benchmark 或填寫人工時間。
+- 不開始 50-APK Golden review，也不重新抽樣 Golden membership。
+- 不擴張到 300 APK 以外的 deep analysis，更不處理全量資料。
+- 不整合新的 external framework。
+- 不實作或訓練 SLB。
+- 不將 MalDroid／F-Droid label 寫入 authorization label。
+
+### 後續 Decision Gates
+
+1. **Toy semantics gate**：R/I/S/A 與 candidate/path identity 通過受控案例。
+2. **Real-APK feasibility gate**：只用少量真實 APK，量測可產生多少可審查 path，以及主要 evidence gap。
+3. **Weak-label gate**：確認 observed labels 具有可量測的 noise，且不是單一規則的同義重建。
+4. **Evaluation gate**：建立與 training／revision 隔離的 Gold subset，才可比較 leakage RF、Vanilla 與 SLB。
+5. **Framework gate**：只有特定 evidence gap 無法由現有 bounded analyzer 回答時，才恢復 MobSF／FlowDroid PoC。
+
 ## 專案背景
 
 本專案為 NSTC 115 年度大專學生研究計畫，研究期間自 115 年 7 月 1 日至 116 年 2 月底，共 8 個月。
@@ -9,7 +54,7 @@
 
 ---
 
-## 核心架構決策（不可更動）
+## 第一階段核心架構決策（歷史基線）
 
 | 決策 | 說明 |
 |------|------|
