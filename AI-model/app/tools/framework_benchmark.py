@@ -11,6 +11,7 @@ import csv
 import hashlib
 import itertools
 import json
+import shutil
 from pathlib import Path
 from statistics import median
 from typing import Any, Mapping, Sequence
@@ -19,8 +20,9 @@ from .flowdroid_poc import FLOWDROID_VERSION, prepare_output_dir, sha256_file
 from .mobsf_poc import MOBSF_VERSION
 
 
-SCHEMA_VERSION = "framework-paired-benchmark-v1"
+SCHEMA_VERSION = "framework-paired-benchmark-v2"
 SELECTION_SALT = "framework-paired-benchmark-v1"
+REVIEW_INPUT_DIRNAME = "review_inputs"
 EXPECTED_STRATA = (
     "fdroid_benign",
     "maldroid_benign",
@@ -97,6 +99,7 @@ MANUAL_REVIEW_FIELDS = (
     "benchmark_rank",
     "sample_id",
     "expected_sha256",
+    "review_apk_path",
     "complexity_tier",
     "review_unit_count",
     "without_tools_minutes",
@@ -296,6 +299,35 @@ def _write_csv(path: Path, fields: Sequence[str], rows: Sequence[Mapping[str, An
         writer.writerows({field: row.get(field, "") for field in fields} for row in rows)
 
 
+def _review_input_relative_path(benchmark_rank: int, expected_sha256: str) -> Path:
+    """回傳不含 dataset/family label 的 reviewer-facing 相對路徑。"""
+    return Path(REVIEW_INPUT_DIRNAME) / f"{benchmark_rank:02d}_{expected_sha256[:12]}.apk"
+
+
+def _stage_reviewer_input(source_path: Path, destination: Path, expected_sha256: str) -> None:
+    """建立 SHA 驗證過的中性命名副本；不覆寫不一致的既有檔案。"""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        if not destination.is_file():
+            raise FileExistsError(f"review input 目的地不是一般檔案：{destination}")
+        staged_sha256 = sha256_file(destination)
+        if staged_sha256 != expected_sha256:
+            raise ValueError(
+                f"既有 review input SHA-256 不符，拒絕覆寫：{destination}, "
+                f"expected={expected_sha256}, actual={staged_sha256}"
+            )
+        return
+
+    shutil.copyfile(source_path, destination)
+    staged_sha256 = sha256_file(destination)
+    if staged_sha256 != expected_sha256:
+        destination.unlink(missing_ok=True)
+        raise ValueError(
+            f"staged review input SHA-256 不符：{destination}, "
+            f"expected={expected_sha256}, actual={staged_sha256}"
+        )
+
+
 def create_benchmark_membership(pilot_csv: Path, output_dir: Path) -> dict[str, Any]:
     pilot_csv = pilot_csv.resolve()
     if not pilot_csv.is_file():
@@ -346,6 +378,27 @@ def create_benchmark_membership(pilot_csv: Path, output_dir: Path) -> dict[str, 
     execution_path = output_dir / "execution_ledger.csv"
     manual_path = output_dir / "manual_review_ledger.csv"
     metadata_path = output_dir / "selection_metadata.json"
+
+    manual_rows = []
+    for row in membership_rows:
+        review_apk_path = _review_input_relative_path(
+            int(row["benchmark_rank"]), row["expected_sha256"]
+        )
+        _stage_reviewer_input(
+            Path(row["source_path"]),
+            output_dir / review_apk_path,
+            row["expected_sha256"],
+        )
+        manual_rows.append(
+            {
+                "benchmark_rank": row["benchmark_rank"],
+                "sample_id": row["sample_id"],
+                "expected_sha256": row["expected_sha256"],
+                "review_apk_path": review_apk_path.as_posix(),
+                "complexity_tier": row["complexity_tier"],
+            }
+        )
+
     _write_csv(membership_path, MEMBERSHIP_FIELDS, membership_rows)
 
     execution_rows = []
@@ -371,15 +424,7 @@ def create_benchmark_membership(pilot_csv: Path, output_dir: Path) -> dict[str, 
     _write_csv(
         manual_path,
         MANUAL_REVIEW_FIELDS,
-        [
-            {
-                "benchmark_rank": row["benchmark_rank"],
-                "sample_id": row["sample_id"],
-                "expected_sha256": row["expected_sha256"],
-                "complexity_tier": row["complexity_tier"],
-            }
-            for row in membership_rows
-        ],
+        manual_rows,
     )
 
     manifest_material = "\n".join(
@@ -419,6 +464,21 @@ def create_benchmark_membership(pilot_csv: Path, output_dir: Path) -> dict[str, 
             "is_golden_set": False,
             "produces_authz_labels": False,
             "source_dataset_labels_are_authz_labels": False,
+            "reviewer_packet_is_verdict_blind": True,
+        },
+        "reviewer_packet": {
+            "manual_review_ledger": manual_path.name,
+            "review_input_dir": REVIEW_INPUT_DIRNAME,
+            "staged_input_count": len(manual_rows),
+            "path_policy": "neutral_rank_and_sha256_only",
+            "staged_sha256_verified": True,
+            "forbidden_fields": [
+                "stratum",
+                "source_path",
+                "source_dataset",
+                "original_label",
+                "binary_label",
+            ],
         },
     }
     metadata_path.write_text(

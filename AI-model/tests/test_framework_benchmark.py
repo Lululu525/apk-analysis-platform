@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from app.tools import framework_benchmark as benchmark
@@ -98,6 +99,9 @@ def test_create_membership_validates_sha_and_writes_three_ledgers(tmp_path):
         "high": 2,
     }
     assert metadata["semantics"]["is_golden_set"] is False
+    assert metadata["semantics"]["reviewer_packet_is_verdict_blind"] is True
+    assert metadata["reviewer_packet"]["staged_input_count"] == 6
+    assert metadata["reviewer_packet"]["staged_sha256_verified"] is True
 
     membership = list(csv.DictReader((output_dir / "benchmark_membership.csv").open(encoding="utf-8-sig")))
     execution = list(csv.DictReader((output_dir / "execution_ledger.csv").open(encoding="utf-8-sig")))
@@ -107,4 +111,34 @@ def test_create_membership_validates_sha_and_writes_three_ledgers(tmp_path):
     assert len(manual) == 6
     assert {row["status"] for row in execution} == {"pending"}
     assert all(row["sha256_match"] == "True" for row in membership)
+    forbidden_fields = {
+        "stratum",
+        "source_path",
+        "source_dataset",
+        "original_label",
+        "binary_label",
+    }
+    assert forbidden_fields.isdisjoint(manual[0])
+    assert {row["sample_id"] for row in manual} == {row["sample_id"] for row in membership}
+    for row in manual:
+        assert re.fullmatch(r"review_inputs/\d{2}_[0-9a-f]{12}\.apk", row["review_apk_path"])
+        review_apk = output_dir / row["review_apk_path"]
+        assert review_apk.is_file()
+        assert benchmark.sha256_file(review_apk) == row["expected_sha256"]
     assert json.loads((output_dir / "selection_metadata.json").read_text(encoding="utf-8")) == metadata
+
+
+def test_create_membership_refuses_to_overwrite_mismatched_review_input(tmp_path):
+    source_path = tmp_path / "source.apk"
+    source_path.write_bytes(b"expected source")
+    expected_sha256 = benchmark.sha256_file(source_path)
+    staged_path = tmp_path / "review_inputs" / f"01_{expected_sha256[:12]}.apk"
+    staged_path.parent.mkdir()
+    staged_path.write_bytes(b"unexpected replacement")
+
+    try:
+        benchmark._stage_reviewer_input(source_path, staged_path, expected_sha256)
+    except ValueError as exc:
+        assert "拒絕覆寫" in str(exc)
+    else:
+        raise AssertionError("應拒絕覆寫 SHA-256 不符的 review input")

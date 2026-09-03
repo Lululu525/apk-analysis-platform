@@ -47,6 +47,7 @@ Reviewer 不是判斷「這個 APK 是否惡意」，也不是看到 exported co
 - `binary_label`；
 - MalDroid family／`original_label`；
 - `source_dataset`，除非只為追查 artifact provenance，且不得顯示 benign/non-benign 語意；
+- 會在目錄名或檔名暴露 dataset/family label 的真實 `source_path`；reviewer-facing packet 必須改用中性命名且已驗證 SHA-256 的 `review_apk_path`；
 - `risk_hint` 的結論性文字；
 - LF votes、aggregate weak label、`observed_authz_label`；
 - `revised_authz_label`、model score、model decision；
