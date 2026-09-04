@@ -7,8 +7,8 @@
 - FlowDroid finding 是 `candidate_evidence`，不是 `gold_label` 或 ground truth。
 - 沒有 finding 不等於 `negative`，可能是 sources/sinks 定義、callback 建模、timeout 或工具限制造成。
 - v1 entry scope 僅涵蓋 Activity、Receiver 與 started Service；Binder、Provider entry semantics 與完整 control dependence 延後。
-- 先跑一個可預期命中的 toy APK；通過後才擴充 bounded toy cases，再執行 6 個真實 APK 的 paired benchmark。
-- 此階段不直接跑 50 個 Golden Set APK、300 APK pilot 或完整資料集。
+- 單一可預期命中的 Activity toy smoke test 已通過；下一步直接執行固定 6 個真實 APK 的 tool-only operational calibration，不再要求先擴充或全面稽核 Scenario A–E。
+- 6-APK operational gate 通過後才批次執行固定 50 個 Golden Set APK；此階段不跑 300 APK pilot 或完整資料集。
 
 ## 固定版本與檔案
 

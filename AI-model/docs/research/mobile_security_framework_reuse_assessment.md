@@ -4,7 +4,7 @@
 - 文件性質：技術選型研究筆記；不是 production integration spec，也不是法律意見
 - 查核範圍：官方文件、官方原始碼庫、官方 release/package metadata 與論文原文
 - 專題範圍：Android component-path authorization-risk evidence pipeline 與後續 SLB；不以 APK malware/benign classification 取代 authorization label
-- 執行狀態：**deferred（2026-09-03）**；本文件保留為工具能力參考，不代表目前已決定整合 MobSF、FlowDroid 或其他 framework。依 [`ADR-0001`](../adr/0001-single-target-apk-authorization-risk.md) 與 [`SLB越權偵測實作時程.md`](../SLB越權偵測實作時程.md) 的 scope-reset 順序，先以 controlled toy cases 找出 single-target-APK evidence gap，再決定是否重啟 bounded PoC。
+- 執行狀態：**bounded evidence use active（2026-09-04）**；MobSF／FlowDroid runners 先用於 6-APK operational calibration，通過後輔助固定 50-APK Golden Set 建立 evidence packets。Production integration 與其他 framework 選型仍為 deferred；任何工具 finding 都不直接產生 Gold。
 
 ## 一、結論先行
 
@@ -281,7 +281,7 @@ Argus-SAF 官方 repo 包含 Amandroid module，提供 Android resource parsers�
 **輸入**
 
 - 與 v1 scope 相符的 hand-authored toy APK（見下節 cases；Provider/Binder deferred cases 不作 v1 gate）；
-- 從已驗 SHA-256 的 300-APK pilot 固定抽 6 個 real APK，low／medium／high complexity 各一組 matched pair；
+- 從已驗 SHA-256 的 300-APK pilot 固定抽 6 個 real APK，涵蓋 low／medium／high complexity；此處固定的是 operational-calibration membership，不要求 matched pairs；
 - 固定 MobSF version/image digest 與 config。
 
 **輸出**
@@ -329,13 +329,14 @@ FlowDroid v1 的必要範圍只含 Activity、Receiver 與 started-Service 的 I
 
 **Real APK sample**
 
-- 固定 6 APK；以 low／medium／high complexity 三組 matched pairs 比較 baseline manual review 與 tool-assisted review，每 APK 固定 2 個 review units；
+- 固定 6 個 real APK；FlowDroid 與 MobSF 各執行一次，共 12 次 tool attempts，記錄 status、duration、version/config fingerprint、APK SHA-256 與 raw output；
+- 只抽查輸出的 evidence 是否能定位回 component/path，不進行 baseline-manual vs tool-assisted timing，也不預先固定每 APK 的 review-unit 數量；
 - 不用 malware family 選擇或判定 authorization truth，只作 subgroup metadata；
 - 每 APK 設 callback/callgraph/data-flow/result timeout，並記錄各階段 termination reason。
 
 **Acceptance**
 
-1. 所有納入 v1 scope 的 toy APK 完成 analysis attempt；預期 multi-method trace 的 cases 能產生可稽核 source/path/sink evidence。
+1. 既有 smoke case 已證明工具鏈至少能啟動並留下輸出；完整 toy cases 保留為未來 regression suite，不作進入 6-APK operational calibration 或 50-APK Golden review 的前置硬門檻。
 2. T2/T3 不得被 adapter 直接轉成 positive；T5/T6 不得因 APK-wide sink inventory 產生假的 concrete entry-to-sink path。
 3. normalized path 至少有 APK SHA-256、Manifest component identity、resolved owner、entry method+descriptor、source、sink method、path statements；工具沒有 call offset時必須填 `callsite_location_unavailable`，不得編造 offset。
 4. 同一 entry/sink 的 guard-distinct/provider-operation/Binder-entry variants 不可無聲合併；工具無法區分時輸出 candidate + limitation，而不是 concrete path。
@@ -344,12 +345,12 @@ FlowDroid v1 的必要範圍只含 Activity、Receiver 與 started-Service 的 I
 7. 相較目前 direct lifecycle link，PoC 至少在一個 real APK 上新增「跨方法 entry/input-to-sink trace」；若完全沒有新增 evidence，停止 integration並檢查 source/sink/lifecycle models。
 8. 對每筆結果保存 tool release checksum、JDK/Android platforms、source/sink definitions、CLI args、stdout/stderr、raw output hash、duration、peak memory（可取得時）與 status。
 9. adapter schema 必須把 `no_result`、`partial`、`timeout`、`analysis_failed` 分開；任何一種都不得默認為 negative。
-10. PoC 最後只回答「這個 engine 是否提供值得匯入的 evidence、是否降低 reviewer 人工時間，以及成本是否可接受」，不回答「模型 accuracy 已驗證」。正式 accuracy 要等 50 APK Golden Set、configuration lock 與 3-seed evaluation。
+10. PoC 最後只回答「這個 engine 是否穩定完成分析、提供可定位且值得匯入的 evidence，以及機器成本是否可接受」，不回答「是否已降低 reviewer 人工時間」或「模型 accuracy 已驗證」。前者須等實際 50-APK review 才能量測，後者須等 Golden Set、configuration lock 與 3-seed evaluation。
 
 ## 八、執行順序與決策門
 
 ```text
-Step 0  Freeze v1 toy truth + 6 real APK membership + SHA-256
+Step 0  Freeze 6 real APK operational-calibration membership + SHA-256
   |
 Step 1  FlowDroid CLI PoC（固定 release/config/timeouts）
   |-- pass --> 寫 thin raw-output adapter contract，再擴到 bounded deep subset
@@ -360,9 +361,13 @@ Step 2  MobSF sidecar PoC（可與 Step 1 分開排程）
   |-- produces unique reviewer value --> 保留 optional enrichment service
   |-- duplicates Androguard --> 不整合，只保留人工工具
   |
-Step 3  Guard analyzer + R/I/S/A evidence contract
+Step 3  Freeze 50-APK Golden membership
   |
-Step 4  Gold review / weak LFs / SLB（external tool output仍不是 Gold）
+Step 4  Batch tool evidence packets（finding 不直接成為 label）
+  |
+Step 5  Reviewer 依既有 R/I/S/A contract 建立 Gold
+  |
+Step 6  Weak LFs / SLB（external tool output仍不是 Gold）
 ```
 
 **停止條件**

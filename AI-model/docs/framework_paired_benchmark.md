@@ -1,15 +1,16 @@
-# MobSF／FlowDroid 6-APK paired benchmark
+# MobSF／FlowDroid 6-APK operational calibration
 
-> **狀態：已暫停（2026-09-03）。** 本 benchmark 的 membership、ledger、reviewer blinding 與既有產物保留，但目前不得繼續 tool runs 或人工 review。依 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md) 與 [`SLB越權偵測實作時程.md`](SLB越權偵測實作時程.md) 的 scope-reset 順序，先完成 controlled toy cases 的 single-target-APK Component-path validation；只有該驗證指出明確 evidence gap，且 bounded framework PoC 能回答該缺口時，才重新啟動本 benchmark。
+> **狀態：執行中（2026-09-04）。** 固定 membership、ledger、reviewer blinding 與既有產物繼續使用，但本階段只執行 6 個 APK × 2 個工具的 operational calibration，不做 baseline-manual vs tool-assisted paired timing。通過後依 [`SLB越權偵測實作時程.md`](SLB越權偵測實作時程.md) 進入 50-APK Golden Set。
 
 ## 與 50-APK Golden Set 的關係
 
-本 benchmark 不是 Golden Set，也不產生 authorization labels。它只在擴大人工覆核前回答兩個問題：
+本 calibration 不是 Golden Set，也不產生 authorization labels。它只在擴大人工覆核前回答三個問題：
 
 1. MobSF／FlowDroid 能否對真實 APK 穩定批次執行？
-2. 工具提供的 component、API 與 path candidates 是否真的降低人工時間？
+2. 每個 attempt 能否留下完整 status、identity、version/config provenance 與原始輸出？
+3. 工具提供的 Component、API 與 path candidates 是否能被 Reviewer 定位與回查？
 
-50-APK Golden Set 仍依會議決定，以 clustering 後分層抽樣建立；本 6-APK benchmark 的 low／medium／high 分層只是工具工作量測試，不能替代 clustering。
+50-APK Golden Set 仍依會議決定，以 clustering 後分層抽樣建立；本 6-APK calibration 的 low／medium／high 分層只用來觀察工具在不同複雜度下的運作情形，不能替代 clustering。
 
 ## 固定 membership
 
@@ -40,7 +41,7 @@ python -m app.tools.framework_benchmark `
 - `benchmark_membership.csv`：固定 6 APK、真實來源路徑、來源 label、SHA-256 與 complexity provenance；只供 coordinator／抽樣稽核使用，不是 reviewer input。
 - `review_inputs/`：依 `benchmark_rank` 與 SHA-256 前 12 碼中性命名的 6 個 APK 副本；每個副本在產生時重新驗證 SHA-256。
 - `execution_ledger.csv`：6 APK × 2 tools，共 12 個 pending executions。
-- `manual_review_ledger.csv`：reviewer-facing ledger；以 `review_apk_path` 直接指向 `review_inputs/`，並記錄純人工／工具輔助時間、R/I/S/A completeness 與 remaining checks。此檔不得包含 `stratum`、真實 `source_path`、`source_dataset`、`original_label` 或 `binary_label`。
+- `manual_review_ledger.csv`：保留的 reviewer-facing ledger；以 `review_apk_path` 直接指向 `review_inputs/`。本次 operational calibration 不填純人工／工具輔助時間，也不要求固定 review-unit 數；此檔仍不得包含 `stratum`、真實 `source_path`、`source_dataset`、`original_label` 或 `binary_label`。
 - `selection_metadata.json`：輸入 CSV hash、選樣演算法、coverage counts 與 membership fingerprint。
 
 ### Reviewer blinding 與 APK 定位
@@ -57,20 +58,18 @@ review_inputs/<兩位數 benchmark_rank>_<SHA-256 前 12 碼>.apk
 
 ## 執行順序
 
-每個 APK 先依 `manual_review_ledger.csv` 與 `review_inputs/` 做不看工具輸出的純人工流程並記錄時間，再執行 FlowDroid 與 MobSF，最後做工具輔助覆核。若先看工具結果，會污染 without-tools baseline；若先看 `benchmark_membership.csv`，則會污染 reviewer blinding。
+依 `execution_ledger.csv` 對 6 個固定 APK 分別執行 FlowDroid 與 MobSF，並回填 status、時間、finding count、錯誤與 artifact reference。工具完成後只做輸出可定位性的 spot-check；不先執行純人工流程，也不計算 without-tools baseline。
 
-每個 APK 至少取 2 個 review units；若 APK 沒有足夠候選 unit，必須如實記錄，不能任意把其他 component 當成 positive。
+Spot-check 只能確認 evidence 是否可供後續 Reviewer 使用，不能在本 calibration 直接產生 Gold。若 APK 沒有具體 candidate unit，必須如實記錄，不能任意把其他 Component 當成 positive。
 
 ## Decision gate
 
-本節是 benchmark **重新啟動後**的 decision gate；暫停期間不填寫 `manual_review_ledger.csv`，也不以 pending／未執行結果決定是否進入 Golden Set。
-
-完成 12 個 tool runs 與 6 個 paired manual reviews 後才判斷是否進入 50-APK Golden Set。至少報告：
+完成 12 個 tool attempts 與輸出可定位性 spot-check 後，判斷是否進入 50-APK Golden Set。至少報告：
 
 - tool success／timeout／failure counts 與耗時分布。
 - FlowDroid finding count 與 MobSF candidate groups。
-- 有／無工具的人工時間差。
-- 每個 R/I/S/A 條件仍需人工補查的比例。
-- false-positive workload。
+- APK/tool/config identity 與 artifact completeness。
+- Component、method、source／sink 或 Manifest/API evidence 是否可回查。
+- 會阻止 50-APK batch 的系統性問題，以及可保留為 per-APK unknown／limitation 的個別失敗。
 
 工具沒有 finding、分析失敗或 timeout 都不得直接寫成 authorization negative。

@@ -246,6 +246,8 @@ otherwise
 
 ## 8. 50 APK Golden Set review
 
+本節的 50 固定指 **50 個 APK membership**，不是恰好 50 筆 Component-path Gold labels。每個 APK 可以產生零到多筆 review units；若沒有具體 candidate/path 或證據不足，保留零筆或 unknown，不得為了湊數強制挑一筆或轉成 binary label。
+
 ### 8.1 Membership 與選樣
 
 - Golden membership 固定為 50 個 APK，候選來自 300-APK pilot 的 297 個 parse-success APK。
@@ -258,7 +260,7 @@ otherwise
 
 - MobSF 對 50 APK 提供 static-analysis enrichment、decompiled-code 定位與人工 triage。
 - FlowDroid v1 只處理 Activity、Receiver 與 started-Service 中由 Intent／Bundle／URI 進入 Tier-A sensitive effect 的候選 flow；Binder、Provider 與完整 control dependence 延後。
-- 工具正式套用 50 APK 前，先用 6 APK（low／medium／high complexity 各一組 matched pair）比較 baseline manual review 與 tool-assisted review；每 APK 固定 2 個 units，分開記錄機器時間與人工時間。
+- 工具正式套用 50 APK 前，先用固定 6 APK 完成 tool-only operational calibration，記錄 12 個 MobSF／FlowDroid attempts 的狀態、時間、provenance 與輸出可定位性；不要求 baseline-manual vs tool-assisted paired timing，也不固定每個 APK 必須產生 2 個 units。
 - 工具 finding 只是 evidence candidate。`no_result`、`partial`、`timeout`、`analysis_failed` 與 zero finding 都不得自動變成 negative。
 
 ## 9. Golden annotation template

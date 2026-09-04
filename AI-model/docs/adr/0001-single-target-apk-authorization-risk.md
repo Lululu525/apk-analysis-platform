@@ -24,6 +24,8 @@ date: 2026-09-03
 
 ## Consequences
 
-- 近期先驗證 controlled toy cases 能否區分 Manifest exposure、真實 Authorization-Risk Path 與 unknown；在此之前暫停 6-APK framework paired benchmark、50-APK Golden review、外部 framework 整合與 SLB 實作。
-- MobSF、FlowDroid 或其他 framework 只有在 toy validation 顯示特定 evidence gap，且 bounded PoC 能回答該缺口時才重新評估。
+- 既有 Scenario A–E 保留為 Parser／Detector／Rule Engine regression suite，不直接升格為新版 R/I/S/A Gold，也不作為 Golden Set 的前置門檻。
+- 先以固定 6 個真實 APK 執行 MobSF／FlowDroid tool-only operational calibration；通過後凍結 50-APK membership，建立工具輔助但由人工判定的 Golden APK Set。
+- Golden APK Set 的 50 指 APK membership，不是 Gold row 數；每個 APK 可以產生零到多筆 Component-path review units，unknown 不得為了湊數強迫轉成 positive／negative。
+- MobSF、FlowDroid 或其他 framework 只提供 evidence，不直接產生 Gold；bounded runners 不因此成為 production framework integration。
 - 舊計畫與既有產物保留為歷史證據；若其執行順序與本 ADR 衝突，以本 ADR 和 `docs/SLB越權偵測實作時程.md` 的 scope-reset 區段為準。

@@ -35,3 +35,7 @@ _Avoid_：Gold label、已驗證真值
 **洩漏基線（Leakage Baseline）**：
 使用與弱標籤公式相同或可直接推導該公式的特徵所建立之對照模型，用來展示規則重建造成的虛高效能。
 _Avoid_：正式越權偵測器、已驗證模型
+
+**Golden APK Set**：
+固定的 50 個目標 APK membership；每個 APK 可以產生零到多筆 Component-path review units，因此最終 Gold 授權標籤筆數不要求等於 50。
+_Avoid_：恰好 50 筆 Gold rows、每個 APK 強制一筆標籤

@@ -1,6 +1,6 @@
 # SLB 越權偵測實作時程
 
-## 2026-09-03 Scope Reset：目前唯一執行順序
+## 2026-09-04 Scope Reset：目前唯一執行順序
 
 本節是目前唯一有效的近期執行順序；下方原始週次、日期與工作內容保留為歷史時程和既有研究設計。若舊內容與本節或 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md) 衝突，以 ADR-0001 與本節為準。領域術語以根目錄 [`CONTEXT.md`](../CONTEXT.md) 為準。
 
@@ -12,43 +12,45 @@
 
 ### 現在只做一件事
 
-稽核既有 Scenario A–E controlled toy cases，確認它們能否以可追溯 evidence 區分：
+使用已固定 membership 與中性 reviewer paths 的 6 個真實 APK，完成 MobSF／FlowDroid **tool-only operational calibration**：
 
-1. 只有 Manifest exposure、但不構成越權的 negative；
-2. 外部 caller 可影響並觸發未經授權敏感效果的 positive；
-3. 因 reflection、native code、dynamic dispatch 或 coverage limitation 無法判斷的 unknown。
+1. 執行 6 次 MobSF 與 6 次 FlowDroid，共 12 個 analysis attempts。
+2. 每次都記錄 success、partial、timeout 或 failure、執行時間、工具版本、設定 fingerprint、APK SHA-256 與原始輸出位置。
+3. Spot-check 工具輸出能否定位可供 Reviewer 使用的 Component、method、source／sink 或 Manifest/API evidence。
+4. 這一輪不做 baseline-manual vs tool-assisted 的 paired timing，也不填純人工時間；它只排除系統性安裝、設定、輸出與定位問題。
 
-每個案例都必須能以 R（external reachability）、I（attacker-controlled input）、S（sensitive effect reachability）、A（authorization failure）推導結果；不得以 `exported && !protected`、`risk_hint` 或 toy case 名稱直接倒推標籤。
+既有 Scenario A–E 繼續作為 Parser／Detector／Rule Engine regression suite，不升格為新版 R/I/S/A Gold，也不再是進入 6-APK calibration 或 50-APK Golden review 的前置門檻。
 
 ### 完成條件
 
-- 至少有一個 evidence-complete positive、一個 evidence-complete negative，以及一個明確保留 unknown 的受控案例。
-- Candidate/path identity 能穩定指出 Component entry、sensitive effect 與 authorization-distinct path variant。
-- 「沒有觀察到」與「已確認不存在」在輸出中可區分。
-- 原始 RF 的 label-rule inputs／proxies 已列為 leakage baseline，不進入下一版 anti-leakage feature profile。
-- 產出 toy-case coverage ledger 與缺口清單後，才決定補 toy APK、修改 candidate builder 或評估外部 framework。
+- 12 個 analysis attempts 全部有明確 status 與可追溯 provenance，沒有 silent drop。
+- 所有輸入 APK 的 SHA-256 與固定 membership 相符；工具回報 identity 不一致時停止該筆，不繼續人工判讀。
+- MobSF 能在真實 APK 產生可定位的 Component／Manifest／API candidate evidence；FlowDroid 對其支援範圍產生有效結果或可解釋的 no-result／timeout／failure artifact。
+- Spot-check 確認工具輸出能實際支援 Reviewer 定位，而不是只有無法回查的總分、finding 名稱或計數。
+- 工具沒有 finding、no-result、timeout 或 failure 不被轉成 authorization negative；相關 predicate 保留 `unknown`、`not_analyzed` 或對應 limitation status。
+- 通過後立即產生並凍結 50-APK Golden membership，再批次建立 evidence packets；不新增另一輪 toy audit 或 paired-time benchmark。
 
 ### 目前暫停
 
-- 不繼續 MobSF／FlowDroid 6-APK paired benchmark 或填寫人工時間。
-- 不開始 50-APK Golden review，也不重新抽樣 Golden membership。
+- 不執行 baseline-manual vs tool-assisted 的 paired timing，也不填寫純人工時間。
+- 6-APK operational calibration 完成前，不批次啟動 50-APK tool runs 或人工 Gold review。
 - 不擴張到 300 APK 以外的 deep analysis，更不處理全量資料。
-- 不整合新的 external framework。
+- 不將 bounded MobSF／FlowDroid runners 擴張為 production framework integration。
 - 不實作或訓練 SLB。
 - 不將 MalDroid／F-Droid label 寫入 authorization label。
 
 ### 後續 Decision Gates
 
-1. **Toy semantics gate**：R/I/S/A 與 candidate/path identity 通過受控案例。
-2. **Real-APK feasibility gate**：只用少量真實 APK，量測可產生多少可審查 path，以及主要 evidence gap。
-3. **Weak-label gate**：確認 observed labels 具有可量測的 noise，且不是單一規則的同義重建。
-4. **Evaluation gate**：建立與 training／revision 隔離的 Gold subset，才可比較 leakage RF、Vanilla 與 SLB。
-5. **Framework gate**：只有特定 evidence gap 無法由現有 bounded analyzer 回答時，才恢復 MobSF／FlowDroid PoC。
+1. **6-APK operational gate**：12 個真實 APK tool attempts 有完整 provenance，且不存在會使 50-APK batch 無法稽核的系統性問題。
+2. **Golden membership gate**：從 300-APK pilot 的 parse-success 母體完成 clustering 與 lineage isolation，凍結 50 個 APK；50 是 APK 數，不是 Gold row 數。
+3. **Evidence-packet gate**：對固定 50 APK 建立 verdict-blind packets；每個 APK 可有零到多筆 Component-path review units，工具 coverage 不足時保留 unknown。
+4. **Gold-review gate**：指定 Reviewer 依 R/I/S/A 建立 `gold_authz_label`，MobSF／FlowDroid finding 不直接轉成 Gold。
+5. **SLB-readiness gate**：確認 observed labels 具有可量測 noise，並建立與 training／revision 隔離的 Gold evaluation，才比較 leakage RF、Vanilla 與 SLB。
 
-> 原定日期與「先完成 6-APK benchmark／50-APK Golden Set」不再是目前承諾；只有 candidate/path、weak-label noise 與獨立 evaluation 可行後，才啟動 SLB。
+> 目前恢復兩週前的主線：6-APK 工具校準 → 凍結 50-APK membership → 工具輔助 evidence packets → 人工 Gold review。只有 weak-label noise 與獨立 evaluation 可行後，才啟動 SLB。
 
 - **建立日期**：2026-08-22
-- **最近更新**：2026-09-03
+- **最近更新**：2026-09-04
 - **預定開始日**：2026-08-24
 - **主要開發截止日**：2026-11-30
 - **資料來源**：MalDroid-2020 與 F-Droid APK
@@ -62,7 +64,7 @@
 
 目前第一個任務只有一個：
 
-> 先完成 FlowDroid bounded CLI PoC，再完成 MobSF Docker sidecar PoC，使用固定 6 APK matched-pair benchmark 比較 baseline manual review 與 tool-assisted review；通過後才套用到 50 APK Golden Set。
+> 使用固定 6 個真實 APK 完成 FlowDroid／MobSF tool-only operational calibration；確認 12 次工具嘗試的可執行性、provenance 與 evidence 可定位性後，再凍結 50-APK Golden Set membership 並批次產生 evidence packets。
 
 Pilot 已確認目前 evidence 仍以 Manifest candidate、component row 與 sensitive caller/XREF 為主；尚不足以把所有 candidate 稱為 concrete component path。現階段先凍結語意，原因如下：
 
@@ -241,7 +243,7 @@ Canonical CSV consumer
         ↓
 FlowDroid CLI PoC → MobSF sidecar PoC
         ↓
-6 APK baseline-vs-assisted benchmark
+6 real APK tool-only operational calibration
         ↓
 Clustering 選出並凍結 50 APK Golden Set
         ↓
@@ -656,12 +658,12 @@ Human unknown 不轉成 negative，也不進入 binary metrics。Golden Set 不�
 現在只需要確認並追蹤以下三件事：
 
 1. Canonical CSV 是唯一 APK membership authority。
-2. 300 APK pilot 已完成；下一個工程交付物是 FlowDroid／MobSF bounded PoC 與 6 APK reviewer-workload benchmark。
+2. 300 APK pilot 已完成；下一個工程交付物是 FlowDroid／MobSF 對固定 6 個真實 APK 的 tool-only operational calibration。
 3. Gold label 必須標在可稽核的 component/path unit，不是直接使用 MalDroid benign/non-benign label。
 
 建議第一個開發工作項目寫成：
 
-> 固定工具版本、設定、toy truth 與 6 APK membership；先完成 FlowDroid CLI PoC，再完成 MobSF Docker sidecar PoC。只有在工具提供可追溯且非重複 evidence、並實際降低人工工作量後，才套用到 50 APK Golden Set。
+> 固定工具版本、設定與 6-APK membership；完成 FlowDroid／MobSF 共 12 次工具嘗試，保存 raw output、status、duration、config fingerprint 與 SHA-256，並抽查 evidence 能否定位回 component/path。通過後再凍結 50-APK Golden Set membership。既有 Scenario A–E 僅保留為 parser/rule regression suite，不是此門檻的前置稽核。
 
 完成這一步後，再根據 pilot 報告決定第二步。現在不需要同時處理整個 14 週計畫。
 
@@ -669,7 +671,7 @@ Human unknown 不轉成 negative，也不進入 binary metrics。Golden Set 不�
 
 ## 九、範圍與時間重估原則
 
-本 Schedule 不再以前版雙 reviewer、240～360 Gold rows 或 2,000～5,000 APK 深度分析估算作為承諾。正式工期須在 6 APK baseline-vs-assisted benchmark 後，依 MobSF／FlowDroid machine time、failure/timeout rate、每 APK review units 與人工時間重新估算。
+本 Schedule 不再以前版雙 reviewer、240～360 Gold rows 或 2,000～5,000 APK 深度分析估算作為承諾。正式工期先在 6-APK operational calibration 後，依 MobSF／FlowDroid machine time、failure/timeout rate、evidence 可定位性與輸出量重估；人工 review 工時則在 50-APK evidence packets 形成並開始實際標註後另行量測，不把 baseline-manual paired timing 設為前置門檻。
 
 本版固定範圍是：
 

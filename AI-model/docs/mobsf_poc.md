@@ -58,13 +58,13 @@ python -m app.tools.mobsf_poc `
 - `raw/upload_response.json`、`raw/scan_response.json`、`raw/report.json`：未轉成 label 的原始 API response。
 - `candidate_summary.json`：僅保留 exported components、Manifest findings 與 reviewer 優先查看的 API groups。
 
-## 6 APK paired benchmark
+## 6 APK operational calibration
 
-FlowDroid 與 MobSF smoke test 都通過後，才從候選資料中選 6 個 APK（低、中、高複雜度各 2 個）比較：
+FlowDroid 與 MobSF smoke test 都通過後，使用已固定的 6 個 APK（低、中、高複雜度各 2 個）完成 tool-only calibration：
 
-1. 不用工具的純人工時間與判讀結果。
-2. 使用 MobSF + FlowDroid 後的人工時間與判讀結果。
-3. 每個 APK 至少記錄 2 個 review units 的 R/I/S/A evidence completeness。
-4. 工具啟動、timeout、false-positive 與人工仍需補查的項目分開計時。
+1. 記錄 6 次 MobSF 與 6 次 FlowDroid attempts 的 success／partial／timeout／failure。
+2. 保存 APK、工具版本、設定與輸出 artifacts 的 provenance。
+3. Spot-check Component、method、source／sink、Manifest／API evidence 是否可供 Reviewer 定位。
+4. 不做 baseline-manual vs tool-assisted paired timing，也不要求每個 APK 固定產生 2 個 review units。
 
-若工具無法穩定重現、輸出不能定位 component/method，或整理 false positives 的時間高於純人工流程，就先停止擴大，不進入 50 APK Golden Set。
+若出現系統性啟動／設定失敗、artifact 無法稽核，或輸出不能定位 Component／method，先修正後再擴大；個別 APK 的 no finding、timeout 或 failure 保留 limitation，不得直接轉成 authorization negative。Operational gate 通過後進入固定 50-APK Golden Set。
