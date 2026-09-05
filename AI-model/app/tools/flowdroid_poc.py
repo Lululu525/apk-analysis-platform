@@ -13,7 +13,7 @@ import json
 import subprocess
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -24,6 +24,7 @@ FLOWDROID_JAR_SHA256 = (
     "51dadead47a173c494c2fa4855b1e8bd3b54e702a2c4b5ed58e60153009ae218"
 )
 HASH_CHUNK_SIZE = 1024 * 1024
+TAIPEI_TIMEZONE = timezone(timedelta(hours=8), name="Asia/Taipei")
 ATTEMPT_FIELDS = (
     "apk_path",
     "apk_sha256",
@@ -41,8 +42,8 @@ ATTEMPT_FIELDS = (
 )
 
 
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _taipei_now() -> str:
+    return datetime.now(TAIPEI_TIMEZONE).isoformat()
 
 
 def sha256_file(path: Path) -> str:
@@ -197,7 +198,7 @@ def run_flowdroid(
         result_timeout_seconds=result_timeout_seconds,
         max_threads=max_threads,
     )
-    started_at = _utc_now()
+    started_at = _taipei_now()
     start = time.perf_counter()
     status = "analysis_failed"
     exit_code: int | str = ""
@@ -277,7 +278,7 @@ def run_flowdroid(
     metadata = {
         "schema_version": SCHEMA_VERSION,
         "started_at_utc": started_at,
-        "completed_at_utc": _utc_now(),
+        "completed_at_utc": _taipei_now(),
         "tool": {
             "name": "FlowDroid",
             "version": FLOWDROID_VERSION,

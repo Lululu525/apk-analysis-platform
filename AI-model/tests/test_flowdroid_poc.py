@@ -109,6 +109,8 @@ def test_success_writes_provenance_and_candidate_evidence_semantics(tmp_path, mo
     )
 
     assert metadata["result"]["status"] == "success"
+    assert metadata["started_at_utc"].endswith("+08:00")
+    assert metadata["completed_at_utc"].endswith("+08:00")
     assert metadata["result"]["termination_state"] == "Success"
     assert metadata["result"]["finding_count"] == 1
     assert metadata["semantics"] == {

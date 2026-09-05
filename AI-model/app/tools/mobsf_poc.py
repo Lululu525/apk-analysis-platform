@@ -14,7 +14,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -41,10 +41,12 @@ ATTEMPT_FIELDS = (
     "error_message",
 )
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+TAIPEI_TIMEZONE = timezone(timedelta(hours=8), name="Asia/Taipei")
+ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
 
 
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _taipei_now() -> str:
+    return datetime.now(TAIPEI_TIMEZONE).isoformat()
 
 
 def validate_base_url(value: str) -> str:
@@ -106,7 +108,68 @@ def _post_json(
     return decoded
 
 
-def extract_candidate_summary(report: Mapping[str, Any]) -> dict[str, Any]:
+def _android_attr(element: Any, name: str) -> str | None:
+    value = element.get(f"{{{ANDROID_NAMESPACE}}}{name}")
+    if value is None:
+        value = element.get(name)
+    return str(value) if value is not None else None
+
+
+def _extract_manifest_activity_exposure(manifest_root: Any) -> list[dict[str, Any]]:
+    activities: list[dict[str, Any]] = []
+    for activity in manifest_root.findall(".//activity"):
+        name = _android_attr(activity, "name")
+        if not name:
+            continue
+
+        explicit_value = _android_attr(activity, "exported")
+        has_intent_filter = bool(activity.findall("./intent-filter"))
+        if explicit_value is None:
+            explicit_exported = None
+            effective_exported = has_intent_filter
+            exported_basis = (
+                "implicit_intent_filter"
+                if has_intent_filter
+                else "implicit_no_intent_filter"
+            )
+        else:
+            explicit_exported = explicit_value.lower() == "true"
+            effective_exported = explicit_exported
+            exported_basis = (
+                "explicit_true" if explicit_exported else "explicit_false"
+            )
+
+        activities.append(
+            {
+                "name": name,
+                "explicit_exported": explicit_exported,
+                "effective_exported": effective_exported,
+                "exported_basis": exported_basis,
+                "has_intent_filter": has_intent_filter,
+                "permission": _android_attr(activity, "permission"),
+            }
+        )
+    return activities
+
+
+def _load_apk_manifest_root(apk_path: Path) -> Any:
+    try:
+        from androguard.core.apk import APK
+
+        parsed_apk = APK(str(apk_path))
+        manifest_axml = parsed_apk.get_android_manifest_axml()
+        if manifest_axml is None:
+            raise ValueError("APK 沒有 AndroidManifest.xml。")
+        return manifest_axml.get_xml_obj()
+    except Exception as exc:
+        raise ValueError(f"無法解析 APK AndroidManifest.xml：{exc}") from exc
+
+
+def extract_candidate_summary(
+    report: Mapping[str, Any],
+    *,
+    manifest_root: Any | None = None,
+) -> dict[str, Any]:
     """縮小人工需先查看的區域，但不推導 R/I/S/A 或 label。"""
     manifest_analysis = report.get("manifest_analysis") or {}
     android_api = report.get("android_api") or {}
@@ -148,6 +211,26 @@ def extract_candidate_summary(report: Mapping[str, Any]) -> dict[str, Any]:
                 return [str(item) for item in parsed]
         return []
 
+    mobsf_exported_activities = normalize_string_list(
+        report.get("exported_activities", [])
+    )
+    reported_exported_count = report.get("exported_count", {})
+    exported_count = (
+        dict(reported_exported_count)
+        if isinstance(reported_exported_count, Mapping)
+        else {}
+    )
+    manifest_activity_exposure: list[dict[str, Any]] = []
+    exported_activities = mobsf_exported_activities
+    if manifest_root is not None:
+        manifest_activity_exposure = _extract_manifest_activity_exposure(manifest_root)
+        exported_activities = [
+            row["name"]
+            for row in manifest_activity_exposure
+            if row["effective_exported"]
+        ]
+        exported_count["exported_activities"] = len(exported_activities)
+
     return {
         "schema_version": SCHEMA_VERSION,
         "reported_version": report.get("version"),
@@ -160,11 +243,13 @@ def extract_candidate_summary(report: Mapping[str, Any]) -> dict[str, Any]:
             "sha256": report.get("sha256"),
         },
         "components": {
-            "exported_activities": normalize_string_list(report.get("exported_activities", [])),
+            "exported_activities": exported_activities,
+            "manifest_activity_exposure": manifest_activity_exposure,
+            "mobsf_reported_exported_activities": mobsf_exported_activities,
             "services": normalize_string_list(report.get("services", [])),
             "receivers": normalize_string_list(report.get("receivers", [])),
             "providers": normalize_string_list(report.get("providers", [])),
-            "exported_count": report.get("exported_count", {}),
+            "exported_count": exported_count,
         },
         "manifest_findings": manifest_analysis.get("manifest_findings", []),
         "selected_android_api_groups": selected_api_groups,
@@ -189,6 +274,18 @@ def _write_attempt(path: Path, attempt: Mapping[str, Any]) -> None:
         writer.writerow({field: attempt.get(field, "") for field in ATTEMPT_FIELDS})
 
 
+def _is_complete_static_report(value: Mapping[str, Any]) -> bool:
+    """判斷 /scan 是否已直接回傳可供 evidence extraction 使用的完整報告。"""
+    required_fields = {
+        "version",
+        "sha256",
+        "package_name",
+        "manifest_analysis",
+        "android_api",
+    }
+    return required_fields.issubset(value)
+
+
 def run_mobsf(
     *,
     apk: Path,
@@ -197,6 +294,7 @@ def run_mobsf(
     base_url: str = "http://127.0.0.1:8000",
     request_timeout_seconds: int = 300,
     requester: Callable[..., tuple[int, bytes]] = default_requester,
+    manifest_loader: Callable[[Path], Any] = _load_apk_manifest_root,
 ) -> dict[str, Any]:
     if not api_key:
         raise ValueError("缺少 MobSF API key。")
@@ -215,13 +313,14 @@ def run_mobsf(
 
     apk_sha256 = sha256_file(apk)
     common_headers = {"X-Mobsf-Api-Key": api_key}
-    started_at = _utc_now()
+    started_at = _taipei_now()
     start = time.perf_counter()
     status = "analysis_failed"
     error_type = ""
     error_message = ""
     mobsf_hash = ""
     reported_sha256 = ""
+    report_source = ""
     summary: dict[str, Any] = {}
 
     try:
@@ -257,14 +356,22 @@ def run_mobsf(
         )
         _write_json(scan_path, scan)
 
-        report_form = urllib.parse.urlencode({"hash": mobsf_hash}).encode("ascii")
-        report = _post_json(
-            requester,
-            f"{base_url}/api/v1/report_json",
-            headers={**common_headers, "Content-Type": "application/x-www-form-urlencoded"},
-            body=report_form,
-            timeout=request_timeout_seconds,
-        )
+        if _is_complete_static_report(scan):
+            report = scan
+            report_source = "scan_response"
+        else:
+            report_form = urllib.parse.urlencode({"hash": mobsf_hash}).encode("ascii")
+            report = _post_json(
+                requester,
+                f"{base_url}/api/v1/report_json",
+                headers={
+                    **common_headers,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body=report_form,
+                timeout=request_timeout_seconds,
+            )
+            report_source = "report_json"
         _write_json(report_path, report)
         reported_sha256 = str(report.get("sha256", ""))
         if reported_sha256 != apk_sha256:
@@ -272,7 +379,10 @@ def run_mobsf(
                 "MobSF report SHA-256 與輸入 APK 不符："
                 f"expected={apk_sha256}, actual={reported_sha256}"
             )
-        summary = extract_candidate_summary(report)
+        summary = extract_candidate_summary(
+            report,
+            manifest_root=manifest_loader(apk),
+        )
         _write_json(summary_path, summary)
         status = "success"
     except (
@@ -303,7 +413,7 @@ def run_mobsf(
     metadata = {
         "schema_version": SCHEMA_VERSION,
         "started_at_utc": started_at,
-        "completed_at_utc": _utc_now(),
+        "completed_at_utc": _taipei_now(),
         "tool": {
             "name": "MobSF",
             "expected_version": MOBSF_VERSION,
@@ -324,6 +434,7 @@ def run_mobsf(
             "reported_sha256": reported_sha256,
             "sha256_match": reported_sha256 == apk_sha256 if reported_sha256 else None,
             "reported_version": summary.get("reported_version"),
+            "report_source": report_source,
             "error_type": error_type,
             "error_message": error_message,
         },

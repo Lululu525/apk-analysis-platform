@@ -243,7 +243,7 @@ def generate_report(jid: str, case_def: dict | None, report: dict, scenario: str
             for cand in trigger_candidates
         )
         actual_label = 1 if triggered else 0
-        match = "✅ PASS" if expected_label == actual_label else "❌ FAIL"
+        match = "PASS" if expected_label == actual_label else "FAIL"
         trigger_display = " 或 ".join(trigger_candidates)
         validation_rows = [
             f"| {trigger_display} 觸發 | {'觸發' if expected_label == 1 else '不觸發'} | {'觸發' if triggered else '不觸發'} | {match} |",
