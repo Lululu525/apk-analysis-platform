@@ -8,12 +8,15 @@ from __future__ import annotations
 import argparse
 import ast
 import csv
+import hashlib
+import importlib.metadata
 import json
 import os
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -154,13 +157,16 @@ def _extract_manifest_activity_exposure(manifest_root: Any) -> list[dict[str, An
 
 def _load_apk_manifest_root(apk_path: Path) -> Any:
     try:
-        from androguard.core.apk import APK
+        from androguard.core.axml import AXMLPrinter
 
-        parsed_apk = APK(str(apk_path))
-        manifest_axml = parsed_apk.get_android_manifest_axml()
-        if manifest_axml is None:
-            raise ValueError("APK 沒有 AndroidManifest.xml。")
-        return manifest_axml.get_xml_obj()
+        # 僅解析 binary Manifest，避免完整 APK 分析載入依賴系統編碼的 permission resources。
+        with zipfile.ZipFile(apk_path) as archive:
+            manifest_bytes = archive.read("AndroidManifest.xml")
+        manifest_axml = AXMLPrinter(manifest_bytes)
+        manifest_root = manifest_axml.get_xml_obj()
+        if not manifest_axml.is_valid() or manifest_root is None:
+            raise ValueError("AndroidManifest.xml 不是有效的 binary AXML。")
+        return manifest_root
     except Exception as exc:
         raise ValueError(f"無法解析 APK AndroidManifest.xml：{exc}") from exc
 
@@ -272,6 +278,71 @@ def _write_attempt(path: Path, attempt: Mapping[str, Any]) -> None:
         writer = csv.DictWriter(handle, fieldnames=ATTEMPT_FIELDS)
         writer.writeheader()
         writer.writerow({field: attempt.get(field, "") for field in ATTEMPT_FIELDS})
+
+
+def rebuild_candidate_summary(
+    *, apk: Path, report_path: Path, output_dir: Path,
+    manifest_loader: Callable[[Path], Any] = _load_apk_manifest_root,
+) -> dict[str, Any]:
+    """離線重建版本化 summary；不呼叫 MobSF，也不覆蓋既有 artifacts。"""
+    apk = require_file(apk, "APK")
+    report_path = require_file(report_path, "MobSF report")
+    output_dir = output_dir.resolve()
+    target = output_dir / "candidate_summary.v2.json"
+    if target.exists():
+        raise FileExistsError(f"拒絕覆蓋既有修正版：{target}")
+    report_bytes = report_path.read_bytes()
+    report = json.loads(report_bytes.decode("utf-8-sig"))
+    if not isinstance(report, dict) or not _is_complete_static_report(report):
+        raise ValueError("重建需要完整的 MobSF static report。")
+    apk_sha256 = sha256_file(apk)
+    if report.get("sha256") != apk_sha256:
+        raise ValueError("MobSF report SHA-256 與輸入 APK 不符。")
+    summary = extract_candidate_summary(report, manifest_root=manifest_loader(apk))
+    for row in summary["components"]["manifest_activity_exposure"]:
+        row["effective_exported_basis"] = row.pop("exported_basis")
+    summary["schema_version"] = "mobsf-candidate-summary-v2"
+    config = {
+        "manifest_loader": "zipfile+androguard.core.axml.AXMLPrinter",
+        "activity_scope": "activity elements; activity-alias excluded",
+        "implicit_exported_rule": "intent-filter present when android:exported absent",
+        "mobsf_inventory_role": "preserved original, not authoritative activity inventory",
+    }
+    original = output_dir / "candidate_summary.json"
+    expected_report = output_dir / "raw" / "report.json"
+    summary["provenance"] = {
+        "generated_at": _taipei_now(),
+        "source_report": {
+            "reference": Path(os.path.relpath(report_path, output_dir)).as_posix(),
+            "sha256": hashlib.sha256(report_bytes).hexdigest(),
+        },
+        "original_raw_report": {
+            "reference": "raw/report.json", "exists": expected_report.is_file(),
+        },
+        "source_note": (
+            "使用既有 raw/report.json。" if report_path.resolve() == expected_report
+            else "使用明確指定的既有完整報告；未建立或覆寫 raw/report.json。"
+        ),
+        "apk_sha256": apk_sha256,
+        "previous_summary": {
+            "reference": original.name, "exists": original.is_file(),
+            "sha256": sha256_file(original) if original.is_file() else None,
+        },
+        "correction_reason": (
+            "MobSF exported_activities 可能遺漏 implicit exported Activity；"
+            "改由 binary Manifest 重建完整 Activity inventory 與 exposure，保留 MobSF 原始欄位。"
+        ),
+        "generator_version": "mobsf-summary-rebuild-v2",
+        "generator_source_sha256": sha256_file(Path(__file__)),
+        "androguard_version": importlib.metadata.version("androguard"),
+        "config": config,
+        "config_sha256": hashlib.sha256(
+            json.dumps(config, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest(),
+    }
+    with target.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(summary, ensure_ascii=False, indent=2) + "\n")
+    return summary
 
 
 def _is_complete_static_report(value: Mapping[str, Any]) -> bool:
@@ -457,11 +528,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--api-key-env", default="MOBSF_API_KEY")
     parser.add_argument("--request-timeout", type=int, default=300)
+    parser.add_argument(
+        "--rebuild-report", type=Path,
+        help="從既有完整 report JSON 離線產生 candidate_summary.v2.json，不需 API key。",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.rebuild_report is not None:
+        summary = rebuild_candidate_summary(
+            apk=args.apk, report_path=args.rebuild_report, output_dir=args.output_dir,
+        )
+        print(json.dumps({"schema_version": summary["schema_version"],
+                          "apk_sha256": summary["identity"]["sha256"]}))
+        return 0
     metadata = run_mobsf(
         apk=args.apk,
         output_dir=args.output_dir,

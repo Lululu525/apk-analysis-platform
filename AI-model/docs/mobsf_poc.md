@@ -58,6 +58,25 @@ python -m app.tools.mobsf_poc `
 - `raw/upload_response.json`、`raw/scan_response.json`、`raw/report.json`：未轉成 label 的原始 API response。
 - `candidate_summary.json`：僅保留 exported components、Manifest findings 與 reviewer 優先查看的 API groups。
 
+## 離線重建 Activity summary v2
+
+既有報告可用下列模式產生 `candidate_summary.v2.json`，不需 API key、不重跑 MobSF，也不覆蓋原始 summary 或 raw artifacts：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.tools.mobsf_poc `
+  --apk output/framework_poc/benchmark_6_v1/review_inputs/04_a6c3cd55bae8.apk `
+  --output-dir output/framework_poc/benchmark_6_v1/runs/04_a6c3cd55bae8/mobsf `
+  --rebuild-report output/framework_poc/benchmark_6_v1/runs/04_a6c3cd55bae8/mobsf/raw/report.json
+```
+
+重建前驗證報告 SHA-256 與 APK 相符，直接從 ZIP 讀取 binary Manifest，不依賴 `-X utf8`。v2 保留 `mobsf_reported_exported_activities`，由 Manifest 重建 `manifest_activity_exposure`，並使用 `effective_exported_basis` 記錄 explicit／implicit 依據。此 inventory 範圍為 `<activity>`；未擴充至 `<activity-alias>`，也不產生 authorization label。
+
+每份 v2 記錄來源報告 reference／SHA-256、APK SHA-256、schema version、帶時區的產生時間、前版 summary hash（若存在）、修正原因、generator source hash、Androguard version 及 config fingerprint。若 v2 已存在，指令拒絕覆蓋。
+
+本次 6-APK 修正中，第 1 個 APK 的舊 `/report_json` request 回傳 404，沒有 `raw/report.json`；改以其既有且完整的 `raw/scan_response.json` 作為 `--rebuild-report`。v2 明記實際來源及原始 report 缺失狀態，不補造 `raw/report.json`。第 2～6 個使用既有 `raw/report.json`。
+
+本批稽核索引為 `output/framework_poc/benchmark_6_v1/candidate_summary_correction_audit.v2.json`，包含六份 v2 的 fingerprint、各 APK Activity counts、指定案例驗證結果，以及產生前後保持不變的既有檔案 SHA-256。
+
 ## 6 APK operational calibration
 
 FlowDroid 與 MobSF smoke test 都通過後，使用已固定的 6 個 APK（低、中、高複雜度各 2 個）完成 tool-only calibration：
