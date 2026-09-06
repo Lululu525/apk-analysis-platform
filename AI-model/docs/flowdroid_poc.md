@@ -29,6 +29,7 @@ python -m app.tools.flowdroid_poc `
   --apk tests/fixtures/flowdroid_activity_exec/app/build/outputs/apk/debug/app-debug.apk `
   --platforms-dir C:/Users/s1002/AppData/Local/Android/Sdk/platforms/android-37.1/android.jar `
   --sources-sinks config/flowdroid/authz-v1-sources-sinks.txt `
+  --java-max-heap 6g `
   --output-dir output/framework_poc/flowdroid/activity_exec
 ```
 
@@ -37,9 +38,11 @@ python -m app.tools.flowdroid_poc `
 `--platforms-dir` 接受 Android SDK 的 `platforms` 目錄或單一 `android.jar`。若 APK target SDK 為 37，但 SDK 使用 `android-37.0`／`android-37.1` 這類目錄名稱，FlowDroid 2.15.1 會尋找不存在的 `android-37/android.jar`；此時應明確傳入已安裝版本的單一 `android.jar`，並由 metadata 保留實際路徑。
 
 - `run_metadata.json`：工具版本、JAR/APK/config SHA-256、完整參數與語意限制。
-- `attempts.csv`：`success`、`incomplete`、`invalid_result_artifact`、`no_result_artifact`、`timeout`、`analysis_failed` 或 `launch_failed`，以及 XML 的 `TerminationState` 與 finding count。
+- `attempts.csv`：`success`、`incomplete`、`invalid_result_artifact`、`no_result_artifact`、`timeout`、`memory_termination`、`analysis_failed` 或 `launch_failed`，以及 XML 的 `TerminationState` 與 finding count。
 - `raw/flowdroid.xml`：FlowDroid 原始結果，不直接轉成 label。
 - `stdout.log`、`stderr.log`：除錯與人工稽核依據。
+
+`--java-max-heap` 會在 `-jar` 前加入明確的 JVM `-Xmx` 上限。Golden-50 批次預設為 `6g`、`max_threads=1`，且同一時間只執行一個重型工作。Runner 會優先檢查 logs：`Running out of memory`／`OutOfMemoryError` 分類為 `memory_termination`；`No sinks found` 分類為未匹配 configured sinks；`No results found`／`Found 0 leaks` 分類為本設定下沒有輸出 source-to-sink path。三者都不會轉成 authorization negative，即使 process exit code 為 0。
 
 ## Stop conditions
 

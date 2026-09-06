@@ -190,3 +190,72 @@ def test_timeout_is_recorded_and_does_not_abort_artifact_writes(tmp_path, monkey
     assert "7 seconds" in metadata["result"]["error_message"]
     assert (output_dir / "attempts.csv").is_file()
     assert (output_dir / "stdout.log").read_text(encoding="utf-8") == "partial"
+
+
+def test_build_command_places_heap_cap_before_jar(tmp_path):
+    command = poc.build_command(
+        java="java",
+        jar=tmp_path / "flowdroid.jar",
+        apk=tmp_path / "fixture.apk",
+        platforms_dir=tmp_path / "android.jar",
+        sources_sinks=tmp_path / "sources.txt",
+        result_xml=tmp_path / "result.xml",
+        callback_timeout_seconds=60,
+        dataflow_timeout_seconds=120,
+        result_timeout_seconds=30,
+        max_threads=1,
+        java_max_heap="6g",
+    )
+
+    assert command[:3] == ["java", "-Xmx6g", "-jar"]
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "stderr", "status", "error_type"),
+    [
+        (
+            0,
+            "Running out of memory, solvers terminated\nFound 0 leaks",
+            "memory_termination",
+            "MemoryTermination",
+        ),
+        (
+            137,
+            "java.lang.OutOfMemoryError: Java heap space",
+            "memory_termination",
+            "MemoryTermination",
+        ),
+        (
+            0,
+            "No sinks found, aborting analysis",
+            "no_result_artifact",
+            "NoConfiguredSinks",
+        ),
+        (
+            0,
+            "No results found.\nFound 0 leaks",
+            "no_result_artifact",
+            "NoSourceToSinkPath",
+        ),
+    ],
+)
+def test_logs_preserve_specific_internal_reason_regardless_of_exit_code(
+    tmp_path, monkeypatch, exit_code, stderr, status, error_type
+):
+    jar, apk, platforms, sources_sinks = _make_inputs(tmp_path, monkeypatch)
+
+    metadata = poc.run_flowdroid(
+        jar=jar,
+        apk=apk,
+        platforms_dir=platforms,
+        sources_sinks=sources_sinks,
+        output_dir=tmp_path / "output",
+        java_max_heap="6g",
+        runner=lambda command, **kwargs: subprocess.CompletedProcess(
+            command, exit_code, "", stderr
+        ),
+    )
+
+    assert metadata["result"]["status"] == status
+    assert metadata["result"]["error_type"] == error_type
+    assert metadata["execution"]["java_max_heap"] == "6g"

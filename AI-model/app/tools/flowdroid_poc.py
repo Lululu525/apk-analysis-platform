@@ -10,6 +10,7 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 import subprocess
 import time
 import xml.etree.ElementTree as ET
@@ -99,10 +100,15 @@ def build_command(
     dataflow_timeout_seconds: int,
     result_timeout_seconds: int,
     max_threads: int,
+    java_max_heap: str | None = None,
 ) -> list[str]:
     """建立固定且不經 shell 展開的 FlowDroid 命令。"""
-    return [
-        java,
+    if java_max_heap is not None and not re.fullmatch(r"[1-9][0-9]*[mMgG]", java_max_heap):
+        raise ValueError("Java heap 上限必須使用正整數加 m/M/g/G，例如 6144m 或 6g。")
+    command = [java]
+    if java_max_heap is not None:
+        command.append(f"-Xmx{java_max_heap}")
+    command.extend([
         "-jar",
         str(jar),
         "-a",
@@ -126,7 +132,45 @@ def build_command(
         str(result_timeout_seconds),
         "-mt",
         str(max_threads),
-    ]
+    ])
+    return command
+
+
+def classify_log_termination(combined_logs: str) -> tuple[str, str, str] | None:
+    """辨識 exit code 不能可靠表達的 FlowDroid 內部終止原因。"""
+    lowered = combined_logs.lower()
+    memory_markers = (
+        "running out of memory, solvers terminated",
+        "outofmemoryerror",
+        "java heap space",
+        "gc overhead limit exceeded",
+        "could not wait for executor termination",
+    )
+    if any(marker in lowered for marker in memory_markers):
+        return (
+            "memory_termination",
+            "MemoryTermination",
+            "FlowDroid log 明示 solver/JVM 因記憶體壓力中止；exit code 不代表完整成功。",
+        )
+    if "the data flow analysis has failed." in lowered:
+        return (
+            "analysis_failed",
+            "FlowDroidInternalFailure",
+            "FlowDroid log 明示 data flow analysis failed。",
+        )
+    if "no sinks found" in lowered:
+        return (
+            "no_result_artifact",
+            "NoConfiguredSinks",
+            "FlowDroid 未匹配到 configured sinks，未產生可用 result XML。",
+        )
+    if "no results found" in lowered or "found 0 leaks" in lowered:
+        return (
+            "no_result_artifact",
+            "NoSourceToSinkPath",
+            "FlowDroid 在本次設定與完成範圍內未輸出 source-to-sink path；不能視為 authorization negative。",
+        )
+    return None
 
 
 def _write_text(path: Path, value: str | bytes | None) -> None:
@@ -162,6 +206,7 @@ def run_flowdroid(
     result_timeout_seconds: int = 30,
     process_timeout_seconds: int = 300,
     max_threads: int = 1,
+    java_max_heap: str | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> dict[str, Any]:
     """執行一次 FlowDroid，保留 raw output 與完整 provenance。"""
@@ -197,6 +242,7 @@ def run_flowdroid(
         dataflow_timeout_seconds=dataflow_timeout_seconds,
         result_timeout_seconds=result_timeout_seconds,
         max_threads=max_threads,
+        java_max_heap=java_max_heap,
     )
     started_at = _taipei_now()
     start = time.perf_counter()
@@ -220,8 +266,15 @@ def run_flowdroid(
         _write_text(stdout_path, completed.stdout)
         _write_text(stderr_path, completed.stderr)
         combined_logs = f"{completed.stdout or ''}\n{completed.stderr or ''}"
-        internal_failure = "The data flow analysis has failed." in combined_logs
-        if completed.returncode == 0 and result_xml.is_file():
+        log_termination = classify_log_termination(combined_logs)
+        if log_termination is not None:
+            status, error_type, error_message = log_termination
+            if result_xml.is_file():
+                try:
+                    termination_state, finding_count = inspect_result_xml(result_xml)
+                except (ET.ParseError, OSError):
+                    pass
+        elif completed.returncode == 0 and result_xml.is_file():
             try:
                 termination_state, finding_count = inspect_result_xml(result_xml)
             except (ET.ParseError, OSError) as exc:
@@ -233,10 +286,6 @@ def run_flowdroid(
                 if status == "incomplete":
                     error_type = "IncompleteTermination"
                     error_message = f"FlowDroid TerminationState={termination_state or '<missing>'}"
-        elif completed.returncode == 0 and internal_failure:
-            status = "analysis_failed"
-            error_type = "FlowDroidInternalFailure"
-            error_message = "FlowDroid 回傳 0，但 log 明示 data flow analysis failed。"
         elif completed.returncode == 0:
             status = "no_result_artifact"
             error_type = "MissingResultArtifact"
@@ -300,6 +349,7 @@ def run_flowdroid(
             "result_timeout_seconds": result_timeout_seconds,
             "process_timeout_seconds": process_timeout_seconds,
             "max_threads": max_threads,
+            "java_max_heap": java_max_heap,
         },
         "result": {
             "status": status,
@@ -339,6 +389,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--result-timeout", type=int, default=30)
     parser.add_argument("--process-timeout", type=int, default=300)
     parser.add_argument("--max-threads", type=int, default=1)
+    parser.add_argument(
+        "--java-max-heap",
+        help="JVM 最大 heap，例如 6g；省略時沿用 JVM 預設。",
+    )
     return parser
 
 
@@ -356,6 +410,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result_timeout_seconds=args.result_timeout,
         process_timeout_seconds=args.process_timeout,
         max_threads=args.max_threads,
+        java_max_heap=args.java_max_heap,
     )
     print(json.dumps(metadata["result"], ensure_ascii=False, indent=2))
     return 0 if metadata["result"]["status"] == "success" else 1
