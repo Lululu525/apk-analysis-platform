@@ -238,3 +238,27 @@ def test_same_systemic_failure_pauses_tool_after_two_apks(tmp_path):
     assert calls == [1, 2]
     statuses = [row["status"] for row in rows if row["tool"] == "flowdroid"]
     assert statuses == ["launch_failed", "launch_failed", "blocked_systemic"]
+
+
+def test_max_work_items_stops_before_preparing_later_inputs(tmp_path):
+    entries = [_entry(tmp_path, rank) for rank in range(1, 4)]
+    calls = []
+
+    def runner(tool, entry, apk, attempt_dir, config):
+        del entry, apk, config
+        calls.append(tool)
+        _write_fake_artifacts(tool, attempt_dir, "success")
+        return {"status": "success"}
+
+    batch.run_batch(
+        entries=entries,
+        membership_audit=_audit(3),
+        output_dir=tmp_path / "batch",
+        configs=_configs(),
+        tools=["mobsf", "flowdroid"],
+        max_work_items=2,
+        runner=runner,
+    )
+
+    assert calls == ["mobsf", "flowdroid"]
+    assert len(list((tmp_path / "batch" / "review_inputs").glob("*.apk"))) == 1

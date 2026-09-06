@@ -857,6 +857,8 @@ def run_batch(
     systemic_counts: dict[tuple[str, str], int] = {}
 
     for entry in sorted(entries, key=lambda item: item.selection_rank):
+        if max_work_items is not None and processed_work_items >= max_work_items:
+            break
         review_input: Path | None = None
         input_error: Exception | None = None
         try:
@@ -889,6 +891,17 @@ def run_batch(
                     error_type="SystemicToolFailure",
                     error_message=f"{signature}: {message}",
                 )
+                _append_event(
+                    events_path,
+                    {
+                        "event": "work_item_blocked",
+                        "membership_id": entry.membership_id,
+                        "apk_sha256": entry.sha256,
+                        "tool": tool,
+                        "status": "blocked_systemic",
+                        "error_type": "SystemicToolFailure",
+                    },
+                )
                 continue
             if not config.get("available", True):
                 ledger[key] = _blocked_row(
@@ -899,6 +912,18 @@ def run_batch(
                     error_type="MissingCredential" if tool == "mobsf" else "InvalidToolConfiguration",
                     error_message=str(config.get("unavailable_reason") or "tool preflight failed"),
                 )
+                _append_event(
+                    events_path,
+                    {
+                        "event": "work_item_blocked",
+                        "membership_id": entry.membership_id,
+                        "apk_sha256": entry.sha256,
+                        "tool": tool,
+                        "status": "blocked_preflight",
+                        "error_type": ledger[key]["error_type"],
+                        "error_message": ledger[key]["error_message"],
+                    },
+                )
                 continue
             if input_error is not None:
                 ledger[key] = _blocked_row(
@@ -908,6 +933,18 @@ def run_batch(
                     status="blocked_input",
                     error_type=type(input_error).__name__,
                     error_message=str(input_error),
+                )
+                _append_event(
+                    events_path,
+                    {
+                        "event": "work_item_blocked",
+                        "membership_id": entry.membership_id,
+                        "apk_sha256": entry.sha256,
+                        "tool": tool,
+                        "status": "blocked_input",
+                        "error_type": type(input_error).__name__,
+                        "error_message": str(input_error),
+                    },
                 )
                 continue
             assert review_input is not None
@@ -1060,12 +1097,118 @@ def _duration_summary(rows: Sequence[Mapping[str, Any]], tool: str) -> str:
     )
 
 
+def _report_details(
+    output_dir: Path, rows: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    error_counts: dict[str, int] = {}
+    missing_artifacts: dict[str, int] = {}
+    integrity_failures: list[str] = []
+    attempted = 0
+    component_apks: set[str] = set()
+    manifest_apks: set[str] = set()
+    method_api_apks: set[str] = set()
+    source_to_sink_apks: set[str] = set()
+    for row in rows:
+        error_type = str(row.get("error_type") or "")
+        if error_type:
+            error_counts[error_type] = error_counts.get(error_type, 0) + 1
+        attempt_id = str(row.get("attempt_id") or "")
+        if not attempt_id:
+            continue
+        attempted += 1
+        attempt_number = int(row["attempt_number"])
+        attempt_dir = (
+            output_dir
+            / "runs"
+            / str(row["apk_sha256"])
+            / str(row["tool"])
+            / f"attempt_{attempt_number:03d}"
+        )
+        metadata_path = attempt_dir / "attempt_metadata.json"
+        if not metadata_path.is_file():
+            integrity_failures.append(f"{attempt_id}:missing_attempt_metadata")
+            continue
+        try:
+            attempt = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            integrity_failures.append(f"{attempt_id}:invalid_attempt_metadata")
+            continue
+        for artifact in attempt.get("artifacts", []):
+            reference = str(artifact["reference"])
+            if not artifact.get("exists"):
+                relative_name = reference.split(f"attempt_{attempt_number:03d}/", 1)[-1]
+                key = f"{row['tool']}:{relative_name}"
+                missing_artifacts[key] = missing_artifacts.get(key, 0) + 1
+                continue
+            path = output_dir / reference
+            if not path.is_file() or sha256_file(path) != artifact.get("sha256"):
+                integrity_failures.append(f"{attempt_id}:{reference}")
+
+        if row.get("tool") == "flowdroid":
+            run_metadata = attempt_dir / "run_metadata.json"
+            if run_metadata.is_file():
+                try:
+                    result = json.loads(run_metadata.read_text(encoding="utf-8"))["result"]
+                except (OSError, KeyError, json.JSONDecodeError):
+                    result = {}
+                if int(result.get("finding_count") or 0) > 0:
+                    source_to_sink_apks.add(str(row["apk_sha256"]))
+        elif row.get("tool") == "mobsf":
+            summary_path = attempt_dir / "candidate_summary.v2.json"
+            if not summary_path.is_file():
+                summary_path = attempt_dir / "candidate_summary.json"
+            if not summary_path.is_file():
+                continue
+            try:
+                summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            components = summary.get("components") or {}
+            if any(
+                components.get(field)
+                for field in (
+                    "manifest_activity_exposure",
+                    "exported_activities",
+                    "services",
+                    "receivers",
+                    "providers",
+                )
+            ):
+                component_apks.add(str(row["apk_sha256"]))
+            if components.get("manifest_activity_exposure") or summary.get("manifest_findings"):
+                manifest_apks.add(str(row["apk_sha256"]))
+            for group in (summary.get("selected_android_api_groups") or {}).values():
+                if isinstance(group, Mapping) and group.get("application_files"):
+                    method_api_apks.add(str(row["apk_sha256"]))
+                    break
+    return {
+        "error_counts": dict(sorted(error_counts.items())),
+        "missing_artifacts": dict(sorted(missing_artifacts.items())),
+        "attempted_count": attempted,
+        "integrity_failure_count": len(integrity_failures),
+        "integrity_failures": integrity_failures,
+        "component_apk_count": len(component_apks),
+        "manifest_apk_count": len(manifest_apks),
+        "method_api_apk_count": len(method_api_apks),
+        "source_to_sink_apk_count": len(source_to_sink_apks),
+    }
+
+
 def write_batch_report(
     output_dir: Path,
     rows: Sequence[Mapping[str, Any]],
     membership_audit: Mapping[str, Any],
 ) -> None:
     counts = _status_counts(rows)
+    details = _report_details(output_dir, rows)
+    metadata = json.loads((output_dir / "batch_metadata.json").read_text(encoding="utf-8"))
+    resources = metadata["resource_snapshot_at_creation"]
+    flow_configs = [
+        config
+        for config in metadata.get("configurations", {}).values()
+        if config.get("tool") == "flowdroid"
+    ]
+    flow_config = flow_configs[-1] if flow_configs else {}
     lines = [
         "# Golden-50 批次執行報告",
         "",
@@ -1087,6 +1230,12 @@ def write_batch_report(
     ]
     for status, count in counts.items():
         lines.append(f"- `{status}`：{count}")
+    lines.extend(["", "### 錯誤／限制分類", ""])
+    if details["error_counts"]:
+        for error_type, count in details["error_counts"].items():
+            lines.append(f"- `{error_type}`：{count}")
+    else:
+        lines.append("- 無")
     lines.extend(
         [
             "",
@@ -1095,12 +1244,59 @@ def write_batch_report(
             f"- MobSF：{_duration_summary(rows, 'mobsf')}",
             f"- FlowDroid：{_duration_summary(rows, 'flowdroid')}",
             "",
+            "## 資源與設定上限",
+            "",
+            f"- 邏輯 CPU：{resources.get('logical_cpu_count')}；同時重型 workers：1。",
+            f"- 實體 RAM：{resources.get('physical_memory_total_bytes')} bytes；"
+            f"batch 建立時 available：{resources.get('physical_memory_available_bytes')} bytes。",
+            f"- FlowDroid：`-Xmx{flow_config.get('java_max_heap', '')}`、"
+            f"`max_threads={flow_config.get('max_threads', '')}`、"
+            f"process timeout={flow_config.get('process_timeout_seconds', '')}s。",
+            "",
+            "## Artifact 與 provenance 完整性",
+            "",
+            f"- 有 attempt metadata 的工作項目：{details['attempted_count']}。",
+            f"- Artifact existence/hash integrity failures：{details['integrity_failure_count']}。",
+        ]
+    )
+    if details["missing_artifacts"]:
+        for reference, count in details["missing_artifacts"].items():
+            lines.append(f"- 預期但不存在 `{reference}`：{count} attempts。")
+    else:
+        lines.append("- 已執行 attempts 沒有記錄為缺失的預期 artifact。")
+    lines.extend(
+        [
+            "",
+            "## 可定位候選證據（APK 去重計數）",
+            "",
+            f"- Component inventory：{details['component_apk_count']} APK。",
+            f"- Manifest evidence：{details['manifest_apk_count']} APK。",
+            f"- Method/API locator：{details['method_api_apk_count']} APK。",
+            f"- FlowDroid source-to-sink result：{details['source_to_sink_apk_count']} APK。",
+            "",
+            "上述是工具輸出可定位性，不是 R/I/S/A 完整性或 authorization verdict。"
+            "MobSF 未完成時，component／Manifest／API 計數仍是不完整下限。",
+            "",
+            "## 人工檔案不變性",
+            "",
+        ]
+    )
+    for reference, identity in metadata["frozen_human_files"].items():
+        lines.append(f"- `{reference}`：`{identity['sha256']}`（{identity['size_bytes']} bytes）")
+    lines.extend(
+        [
+            "",
             "## 邊界與續跑",
             "",
             "- `batch_events.jsonl` 是 append-only 歷史；`execution_ledger.csv` 只是 current view。",
             "- 每個新 attempt 使用新的 `attempt_NNN` 目錄，既有 raw report、logs、summary 與 metadata 不覆寫。",
             "- 正式 reviewer evidence packet 尚未建立；本目錄是 coordinator 區域，不宣稱已盲化。",
             "- 本批次不修改 annotation CSV 或 human review log，也不執行人工 Gold review／SLB 訓練。",
+            "- 若 MobSF 仍為 pending／blocked，先以正常流程設定 `$env:MOBSF_API_KEY`，再執行：",
+            "",
+            "```powershell",
+            ".\\.venv\\Scripts\\python.exe -m app.tools.golden_batch --tools mobsf",
+            "```",
         ]
     )
     (output_dir / "BATCH_EXECUTION_REPORT.md").write_text(
