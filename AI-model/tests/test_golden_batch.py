@@ -152,6 +152,33 @@ def test_resume_skips_verified_identity_config_and_artifacts(tmp_path):
     )
 
 
+def test_single_tool_run_preserves_other_tool_current_ledger_state(tmp_path):
+    entry = _entry(tmp_path, 1)
+    calls = []
+
+    def runner(tool, entry, apk, attempt_dir, config):
+        del entry, apk, config
+        calls.append(tool)
+        _write_fake_artifacts(tool, attempt_dir, "success")
+        return {"status": "success"}
+
+    kwargs = {
+        "entries": [entry],
+        "membership_audit": _audit(1),
+        "output_dir": tmp_path / "batch",
+        "configs": _configs(),
+        "runner": runner,
+    }
+    batch.run_batch(**kwargs, tools=["mobsf"])
+    rows = batch.run_batch(**kwargs, tools=["flowdroid"])
+
+    assert calls == ["mobsf", "flowdroid"]
+    assert {(row["tool"], row["status"]) for row in rows} == {
+        ("mobsf", "success"),
+        ("flowdroid", "success"),
+    }
+
+
 def test_changed_artifact_creates_new_attempt_without_overwriting_old(tmp_path):
     entry = _entry(tmp_path, 1)
     calls = []

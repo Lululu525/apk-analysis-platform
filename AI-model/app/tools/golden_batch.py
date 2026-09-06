@@ -259,6 +259,30 @@ def _write_ledger(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     temporary.replace(path)
 
 
+def _load_existing_ledger(
+    path: Path, entries: Sequence[MembershipEntry]
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """載入 current view，讓單工具續跑不會抹掉另一工具的既有狀態。"""
+    if not path.is_file():
+        return {}
+    expected = {entry.sha256: entry.membership_id for entry in entries}
+    try:
+        with path.open(encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+    except (OSError, csv.Error):
+        return {}
+    loaded: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        sha256 = str(row.get("apk_sha256") or "")
+        tool = str(row.get("tool") or "")
+        if tool not in TOOLS or expected.get(sha256) != row.get("membership_id"):
+            continue
+        loaded[(sha256, tool)] = {
+            field: row.get(field, "") for field in LEDGER_FIELDS
+        }
+    return loaded
+
+
 def _expected_artifact_paths(tool: str) -> tuple[str, ...]:
     if tool == "mobsf":
         return (
@@ -851,6 +875,7 @@ def run_batch(
         for entry in entries
         for tool in TOOLS
     }
+    ledger.update(_load_existing_ledger(ledger_path, entries))
     processed_attempts = 0
     processed_work_items = 0
     paused_tools: dict[str, tuple[str, str]] = {}
