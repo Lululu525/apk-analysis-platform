@@ -42,3 +42,6 @@ output/framework_poc/
 .codex-pytest-tmp/
 .codex-*-pytest-tmp/
 .pytest_cache/
+
+# Local Golden review session narratives; authoritative review history is JSONL
+docs/golden_review_experiment_log*.md
