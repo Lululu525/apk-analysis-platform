@@ -61,6 +61,11 @@ class ReportSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
     risk_score: int = Field(ge=0, le=100)
     risk_level: str = "Info"
+    scoring_method: str = "Static rule-and-evidence scoring"
+    formula: str = (
+        "finding_score = severity_base * confidence * exploitability * impact * exposure; "
+        "risk_score = clamp(round(100 * (1 - exp(-(sum(finding_score) + bonuses) / 18))), 0, 100)"
+    )
     counts: dict[Severity, int] = Field(default_factory=dict)
 
 

@@ -65,20 +65,21 @@ type ResultResponse = {
       id?: string;
       severity?: string;
       title?: string;
-      description?: string;
-      remediation?: string;
-      evidence?: string;
+      description?: unknown;
+      remediation?: unknown;
+      evidence?: unknown;
       score_weight?: number;
     }>;
     artifacts?: {
       pdf_path?: string | null;
       features_path?: string | null;
     };
-    errors?: string[];
+    errors?: unknown[];
   };
 };
 
 const API_BASE = "http://127.0.0.1:8000";
+const PORTAL_BASE = "http://127.0.0.1:8080";
 
 const statusColorMap: Record<SampleStatus, string> = {
   received: "#94a3b8",
@@ -126,6 +127,18 @@ function formatDate(value?: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString();
+}
+
+function formatReportValue(value: unknown, fallback = "Not available") {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return fallback;
+  }
 }
 
 function escapeRegExp(text: string) {
@@ -311,10 +324,12 @@ function ClearIcon() {
 function ReportModal({
   open,
   onClose,
+  onDownloadPdf,
   result,
 }: {
   open: boolean;
   onClose: () => void;
+  onDownloadPdf: (sampleId: string) => void;
   result: ResultResponse | null;
 }) {
   if (!open || !result?.result) return null;
@@ -352,6 +367,7 @@ function ReportModal({
         }}
       >
         <div
+          className="apionix-nav-wrap"
           style={{
             padding: "22px 24px 18px 24px",
             borderBottom: "1px solid #e5e7eb",
@@ -383,19 +399,35 @@ function ReportModal({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            style={{
-              borderRadius: 14,
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
-              padding: "10px 16px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              onClick={() => onDownloadPdf(result.sample_id)}
+              style={{
+                borderRadius: 14,
+                border: "1px solid #1d4ed8",
+                background: "#2563eb",
+                color: "#ffffff",
+                padding: "10px 16px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Download PDF
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                borderRadius: 14,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                padding: "10px 16px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: 24 }}>
@@ -505,8 +537,8 @@ function ReportModal({
                         </span>
                       </div>
 
-                      <div style={{ color: "#475569", marginBottom: 10 }}>
-                        {finding.description || "No description."}
+                      <div style={{ color: "#475569", marginBottom: 10, whiteSpace: "pre-wrap" }}>
+                        {formatReportValue(finding.description, "No description.")}
                       </div>
 
                       {finding.evidence ? (
@@ -522,7 +554,16 @@ function ReportModal({
                           }}
                         >
                           <strong>Evidence</strong>
-                          <div style={{ marginTop: 6 }}>{finding.evidence}</div>
+                          <pre
+                            style={{
+                              margin: "6px 0 0",
+                              whiteSpace: "pre-wrap",
+                              overflowWrap: "anywhere",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            {formatReportValue(finding.evidence)}
+                          </pre>
                         </div>
                       ) : null}
 
@@ -538,7 +579,9 @@ function ReportModal({
                           }}
                         >
                           <strong>Remediation</strong>
-                          <div style={{ marginTop: 6 }}>{finding.remediation}</div>
+                          <div style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
+                            {formatReportValue(finding.remediation)}
+                          </div>
                         </div>
                       ) : null}
                     </div>
@@ -573,7 +616,7 @@ function ReportModal({
                       padding: 12,
                     }}
                   >
-                    {error}
+                    {formatReportValue(error)}
                   </div>
                 ))}
               </div>
@@ -1000,16 +1043,111 @@ export default function App() {
       style={{
         minHeight: "100vh",
         background: "#f3f6fb",
-        padding: "24px 20px",
+        padding: 0,
         fontFamily:
-          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          'Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         color: "#0f172a",
       }}
     >
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          background: "linear-gradient(180deg, rgba(244,247,251,.95), rgba(238,242,247,.92))",
+          borderBottom: "1px solid rgba(8,18,33,.10)",
+          boxShadow: "0 10px 30px rgba(10,22,40,.08)",
+          backdropFilter: "blur(18px)",
+          fontFamily:
+            'Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        }}
+      >
+        <div
+          style={{
+            width: "min(calc(100% - 56px), 1260px)",
+            height: 92,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 28,
+          }}
+        >
+          <a
+            href={PORTAL_BASE}
+            aria-label="Apionix 首頁"
+            style={{ display: "flex", alignItems: "center", textDecoration: "none" }}
+          >
+            <img
+              src={`${PORTAL_BASE}/assets/apionix-wordmark.png`}
+              alt="Apionix"
+              style={{ width: 190, height: 58, objectFit: "contain" }}
+            />
+          </a>
+          <nav className="apionix-nav-links" style={{ display: "flex", gap: 36, color: "#21324f", fontWeight: 800 }}>
+            <a href={`${PORTAL_BASE}#home`} style={{ color: "inherit", textDecoration: "none" }}>首頁</a>
+            <a href={`${PORTAL_BASE}#product`} style={{ color: "inherit", textDecoration: "none" }}>平台介紹</a>
+            <div className="apionix-service-dropdown">
+              <a
+                className="apionix-service-trigger"
+                href={`${PORTAL_BASE}#services`}
+                aria-haspopup="true"
+              >
+                核心服務 <span aria-hidden="true">⌄</span>
+              </a>
+              <div className="apionix-service-menu" aria-label="核心服務選單">
+                <a href="/">APK 安全分析</a>
+                <a href={`${PORTAL_BASE}/iot-system.html`}>IoT 裝置檢測</a>
+              </div>
+            </div>
+            <a href={`${PORTAL_BASE}#flow`} style={{ color: "inherit", textDecoration: "none" }}>使用流程</a>
+            <a href={`${PORTAL_BASE}#contact`} style={{ color: "inherit", textDecoration: "none" }}>聯絡我們</a>
+          </nav>
+          <div className="apionix-nav-actions" style={{ display: "flex", gap: 14 }}>
+            <a
+              href={`${PORTAL_BASE}#product`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 999,
+                padding: "13px 24px",
+                fontWeight: 900,
+                border: "1px solid rgba(8,18,33,.22)",
+                color: "#18263d",
+                background: "rgba(255,255,255,.62)",
+                textDecoration: "none",
+              }}
+            >
+              了解平台
+            </a>
+            <a
+              href={`${PORTAL_BASE}#services`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 999,
+                padding: "13px 24px",
+                fontWeight: 900,
+                border: "1px solid transparent",
+                color: "#ffffff",
+                background: "linear-gradient(135deg,#2f7dff,#1154e5)",
+                boxShadow: "0 16px 36px rgba(29,114,255,.22)",
+                textDecoration: "none",
+              }}
+            >
+              立即開始
+            </a>
+          </div>
+        </div>
+      </header>
+
       <div
         style={{
           width: "min(1100px, 100%)",
           margin: "0 auto",
+          padding: "24px 20px",
         }}
       >
         <div
@@ -1258,21 +1396,6 @@ export default function App() {
                         Result
                       </button>
 
-                      <button
-                        onClick={() => openPdf(sample.sample_id)}
-                        disabled={sample.status !== "finished"}
-                        style={{
-                          borderRadius: 12,
-                          border: "1px solid #cbd5e1",
-                          background: sample.status === "finished" ? "#ffffff" : "#f8fafc",
-                          padding: "8px 12px",
-                          fontWeight: 700,
-                          cursor: sample.status === "finished" ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        PDF
-                      </button>
-
                       {(sample.status === "received" || sample.status === "failed") && (
                         <button
                           onClick={() => startAnalysis(sample.sample_id)}
@@ -1371,9 +1494,44 @@ export default function App() {
         </div>
       </div>
 
+      <footer
+        style={{
+          marginTop: 28,
+          padding: "28px 20px",
+          color: "#cbd5e1",
+          background: "#07152f",
+          borderTop: "1px solid #16315f",
+          fontFamily:
+            'Inter, "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        }}
+      >
+        <div
+          style={{
+            width: "min(1100px, 100%)",
+            margin: "0 auto",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <strong style={{ color: "#ffffff", fontSize: 18 }}>Apionix</strong>
+            <div style={{ marginTop: 6, fontSize: 13 }}>
+              APK Security Analysis Platform
+            </div>
+          </div>
+          <a href={PORTAL_BASE} style={{ color: "#93c5fd", textDecoration: "none", fontWeight: 700 }}>
+            返回 Apionix 首頁 →
+          </a>
+        </div>
+      </footer>
+
       <ReportModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
+        onDownloadPdf={openPdf}
         result={modalResult}
       />
 

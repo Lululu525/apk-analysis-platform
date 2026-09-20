@@ -69,6 +69,11 @@ def findings_from_analysis(result: AnalysisResult) -> List[Finding]:
                 severity=component_severity[comp_type],
                 confidence=0.95,
                 category="privilege_escalation",
+                description=(
+                    f"偵測到 {len(comps)} 個可由其他應用程式呼叫、且未要求 android:permission "
+                    f"保護的 exported {comp_type}。這代表外部 App 可能啟動該元件；是否形成實際漏洞，"
+                    "仍需依元件用途、Intent 輸入驗證及是否能存取敏感功能進一步確認。"
+                ),
                 cwe=["CWE-926"],
                 evidence={
                     "components": [
