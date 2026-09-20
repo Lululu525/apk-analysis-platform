@@ -215,6 +215,7 @@ def build_selection(rows: list[dict]) -> tuple[list[dict], dict]:
         else:
             os.environ["LOKY_MAX_CPU_COUNT"] = previous
     main = fits[17]
+    assert scaler.mean_ is not None and scaler.scale_ is not None and scaler.var_ is not None
     scaler_state = {"mean": scaler.mean_.tolist(), "scale": scaler.scale_.tolist(),
                     "variance": scaler.var_.tolist(), "n_samples_seen": int(scaler.n_samples_seen_)}
     matrix_hash = fingerprint([{ "sha256": r["sha256"], "features": r["features"]} for r in rows])

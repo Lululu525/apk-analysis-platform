@@ -1,0 +1,2 @@
+# Preserve the byte-level identity of the append-only Golden review authority.
+dataset/authz_v2/gold_review_log.jsonl text eol=lf

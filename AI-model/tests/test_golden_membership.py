@@ -167,4 +167,13 @@ def test_repository_annotation_template_carries_version_provenance_schema():
     assert all(row["row_kind"] == "apk_membership_placeholder" for row in rows)
     assert all(row["spec_version"] == "" and row["guide_version"] == "" for row in rows)
     review_log = REPO_ROOT / "dataset" / "authz_v2" / "gold_review_log.jsonl"
-    assert review_log.read_bytes() == b""
+    review_log_bytes = review_log.read_bytes()
+    if review_log_bytes:
+        assert review_log_bytes.endswith(b"\n")
+        events = [
+            json.loads(line)
+            for line in review_log_bytes.decode("utf-8").splitlines()
+        ]
+        event_ids = [event["review_event_id"] for event in events]
+        assert len(event_ids) == len(set(event_ids))
+        assert all(event["event_schema_version"] == "gold-review-event-v1" for event in events)
