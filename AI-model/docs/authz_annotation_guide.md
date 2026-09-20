@@ -1,9 +1,18 @@
 # Android Authorization Evidence Annotation Guide
 
-- 文件版本：`authz-annotation-guide-v0.2-meeting-approved`
+- 文件版本：`authz-annotation-guide-v0.3-ai-assisted-review`
 - 依據：`docs/authz_label_spec.md` 的 `authz-label-spec-v0.2-meeting-approved`
-- 狀態：供 50 APK Golden Set 單一 reviewer 人工覆核使用
-- 最後更新：2026-09-02
+- 狀態：供 50 APK Golden Set 單一 reviewer 採 Claude CLI 證據預審、人工最終確認使用
+- 最後更新：2026-09-10
+
+本版只調整 review workflow 與 decision provenance，不改變 v0.2 label spec 的 R/I/S/A 或 positive／negative／unknown 語意。既有 `authz-annotation-guide-v0.2-meeting-approved` events 保留原版本；新 AI-assisted events 必須記錄本版 guide、原 packet guide version、workflow version、assistant identity 與 proposal fingerprint。
+
+### 輸出語言
+
+- 人工畫面的證據解釋與限制以繁體中文為主。
+- Component/package/class/method/variable、程式碼、Manifest/XML attributes、JSON/JSONL keys/enums、reason codes、paths、hashes 與 IDs 保留英文或來源原始 identity，不翻譯。
+- JSONL 中 Claude 撰寫的 `reviewer_notes`／`grouping_basis` 使用英文；真實非 ASCII／obfuscated identifier 直接使用來源 UTF-8 字元，不能翻譯、重新命名或改成 Unicode escape。
+- Source code 中原有的非 ASCII identifier、comment 或 string literal 是原始 evidence，逐字保留，不視為敘述語言違規。
 
 ## 1. 本指南要回答的問題
 
@@ -18,7 +27,8 @@ Reviewer 不是判斷「這個 APK 是否惡意」，也不是看到 exported co
 ### 2.1 指定 reviewer
 
 - 本版依會議決策由同一位指定 reviewer 完成 50 APK Golden Set 的人工覆核，不以第二位 reviewer 作為前置條件。
-- Reviewer 必須逐一保存 R/I/S/A decision、evidence reference、reason code、confidence、timestamp 與 guide version。
+- Claude CLI 必須先逐一完成 R/I/S/A decision、evidence reference、reason code、timestamp 與 guide/workflow provenance；指定 reviewer 檢查畫面上的關鍵證據後，只輸入最終 `gold_authz_label` 與 `reviewer_confidence`。人工核准不得延伸到畫面未列出的 unit。
+- `reviewer_id` 表示對最終 label/confidence 負責的人；`assistant_id`、`assistant_proposal_sha256`、`assistant_proposed_fields` 與 `human_confirmed_fields` 必須使 Claude 提案和人工輸入可區分。
 - Reviewer 可以指出欄位不足、reason code 不清楚或 guide 無法處理的分支；證據不足時保留 `unknown`，不得為了補 positive／negative 數量降低標準。
 - 若後續取得第二位 reviewer，其結果只能作額外 validation event，不回頭覆寫本版的原始 manual review event。
 
@@ -26,7 +36,15 @@ Reviewer 不是判斷「這個 APK 是否惡意」，也不是看到 exported co
 
 - MobSF／FlowDroid 可以協助定位 Manifest、source、sink、path 與 guard candidates，降低搜尋時間。
 - 工具 finding、risk score、zero finding、LF vote、observed label、revised label 或模型輸出都不能直接決定 `gold_authz_label`。
+- Claude CLI 是 evidence analyst：可以讀 packet、分組、查 source/Manifest／一手平台文件、提出完整 R/I/S/A 與 derived label，但只有人工 reviewer 明確給出的 label/confidence 可以觸發 Gold event append。
 - Reviewer packet 採 evidence-visible、verdict-blind：可以看原始與正規化工具 evidence，不得看其結論性風險標籤或模型答案。
+
+### 2.3 Session 與寫入邊界
+
+- 每個 Claude CLI session 最多新增 20 個 unique `review_unit_id`；同一 unit 的 supersession 不計入新 unique unit，但必須使用獨立修訂流程。
+- 同一時間只允許一個 writer。所有 append 必須經 `app/tools/golden_review_session.py` 的 expected-SHA、lock 與 pure-suffix 驗證。
+- 第 20 筆完成後必須產生該範圍的實驗紀錄並終止目前 session；下一筆只能由新的 Claude CLI session 開始。
+- 詳細、具可執行完成條件的唯一流程見 `docs/agents/golden-review-session.md`。
 
 ## 3. Reviewer 可以看與不得看的資料
 
@@ -158,12 +176,14 @@ otherwise
     -> unknown (human) / abstain (LF or model)
 ```
 
-### Step 6：填 reason、confidence 與 evidence references
+### Step 6：Claude 完成 proposal，人工只確認 label/confidence
 
 - `unknown` 必須填至少一個 `gold_unknown_reason_code`，並選一個 primary reason。
 - 所有結論必須引用 evidence reference；不可只寫「看起來像」。
-- Reviewer confidence 只能是 metadata，不得把低信心 positive 改叫 unknown，亦不得用高信心補足缺失 evidence。
-- Primary dry-run 模板中的 human label/confidence/reason/timestamp 起始必須為空，由 reviewer 親自填入。
+- Claude 必須先填 R/I/S/A、evidence status、reason、notes 與 references，並由決策表算出唯一 derived label；proposal 未通過 mandatory checklist 時不得詢問人工。
+- 人工 reviewer 檢查 Claude 顯示的關鍵證據後，只親自提供 `gold_authz_label` 與 `reviewer_confidence`。Confidence 只能是 metadata，不得把低信心 positive 改叫 unknown，亦不得用高信心補足缺失 evidence。
+- 人工 label 與 derived label 不一致時，回到 evidence/proposal 修正並重新確認，不得在 append 時偷偷改寫任一方的值。
+- Primary dry-run 模板中的 human label/confidence 起始必須為空；Claude proposal 欄位與人工確認欄位必須分開保存。
 
 ## 6. Component-specific checklist
 
@@ -265,7 +285,7 @@ otherwise
 
 ## 9. Golden annotation template
 
-Golden annotation artifact 應包含 identity/evidence/status 欄位，以及下列由指定 reviewer 親填的空白欄：
+Golden annotation artifact 應包含 identity/evidence/status 欄位。AI-assisted workflow 中由 Claude 建議的 R/I/S/A 與人工親自提供的 label/confidence 必須以 provenance 欄位區分：
 
 ```text
 review_event_id
@@ -284,9 +304,15 @@ gold_unknown_reason_codes
 reviewer_confidence
 reviewer_notes
 reviewed_at
+assistant_id
+assistant_proposal_sha256
+assistant_proposed_fields
+human_confirmed_fields
+review_workflow_version
+packet_guide_version
 ```
 
-建立模板時，上述 human decision/confidence/reason/timestamp 欄位必須全部為空。Identity 與 evidence references 可以預填；`observed_authz_label`、`revised_authz_label`、model score 與 `model_decision` 不得顯示在 reviewer packet。
+建立模板時，decision/confidence/reason/timestamp 欄位必須全部為空。Identity 與 evidence references 可以預填；`observed_authz_label`、`revised_authz_label`、model score 與 `model_decision` 不得顯示在 reviewer packet。Append 時 `human_confirmed_fields` 固定為 `gold_authz_label,reviewer_confidence`；其餘 decision synthesis 欄位列入 `assistant_proposed_fields`。
 
 ## 10. Append-only review 與修訂
 

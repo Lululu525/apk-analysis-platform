@@ -41,8 +41,9 @@ Claude 先完成全部查核，再向人工 reviewer 提問：
 3. Packet 有相關反編譯 Java／smali 時必須實際讀取，引用 unit-specific callsite／entry／guard 行；沒有 source 時明確填 `source_review_status=unavailable`，證據不足的 predicate 保留 `unknown`。
 4. exported、permission、protected broadcast、target SDK、Manifest merge 或其他平台語意會影響判斷時，查官方 Android 文件或 AOSP 原始碼，填 `platform_semantics_status=verified_primary_source` 與 URL；不需要平台語意時填 `not_needed`。
 5. 一次提出完整 R/I/S/A、各自 evidence status、由決策表推導的 label、reason codes、confidence 建議、證據引用與 limitation。畫面上的解釋使用繁體中文；寫入 proposal JSONL 的 `reviewer_notes`／`grouping_basis` 使用英文。Claude 不把 zero finding、缺 XML、工具失敗、XREF／keyword hit 或「未觀察到」當成 negative proof。
+6. 不論 derived label 是 positive 或 negative，每一組呈現給人工 reviewer 的畫面都必須附上該 unit 相關的實際原始碼片段（quoted source code，逐字引用行號與內容，而非僅用文字描述或摘要代替）。人工只能核准畫面上實際看得到程式碼的 unit；negative 不得以「元件未 exported，故省略程式碼」為由略過程式碼呈現。
 
-完成條件：每個 unit 都通過 `golden_review_session.validate_proposal` 的 mandatory checklist，且 label 可由 R/I/S/A 唯一推導。
+完成條件：每個 unit 都通過 `golden_review_session.validate_proposal` 的 mandatory checklist，且 label 可由 R/I/S/A 唯一推導，且畫面上每個 unit（不分 positive／negative）都附有實際引用的原始碼片段。
 
 ## 3. Safe grouping
 
@@ -122,7 +123,7 @@ Claude 對 `gold_review_log.jsonl` 的直接 Edit、重寫、腳本臨時 append
 5. 人工確認後，重新執行 status 取得最新 SHA，再用 app/tools/golden_review_session.py append-approved-group append（同一 component、同一段程式邏輯、共用關鍵證據的多筆才可用 safe_group；不同 component 或決定性證據不同時需逐筆 append）。assistant-id 用本 session 的 claude-sonnet-5/session_<本次session id> 格式。
 6. 滿 20 筆觸發 SESSION_LIMIT_REACHED 後立即執行 close-session，產生實驗紀錄後立刻停止，不得繼續分析或 append 下一筆。
 
-其他規範：全程繁體中文敘述、英文/原始 identity 保留技術欄位（gold_review_log.jsonl 的 reviewer_notes/grouping_basis 固定英文 ASCII）；append 前務必再次 status 確認 SHA 未變；未經人工明確核准前不得 append；每組須先完整讀完程式碼與 manifest 才能提出 R/I/S/A，不得以 keyword hit 或工具零結果代替判定。
+其他規範：全程繁體中文敘述、英文/原始 identity 保留技術欄位（gold_review_log.jsonl 的 reviewer_notes/grouping_basis 固定英文 ASCII）；append 前務必再次 status 確認 SHA 未變；未經人工明確核准前不得 append；每組須先完整讀完程式碼與 manifest 才能提出 R/I/S/A，不得以 keyword hit 或工具零結果代替判定；不論 label 為 positive 或 negative，每一組都必須附上該 unit 相關的實際原始碼片段（quoted source code，逐字引用行號與內容）供人工 reviewer 直接審閱，不得只用文字描述或摘要取代程式碼本身。
 ```
 
 若 `close-session` 前的 `status` 顯示 `dataset_complete: true`（全部 385 個 review units 已審查完畢），則不產生下一輪 prompt，改為回報「全部 review units 已完成審查，不得再開新 review session」。

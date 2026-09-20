@@ -12,6 +12,10 @@ Default five canonical triage roles, label string equal to role name (`needs-tri
 
 Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Golden review sessions
+
+Before reading reviewer packets, proposing R/I/S/A, asking the human reviewer for a decision, or writing `gold_review_log.jsonl`, load and follow `docs/agents/golden-review-session.md`. Its Traditional-Chinese narrative/English technical-output boundary, single-writer append command, human-input boundary, evidence checklist, 20-unit session cap, experiment record, and stop/new-session gate are mandatory.
+
 ## CLI / shell tooling
 
 Prefer the PowerShell tool (pwsh 7+) for CLI commands; fall back to the Bash tool if a PowerShell invocation errors. See `docs/agents/shell-conventions.md` for dual-write examples of repo-specific commands (e.g. the heredoc pattern in `docs/agents/issue-tracker.md`).
