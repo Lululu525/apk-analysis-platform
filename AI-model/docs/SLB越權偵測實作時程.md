@@ -1,8 +1,58 @@
 # SLB 越權偵測實作時程
 
-## 2026-09-04 Scope Reset：目前唯一執行順序
+## 2026-09-21 Scope Reframe：目前唯一執行順序
 
-本節是目前唯一有效的近期執行順序；下方原始週次、日期與工作內容保留為歷史時程和既有研究設計。若舊內容與本節或 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md) 衝突，以 ADR-0001 與本節為準。領域術語以根目錄 [`CONTEXT.md`](../CONTEXT.md) 為準。
+本節是目前唯一有效的執行順序，依據 [`ADR-0002`](adr/0002-evaluation-framework-and-bottleneck-over-slb.md)。下方 2026-09-04 區段與原 14 週 schedule 保留為歷史紀錄；若有衝突，以 ADR-0001、ADR-0002 與本節為準。
+
+### 目前狀態
+
+2026-09-04 區段列出的 6-APK 工具校準、50-APK Golden membership 凍結、evidence packets 與 Gold review 都已完成。已有的成果：
+
+- Gold 授權標籤：385 個 review units 全部審完（以 unit 最新 event 計：positive 58、negative 302、unknown 25，二分類 360）。
+- 訓練資料已重產為與 Gold 同一粒度與 id：pilot-300 全量 2,121 units，排除 Golden lineage 後訓練池 1,685 units／164 APK（`app/tools/build_training_units.py`、`app/tools/build_training_pool.py`）。
+- 可達性規則（`app/tools/r_gate.py`）與 Gold 的 R 判定 384／384 一致，且沒有任何 Gold 可達的 unit 被規則判為不可達。
+- Gold 中 dangerous permission 的矛盾判定已依 `authz_annotation_guide.md` Step 1 的釐清，以 supersession event 統一。
+
+### 研究主張
+
+一次分析一個目標 APK，以 R/I/S/A 定義並人工建立 Gold 授權標籤，並用 Gold 量化自動化越權風險偵測的難點。目前資料顯示：Gold negative 中約八成是 R 被否定，而 R 可以完全由 Manifest 語意規則重現；外部可達的候選中，區分真假主要依賴 I，而 I 與 A 的自動化證據超出本專題工程範圍。Vanilla／SLB 降為探索性實驗，回答「缺少 I 證據時模型與 weak-label revision 能做到什麼」。
+
+### 執行順序
+
+依序進行，前一項完成再做下一項：
+
+1. **Gold 一致性檢查**：以程式找出同一 safe group（同 APK、同 component、同一段程式邏輯）內 R/I/S/A 不一致的 units，只讀不寫。發現矛盾時依 `docs/agents/golden-review-session.md` §5.1 的修訂流程處理，須人工核准。
+2. **Feature 依據改寫**：先前以 Gold 分布作為排除 `linkage_status`、強調 `sink_group_id` 的理由，改以 spec §8.2 與 S 的先驗語意為依據，並揭露曾檢視 Gold 分布。
+3. **規則能走多遠**：在 Gold 二分類上比較 `exported && !protected`、可達性規則、可達性規則加 sink 類別先驗。sink 先驗不得由 Gold 估計，只能取自先驗知識或訓練池。分類與排序指標並列，並先定義 Precision@K 以整體或每個 APK 計算。
+4. **I 瓶頸量化**：在 R confirmed 的 Gold 中，量化因 I 被否定的 negative，並檢查現有自動化特徵能否區分它們。
+5. **M2／M3 縮小規模**：同一 MLP 架構，3 個固定 seeds；LF 只看 I／S，且須避免 LF 依據的欄位被 feature 原樣重建，並記錄 revised 對 LF 輸出的一致率。結果不論 M2 與 M3 是否有差都照實報告。
+
+### 建議週次
+
+| 週次 | 日期 | 工作 |
+| --- | --- | --- |
+| Week 5 | 2026-09-21～09-27 | ADR-0002、時程更新；執行順序 1、2 |
+| Week 6 | 2026-09-28～10-04 | 執行順序 3 |
+| Week 7 | 2026-10-05～10-11 | 執行順序 4 |
+| Week 8–9 | 2026-10-12～10-25 | 執行順序 5 |
+| Week 10 | 2026-10-26～11-01 | 錯誤分析、F-Droid／MalDroid subgroup analysis |
+| Week 11–12 | 2026-11-02～11-15 | 撰寫報告 |
+| Week 13–14 | 2026-11-16～11-30 | Buffer、凍結 artifact 與 dataset fingerprint、簡報 |
+
+### 不做
+
+- 不實作跨方法 taint analysis 或 runtime guard dominance 分析；最小版 method 內 I 分析只在時間允許時作為加強項。
+- 不擴大 APK 範圍，維持 pilot-300。
+- 不細調 SLB 超參數；不以 SLB 結果宣稱 weak-label revision 的一般效果。
+- 不用 Gold 授權標籤選 feature、LF、threshold 或超參數。
+
+---
+
+## 2026-09-04 Scope Reset（歷史紀錄，已由 2026-09-21 區段取代）
+
+本節原為當時唯一有效的近期執行順序，其中的 6-APK 校準、Golden membership、evidence packets 與 Gold review 已完成；研究主張與後續優先序已由上方 2026-09-21 區段與 ADR-0002 取代。以下保留原文。
+
+下方原始週次、日期與工作內容保留為歷史時程和既有研究設計。若舊內容與本節或 [`ADR-0001`](adr/0001-single-target-apk-authorization-risk.md) 衝突，以 ADR-0001 與本節為準。領域術語以根目錄 [`CONTEXT.md`](../CONTEXT.md) 為準。
 
 ### 凍結後的研究主張
 
@@ -50,7 +100,7 @@
 > 目前恢復兩週前的主線：6-APK 工具校準 → 凍結 50-APK membership → 工具輔助 evidence packets → 人工 Gold review。只有 weak-label noise 與獨立 evaluation 可行後，才啟動 SLB。
 
 - **建立日期**：2026-08-22
-- **最近更新**：2026-09-04
+- **最近更新**：2026-09-21（新增 Scope Reframe 區段，見 ADR-0002）
 - **預定開始日**：2026-08-24
 - **主要開發截止日**：2026-11-30
 - **資料來源**：MalDroid-2020 與 F-Droid APK
