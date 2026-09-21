@@ -325,3 +325,120 @@ def test_jsonl_rejects_chinese_agent_prose_and_preserves_unicode_identity(tmp_pa
     assert b"o/\\u706c.smali" not in raw
     parsed = json.loads(raw.decode("utf-8"))
     assert parsed["unit_specific_evidence_references"] == ["sources/smali/o/灬.smali"]
+
+
+def _revise(
+    units: Path,
+    packet_root: Path,
+    review_log: Path,
+    proposals: Path,
+    *,
+    label: str = "unknown",
+    expected_sha: str | None = None,
+) -> list[dict]:
+    return session.append_revision(
+        review_log=review_log,
+        review_units_csv=units,
+        packet_root=packet_root,
+        proposals_jsonl=proposals,
+        human_label=label,
+        human_confidence="medium",
+        reviewer_id="human-reviewer",
+        assistant_id="claude-cli:test-session",
+        expected_log_sha256=expected_sha or hashlib.sha256(review_log.read_bytes()).hexdigest(),
+    )
+
+
+def _reviewed_log(tmp_path: Path) -> tuple[Path, Path, list[dict[str, str]], Path, dict]:
+    units, packet_root, rows = _write_units(tmp_path, 1)
+    review_log = tmp_path / "review.jsonl"
+    review_log.write_bytes(b"")
+    proposals = tmp_path / "proposals.jsonl"
+    _write_proposals(proposals, [_proposal(rows[0], label="negative")])
+    [original] = _append(tmp_path, units, packet_root, review_log, proposals)
+    return units, packet_root, rows, review_log, original
+
+
+def _revision_proposal(row: dict[str, str], supersedes: str) -> dict:
+    proposal = _proposal(row, label="unknown")
+    proposal["supersedes_review_event_id"] = supersedes
+    proposal["change_reason"] = "Clarified permission semantics under the existing spec."
+    return proposal
+
+
+def test_revision_appends_supersession_and_keeps_original(tmp_path):
+    units, packet_root, rows, review_log, original = _reviewed_log(tmp_path)
+    before = review_log.read_bytes()
+    proposals = tmp_path / "revision.jsonl"
+    _write_proposals(proposals, [_revision_proposal(rows[0], original["review_event_id"])])
+
+    [revised] = _revise(units, packet_root, review_log, proposals)
+
+    assert review_log.read_bytes().startswith(before)
+    assert revised["supersedes_review_event_id"] == original["review_event_id"]
+    assert revised["change_reason"].isascii()
+    assert revised["gold_authz_label"] == "unknown"
+    assert revised["review_unit_id"] == original["review_unit_id"]
+    status = session.status_payload(review_log, units)
+    assert status["event_count"] == 2
+    assert status["unique_review_unit_count"] == 1
+
+
+def test_revision_rejects_unreviewed_unit(tmp_path):
+    units, packet_root, rows = _write_units(tmp_path, 1)
+    review_log = tmp_path / "review.jsonl"
+    review_log.write_bytes(b"")
+    proposals = tmp_path / "revision.jsonl"
+    _write_proposals(proposals, [_revision_proposal(rows[0], "not-an-event")])
+
+    with pytest.raises(session.ReviewProtocolError, match="只接受已審查"):
+        _revise(units, packet_root, review_log, proposals)
+    assert review_log.read_bytes() == b""
+
+
+def test_revision_must_supersede_latest_event(tmp_path):
+    units, packet_root, rows, review_log, original = _reviewed_log(tmp_path)
+    proposals = tmp_path / "revision.jsonl"
+    _write_proposals(proposals, [_revision_proposal(rows[0], original["review_event_id"])])
+    _revise(units, packet_root, review_log, proposals)
+    before = review_log.read_bytes()
+
+    # 再次以已被取代的舊 event 為目標，會造成分岔，必須拒絕。
+    with pytest.raises(session.ReviewProtocolError, match="最新的 event"):
+        _revise(units, packet_root, review_log, proposals)
+    assert review_log.read_bytes() == before
+
+
+def test_revision_requires_ascii_change_reason(tmp_path):
+    units, packet_root, rows, review_log, original = _reviewed_log(tmp_path)
+    before = review_log.read_bytes()
+    proposal = _revision_proposal(rows[0], original["review_event_id"])
+    proposal["change_reason"] = "依 spec 釐清。"
+    proposals = tmp_path / "revision.jsonl"
+    _write_proposals(proposals, [proposal])
+
+    with pytest.raises(session.ReviewProtocolError, match="英文 ASCII"):
+        _revise(units, packet_root, review_log, proposals)
+    assert review_log.read_bytes() == before
+
+
+def test_revision_rejects_label_mismatch_and_stale_sha(tmp_path):
+    units, packet_root, rows, review_log, original = _reviewed_log(tmp_path)
+    before = review_log.read_bytes()
+    proposals = tmp_path / "revision.jsonl"
+    _write_proposals(proposals, [_revision_proposal(rows[0], original["review_event_id"])])
+
+    with pytest.raises(session.ReviewProtocolError, match="決策表不一致"):
+        _revise(units, packet_root, review_log, proposals, label="negative")
+    with pytest.raises(session.ReviewProtocolError, match="已變更"):
+        _revise(units, packet_root, review_log, proposals, expected_sha="0" * 64)
+    assert review_log.read_bytes() == before
+
+
+def test_daily_append_still_rejects_reviewed_unit(tmp_path):
+    units, packet_root, rows, review_log, _ = _reviewed_log(tmp_path)
+    proposals = tmp_path / "again.jsonl"
+    _write_proposals(proposals, [_proposal(rows[0], label="negative")])
+
+    with pytest.raises(session.ReviewProtocolError, match="supersession"):
+        _append(tmp_path, units, packet_root, review_log, proposals)

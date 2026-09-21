@@ -3,7 +3,8 @@
 Claude CLI 負責讀取盲化 evidence、提出 R/I/S/A 與可稽核理由；指定人工
 reviewer 只輸入最終 label 與 confidence。本模組是 gold review log 的唯一
 允許寫入入口，負責驗證決策表、packet identity、單一 writer、pure-suffix
-append，以及每 20 個新 unique review units 的 session 邊界。
+append，以及每 20 個新 unique review units 的 session 邊界。已審查 unit 的
+修訂走獨立的 `append-revision`（supersession event），不混入日常 append。
 """
 from __future__ import annotations
 
@@ -328,6 +329,8 @@ def _build_event(
     assistant_id: str,
     proposal_sha256: str,
     reviewed_at: str,
+    supersedes_review_event_id: str | None = None,
+    change_reason: str | None = None,
 ) -> dict[str, Any]:
     event: dict[str, Any] = {
         "event_schema_version": EVENT_SCHEMA_VERSION,
@@ -370,11 +373,72 @@ def _build_event(
         "safe_group_id": proposal.get("safe_group_id"),
         "grouping_basis": proposal.get("grouping_basis"),
         "shared_evidence_fingerprint": proposal.get("shared_evidence_fingerprint"),
-        "supersedes_review_event_id": None,
-        "change_reason": None,
+        "supersedes_review_event_id": supersedes_review_event_id,
+        "change_reason": change_reason,
         "new_evidence_packet_sha256": None,
     }
     return event
+
+
+def _read_log_for_append(review_log: Path, expected_log_sha256: str) -> bytes:
+    """核對人工核准時看到的 log SHA，回傳 append 前的原始 bytes。"""
+    old_bytes = review_log.read_bytes() if review_log.is_file() else b""
+    actual_log_sha = sha256_bytes(old_bytes)
+    if actual_log_sha != expected_log_sha256.lower():
+        raise ReviewProtocolError(
+            "review log 在人工核准後已變更，拒絕 append："
+            f"expected={expected_log_sha256.lower()}, actual={actual_log_sha}"
+        )
+    if old_bytes and not old_bytes.endswith(b"\n"):
+        raise ReviewProtocolError("review log 缺結尾換行，拒絕產生黏行。")
+    return old_bytes
+
+
+def _locked_pure_suffix_append(
+    review_log: Path, old_bytes: bytes, events: Sequence[Mapping[str, Any]], created_at: str
+) -> None:
+    """以 exclusive lock 寫入，並驗證結果恰為舊 bytes 加上新 events。"""
+    payload = b"".join(
+        (json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+        for event in events
+    )
+    lock_path = review_log.with_name(review_log.name + ".lock")
+    review_log.parent.mkdir(parents=True, exist_ok=True)
+    lock_handle = None
+    try:
+        try:
+            lock_handle = lock_path.open("x", encoding="utf-8")
+        except FileExistsError as exc:
+            raise ReviewProtocolError(
+                f"偵測到另一個 writer 或未清理 lock：{lock_path}"
+            ) from exc
+        lock_handle.write(
+            json.dumps(
+                {
+                    "workflow_version": WORKFLOW_VERSION,
+                    "pid": os.getpid(),
+                    "created_at": created_at,
+                    "expected_log_sha256": sha256_bytes(old_bytes),
+                },
+                ensure_ascii=False,
+            )
+        )
+        lock_handle.flush()
+        os.fsync(lock_handle.fileno())
+
+        if review_log.is_file() and review_log.read_bytes() != old_bytes:
+            raise ReviewProtocolError("取得 lock 後 review log 已變更，拒絕 append。")
+        with review_log.open("ab") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        actual_after = review_log.read_bytes()
+        if actual_after != old_bytes + payload:
+            raise ReviewProtocolError("append 後不是舊 bytes 的 pure suffix；立即停止。")
+    finally:
+        if lock_handle is not None:
+            lock_handle.close()
+            lock_path.unlink(missing_ok=True)
 
 
 def experiment_log_path(directory: Path, start: int, end: int) -> Path:
@@ -402,15 +466,7 @@ def append_approved_group(
     _require_ascii_prose(reviewer_id, "reviewer_id")
     _require_ascii_prose(assistant_id, "assistant_id")
 
-    old_bytes = review_log.read_bytes() if review_log.is_file() else b""
-    actual_log_sha = sha256_bytes(old_bytes)
-    if actual_log_sha != expected_log_sha256.lower():
-        raise ReviewProtocolError(
-            "review log 在人工核准後已變更，拒絕 append："
-            f"expected={expected_log_sha256.lower()}, actual={actual_log_sha}"
-        )
-    if old_bytes and not old_bytes.endswith(b"\n"):
-        raise ReviewProtocolError("review log 缺結尾換行，拒絕產生黏行。")
+    old_bytes = _read_log_for_append(review_log, expected_log_sha256)
 
     events = _read_jsonl(review_log)
     ordered_reviewed = _ordered_unique_unit_ids(events)
@@ -477,51 +533,95 @@ def append_approved_group(
         )
         for proposal, unit_id in zip(proposals, proposal_ids)
     ]
-    payload = b"".join(
-        (
-            json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n"
-        ).encode("utf-8")
-        for event in new_events
-    )
+    _locked_pure_suffix_append(review_log, old_bytes, new_events, reviewed_at)
+    return new_events
 
-    lock_path = review_log.with_name(review_log.name + ".lock")
-    review_log.parent.mkdir(parents=True, exist_ok=True)
-    lock_handle = None
-    try:
-        try:
-            lock_handle = lock_path.open("x", encoding="utf-8")
-        except FileExistsError as exc:
-            raise ReviewProtocolError(
-                f"偵測到另一個 writer 或未清理 lock：{lock_path}"
-            ) from exc
-        lock_handle.write(
-            json.dumps(
-                {
-                    "workflow_version": WORKFLOW_VERSION,
-                    "pid": os.getpid(),
-                    "created_at": reviewed_at,
-                    "expected_log_sha256": actual_log_sha,
-                },
-                ensure_ascii=False,
-            )
+
+def append_revision(
+    *,
+    review_log: Path,
+    review_units_csv: Path,
+    packet_root: Path,
+    proposals_jsonl: Path,
+    human_label: str,
+    human_confidence: str,
+    reviewer_id: str,
+    assistant_id: str,
+    expected_log_sha256: str,
+) -> list[dict[str, Any]]:
+    """為已審查 unit append supersession event（authz_label_spec §7.2）。
+
+    與日常 append 分開：只接受已審查 unit，不佔 20 筆 session 名額；每筆
+    proposal 必須指定它取代的 event（且必須是該 unit 目前最新的 event），
+    並以英文寫明 change_reason。舊 event 原樣保留。
+    """
+    if human_label not in LABEL_VALUES:
+        raise ReviewProtocolError("人工 label 僅可為 positive/negative/unknown。")
+    if human_confidence not in CONFIDENCE_VALUES:
+        raise ReviewProtocolError("人工 confidence 僅可為 low/medium/high。")
+    _require_ascii_prose(reviewer_id, "reviewer_id")
+    _require_ascii_prose(assistant_id, "assistant_id")
+
+    old_bytes = _read_log_for_append(review_log, expected_log_sha256)
+
+    events = _read_jsonl(review_log)
+    _ordered_unique_unit_ids(events)
+    latest_event_id: dict[str, str] = {}
+    for event in events:
+        latest_event_id[str(event["review_unit_id"])] = str(event["review_event_id"])
+    _, units = _load_review_units(review_units_csv)
+
+    proposals = _read_jsonl(proposals_jsonl)
+    proposal_sha = sha256_bytes(proposals_jsonl.read_bytes())
+    proposal_ids = [str(proposal.get("review_unit_id") or "") for proposal in proposals]
+    missing_units = set(proposal_ids) - set(units)
+    if missing_units:
+        raise ReviewProtocolError("proposal 含未知 unit：" + ", ".join(sorted(missing_units)))
+    not_reviewed = set(proposal_ids) - set(latest_event_id)
+    if not_reviewed:
+        raise ReviewProtocolError(
+            "修訂只接受已審查 unit；新 unit 請走日常 append："
+            + ", ".join(sorted(not_reviewed))
         )
-        lock_handle.flush()
-        os.fsync(lock_handle.fileno())
+    for proposal, unit_id in zip(proposals, proposal_ids):
+        supersedes = proposal.get("supersedes_review_event_id")
+        if not isinstance(supersedes, str) or not supersedes:
+            raise ReviewProtocolError(f"{unit_id} 缺 supersedes_review_event_id。")
+        if supersedes != latest_event_id[unit_id]:
+            raise ReviewProtocolError(
+                f"{unit_id} 只能取代目前最新的 event："
+                f"latest={latest_event_id[unit_id]}, given={supersedes}"
+            )
+        _require_ascii_prose(proposal.get("change_reason"), "change_reason")
+    _validate_group(proposals, units)
 
-        if review_log.is_file() and review_log.read_bytes() != old_bytes:
-            raise ReviewProtocolError("取得 lock 後 review log 已變更，拒絕 append。")
-        with review_log.open("ab") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        actual_after = review_log.read_bytes()
-        if actual_after != old_bytes + payload:
-            raise ReviewProtocolError("append 後不是舊 bytes 的 pure suffix；立即停止。")
-    finally:
-        if lock_handle is not None:
-            lock_handle.close()
-            lock_path.unlink(missing_ok=True)
+    derived_labels = [
+        validate_proposal(proposal, units[unit_id], packet_root=packet_root)
+        for proposal, unit_id in zip(proposals, proposal_ids)
+    ]
+    if any(label != human_label for label in derived_labels):
+        raise ReviewProtocolError(
+            "人工 label 與 Claude 提出的 R/I/S/A 決策表不一致；"
+            "必須回到 evidence/proposal 修正，不得改寫人工輸入。"
+        )
 
+    reviewed_at = taipei_now()
+    new_events = [
+        _build_event(
+            proposal,
+            units[unit_id],
+            reviewer_id=reviewer_id,
+            human_label=human_label,
+            human_confidence=human_confidence,
+            assistant_id=assistant_id,
+            proposal_sha256=proposal_sha,
+            reviewed_at=reviewed_at,
+            supersedes_review_event_id=str(proposal["supersedes_review_event_id"]),
+            change_reason=str(proposal["change_reason"]),
+        )
+        for proposal, unit_id in zip(proposals, proposal_ids)
+    ]
+    _locked_pure_suffix_append(review_log, old_bytes, new_events, reviewed_at)
     return new_events
 
 
@@ -668,6 +768,18 @@ def _parser() -> argparse.ArgumentParser:
     append.add_argument("--expected-log-sha256", required=True)
     append.add_argument("--experiment-dir", type=Path, default=DEFAULT_EXPERIMENT_DIR)
 
+    revision = subparsers.add_parser("append-revision")
+    common(revision)
+    revision.add_argument("--packet-root", type=Path, default=DEFAULT_PACKET_ROOT)
+    revision.add_argument("--proposals", type=Path, required=True)
+    revision.add_argument("--label", choices=sorted(LABEL_VALUES), required=True)
+    revision.add_argument(
+        "--confidence", choices=sorted(CONFIDENCE_VALUES), required=True
+    )
+    revision.add_argument("--reviewer-id", required=True)
+    revision.add_argument("--assistant-id", required=True)
+    revision.add_argument("--expected-log-sha256", required=True)
+
     close = subparsers.add_parser("close-session")
     common(close)
     close.add_argument("--experiment-dir", type=Path, default=DEFAULT_EXPERIMENT_DIR)
@@ -698,6 +810,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(payload, ensure_ascii=False, indent=2))
             if payload["session"]["boundary_reached"]:
                 print("SESSION_LIMIT_REACHED: 執行 close-session，完成紀錄後立即終止本 Claude CLI session。")
+            return 0
+        if args.command == "append-revision":
+            events = append_revision(
+                review_log=args.review_log,
+                review_units_csv=args.review_units,
+                packet_root=args.packet_root,
+                proposals_jsonl=args.proposals,
+                human_label=args.label,
+                human_confidence=args.confidence,
+                reviewer_id=args.reviewer_id,
+                assistant_id=args.assistant_id,
+                expected_log_sha256=args.expected_log_sha256,
+            )
+            payload = status_payload(args.review_log, args.review_units)
+            payload["appended_revision_events"] = [
+                {
+                    "review_unit_id": event["review_unit_id"],
+                    "review_event_id": event["review_event_id"],
+                    "supersedes_review_event_id": event["supersedes_review_event_id"],
+                }
+                for event in events
+            ]
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
             return 0
         if args.command == "close-session":
             path = close_session(

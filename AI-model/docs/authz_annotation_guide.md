@@ -110,6 +110,8 @@ Membership／audit manifest 可以保存上述 metadata 供抽樣稽核，但產
 - `refuted`：有證據支持一般第三方 app 被有效且適用的機制阻擋。
 - `unknown`：只有 exported/protected boolean、permission name 未解析、SDK semantics 不明或動態註冊狀態不明。
 
+> **釐清（2026-09-21）：dangerous 等級的 permission 判 `unknown`。** 這不是新規則，是依 `authz_label_spec.md` §6.4「permission protection level … 語意未解 → unknown」的適用說明。dangerous 等級是否擋得住本威脅模型的外部 caller，取決於使用者是否授權、Android 版本與 OEM 行為；若該 permission 並非由目標 APK 或 framework 定義，實際 protection level 還取決於裝置上先宣告它的 app，也可能被第三方 app 搶先定義。單憑 Manifest evidence 不足以支持 `refuted` 或 `confirmed`。起因是 `home.solo.launcher.free.UninstallShortcutReceiver`（`com.android.launcher.permission.UNINSTALL_SHORTCUT`）兩筆 unit 在 2026-09-18 分別被判為 R `refuted` 與 `confirmed`，依本釐清以 supersession event 統一為 R `unknown`、label `unknown`（2026-09-21 人工核准；新 event `ca532dd8-1820-49ac-9c55-940c2cf0472e` 取代 `e87743ab-415a-47cd-854f-54f38931197d`，`e507fd89-6501-4a94-947c-3cffe6c982e3` 取代 `158ab005-db08-43c7-a49e-95936fedb5b6`）。
+
 若 R 被可靠 refute，可標 negative 並 early-stop；I/S/A 設為 `not_reviewed_after_decisive_blocker`。
 
 ### Step 2：I — Attacker-controlled input influence

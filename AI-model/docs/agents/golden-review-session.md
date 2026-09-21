@@ -91,6 +91,26 @@ Claude 對 `gold_review_log.jsonl` 的直接 Edit、重寫、腳本臨時 append
 
 完成條件：命令成功、append 後狀態可重新解析，且新增 events 數等於人工核准的 units 數。
 
+### 5.1 已審查 unit 的修訂（supersession）
+
+修訂不混入日常 append，只使用：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.tools.golden_review_session append-revision `
+  --proposals <session-local-revision-proposals.jsonl> `
+  --label <人工label> `
+  --confidence <人工confidence> `
+  --reviewer-id hikaru820 `
+  --assistant-id <精確Claude模型與session識別> `
+  --expected-log-sha256 <status輸出的SHA-256>
+```
+
+- Proposal 除了第 2 節的全部欄位與 mandatory checklist 之外，另須包含 `supersedes_review_event_id`（必須是該 unit 目前最新的 event）與英文 ASCII 的 `change_reason`。
+- 只接受已審查 unit，不佔 20 筆 session 名額；舊 event 原樣保留，新 event 以 pure suffix append（`authz_label_spec.md` §7.2）。
+- 第 2、4 節的證據呈現與人工核准要求照舊：畫面必須列出原判定、修訂理由、完整 R/I/S/A 與引用原始碼，人工只回覆 label 與 confidence。
+
+完成條件：新 event 正確指向被取代的 event，`status` 的 unique unit 數不變、event 數增加修訂筆數。
+
 ## 6. 第 20 筆終止閘門
 
 當輸出出現 `SESSION_LIMIT_REACHED`，只執行：
