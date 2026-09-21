@@ -1,0 +1,13 @@
+{
+  "apks_dropped": 44,
+  "apks_dropped_unregistered": 0,
+  "apks_kept": 164,
+  "exclusion_source": "golden_50_selection_metadata.json#candidate_registry.excluded_from_future_training_by_golden_group",
+  "lineage_rule": "同 package 或明確 canonical lineage 的傳遞閉包；不以 certificate 單獨推定 lineage。",
+  "schema_version": "training-pool-v1",
+  "units_dropped_golden": 384,
+  "units_dropped_lineage_sibling": 52,
+  "units_in": 2121,
+  "units_kept": 1685,
+  "unregistered_apks": []
+}
