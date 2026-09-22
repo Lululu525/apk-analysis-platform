@@ -435,6 +435,49 @@ def test_revision_rejects_label_mismatch_and_stale_sha(tmp_path):
     assert review_log.read_bytes() == before
 
 
+def test_revision_report_pairs_before_and_after_and_refuses_overwrite(tmp_path):
+    units, packet_root, rows, review_log, original = _reviewed_log(tmp_path)
+    proposals = tmp_path / "revision.jsonl"
+    _write_proposals(proposals, [_revision_proposal(rows[0], original["review_event_id"])])
+    [revised] = _revise(units, packet_root, review_log, proposals)
+    output = tmp_path / "docs" / "revision.md"
+
+    session.revision_report(
+        review_log=review_log,
+        review_units_csv=units,
+        unit_ids=[rows[0]["review_unit_id"]],
+        output=output,
+        title="Revision batch",
+    )
+
+    text = output.read_text(encoding="utf-8")
+    assert original["review_event_id"] in text
+    assert revised["review_event_id"] in text
+    assert "| negative | unknown | 1 |" in text
+    with pytest.raises(session.ReviewProtocolError, match="拒絕覆寫"):
+        session.revision_report(
+            review_log=review_log,
+            review_units_csv=units,
+            unit_ids=[rows[0]["review_unit_id"]],
+            output=output,
+            title="Revision batch",
+        )
+
+
+def test_revision_report_rejects_unrevised_unit(tmp_path):
+    units, _, rows, review_log, _ = _reviewed_log(tmp_path)
+
+    with pytest.raises(session.ReviewProtocolError, match="尚未修訂"):
+        session.revision_report(
+            review_log=review_log,
+            review_units_csv=units,
+            unit_ids=[rows[0]["review_unit_id"]],
+            output=tmp_path / "docs" / "revision.md",
+            title="Revision batch",
+        )
+    assert not (tmp_path / "docs" / "revision.md").exists()
+
+
 def test_daily_append_still_rejects_reviewed_unit(tmp_path):
     units, packet_root, rows, review_log, _ = _reviewed_log(tmp_path)
     proposals = tmp_path / "again.jsonl"

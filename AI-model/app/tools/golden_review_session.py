@@ -723,6 +723,88 @@ def close_session(
     return path
 
 
+def revision_report(
+    *,
+    review_log: Path,
+    review_units_csv: Path,
+    unit_ids: Sequence[str],
+    output: Path,
+    title: str,
+) -> Path:
+    """為一批修訂產生不可覆寫的前後對照紀錄（修訂版的 close-session 紀錄）。
+
+    每個 unit 以最新 event 為修訂後判定，並沿 `supersedes_review_event_id`
+    找回它取代的 event。清單中有任何 unit 尚未修訂即拒絕產生，避免紀錄
+    與實際 log 不符。
+    """
+    if not unit_ids or len(set(unit_ids)) != len(unit_ids):
+        raise ReviewProtocolError("修訂紀錄的 unit 清單不得為空或重複。")
+    if output.exists():
+        raise ReviewProtocolError(f"修訂紀錄已存在，拒絕覆寫：{output}")
+    events = _read_jsonl(review_log)
+    _ordered_unique_unit_ids(events)
+    _, units = _load_review_units(review_units_csv)
+    by_event_id = {str(event["review_event_id"]): event for event in events}
+    latest: dict[str, Mapping[str, Any]] = {}
+    for event in events:
+        latest[str(event["review_unit_id"])] = event
+
+    pairs: list[tuple[str, Mapping[str, Any], Mapping[str, Any]]] = []
+    for unit_id in unit_ids:
+        if unit_id not in units or unit_id not in latest:
+            raise ReviewProtocolError(f"修訂紀錄含未知或未審查 unit：{unit_id}")
+        revised = latest[unit_id]
+        superseded_id = revised.get("supersedes_review_event_id")
+        if not superseded_id:
+            raise ReviewProtocolError(f"{unit_id} 尚未修訂，不能產生修訂紀錄。")
+        pairs.append((unit_id, by_event_id[str(superseded_id)], revised))
+
+    def risa(event: Mapping[str, Any]) -> str:
+        return "／".join(f"`{event.get(f'{name}_predicate_result')}`" for name in "RISA")
+
+    transitions = Counter(
+        (str(before.get("gold_authz_label")), str(after.get("gold_authz_label")))
+        for _, before, after in pairs
+    )
+    lines = [
+        f"# {title}",
+        "",
+        f"- Workflow：`{WORKFLOW_VERSION}`（`append-revision`，supersession）",
+        f"- 本批修訂 units：{len(pairs)}",
+        f"- Review log SHA-256：`{sha256_file(review_log)}`",
+        f"- Review log events／unique units：{len(events)}／{len(latest)}",
+        "- 人工輸入欄位：`gold_authz_label`、`reviewer_confidence`；舊 event 原樣保留",
+        "",
+        "## 逐筆前後對照",
+        "",
+    ]
+    for ordinal, (unit_id, before, after) in enumerate(pairs, 1):
+        unit = units[unit_id]
+        lines.extend(
+            [
+                f"### 第 {ordinal} 筆 — `{unit_id}`",
+                "",
+                f"- APK／component：`{unit.get('apk_sha256')}`／`{unit.get('manifest_component_name')}`",
+                f"- Caller／sink：`{unit.get('caller_method')}`／`{unit.get('sensitive_sink')}`",
+                f"- 修訂前 `{before.get('review_event_id')}`：R/I/S/A {risa(before)}；label／confidence `{before.get('gold_authz_label')}`／`{before.get('reviewer_confidence')}`",
+                f"- 修訂後 `{after.get('review_event_id')}`：R/I/S/A {risa(after)}；label／confidence `{after.get('gold_authz_label')}`／`{after.get('reviewer_confidence')}`",
+                f"- Reviewer／assistant：`{after.get('reviewer_id')}`／`{after.get('assistant_id')}`",
+                f"- 修訂理由：{after.get('change_reason')}",
+                f"- 說明：{after.get('reviewer_notes')}",
+                "",
+            ]
+        )
+    lines.extend(["## label 變化統計", "", "| 修訂前 | 修訂後 | 筆數 |", "| --- | --- | ---: |"])
+    for (before_label, after_label), count in sorted(transitions.items()):
+        lines.append(f"| {before_label} | {after_label} | {count} |")
+    lines.append(f"| **合計** | | **{len(pairs)}** |")
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(lines) + "\n")
+    return output
+
+
 def status_payload(review_log: Path, review_units_csv: Path) -> dict[str, Any]:
     events = _read_jsonl(review_log)
     ordered = _ordered_unique_unit_ids(events)
@@ -780,6 +862,14 @@ def _parser() -> argparse.ArgumentParser:
     revision.add_argument("--assistant-id", required=True)
     revision.add_argument("--expected-log-sha256", required=True)
 
+    report = subparsers.add_parser("revision-report")
+    common(report)
+    report.add_argument(
+        "--units-file", type=Path, required=True, help="每行一個 review_unit_id"
+    )
+    report.add_argument("--output", type=Path, required=True)
+    report.add_argument("--title", required=True)
+
     close = subparsers.add_parser("close-session")
     common(close)
     close.add_argument("--experiment-dir", type=Path, default=DEFAULT_EXPERIMENT_DIR)
@@ -833,6 +923,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 for event in events
             ]
             print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "revision-report":
+            unit_ids = [
+                line.strip()
+                for line in args.units_file.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")
+            ]
+            path = revision_report(
+                review_log=args.review_log,
+                review_units_csv=args.review_units,
+                unit_ids=unit_ids,
+                output=args.output,
+                title=args.title,
+            )
+            print(f"REVISION_REPORT_WRITTEN: {path}")
             return 0
         if args.command == "close-session":
             path = close_session(

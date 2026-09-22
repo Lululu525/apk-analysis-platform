@@ -109,7 +109,9 @@ Claude 對 `gold_review_log.jsonl` 的直接 Edit、重寫、腳本臨時 append
 - 只接受已審查 unit，不佔 20 筆 session 名額；舊 event 原樣保留，新 event 以 pure suffix append（`authz_label_spec.md` §7.2）。
 - 第 2、4 節的證據呈現與人工核准要求照舊：畫面必須列出原判定、修訂理由、完整 R/I/S/A 與引用原始碼，人工只回覆 label 與 confidence。
 
-完成條件：新 event 正確指向被取代的 event，`status` 的 unique unit 數不變、event 數增加修訂筆數。
+- 一批修訂同樣不超過 20 筆，一批一個 session。批次結束時以 `revision-report --units-file <本批修訂的 unit 清單> --output <紀錄路徑> --title <標題>` 產生不可覆寫的前後對照紀錄（修訂版的 `close-session` 紀錄）。
+
+完成條件：新 event 正確指向被取代的 event，`status` 的 unique unit 數不變、event 數增加修訂筆數，且該批已有修訂紀錄。
 
 ## 6. 第 20 筆終止閘門
 

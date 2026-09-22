@@ -15,24 +15,25 @@
 
 ### 研究主張
 
-一次分析一個目標 APK，以 R/I/S/A 定義並人工建立 Gold 授權標籤，並用 Gold 量化自動化越權風險偵測的難點。目前資料顯示：Gold negative 中約八成是 R 被否定，而 R 可以完全由 Manifest 語意規則重現；外部可達的候選中，區分真假主要依賴 I，而 I 與 A 的自動化證據超出本專題工程範圍。Vanilla／SLB 降為探索性實驗，回答「缺少 I 證據時模型與 weak-label revision 能做到什麼」。
+一次分析一個目標 APK，以 R/I/S/A 定義並人工建立 Gold 授權標籤，並用 Gold 量化自動化越權風險偵測的難點。目前資料顯示：Gold negative 中約八成是 R 被否定，而 R 可以完全由 Manifest 語意規則重現；外部可達的候選中，區分真假需要程式碼層級的 I 與 S linkage 證據，其自動化（連同 A）超出本專題工程範圍。因審查在第一個被否定的 predicate 停止，I 與 S 不分開計算瓶頸（見 ADR-0002 2026-09-22 修訂）。Vanilla／SLB 降為探索性實驗，回答「缺少程式碼層級證據時模型與 weak-label revision 能做到什麼」。
 
 ### 執行順序
 
 依序進行，前一項完成再做下一項：
 
-1. **Gold 一致性檢查**：以程式找出同一 safe group（同 APK、同 component、同一段程式邏輯）內 R/I/S/A 不一致的 units，只讀不寫。發現矛盾時依 `docs/agents/golden-review-session.md` §5.1 的修訂流程處理，須人工核准。
+1. **Gold 一致性檢查**：以程式找出同一 safe group（同 APK、同 component、同一段程式邏輯）內 R/I/S/A 不一致的 units，只讀不寫。發現矛盾時依 `docs/agents/golden-review-session.md` §5.1 的修訂流程處理，須人工核准。**已完成（2026-09-22，`app/tools/gold_consistency.py`）**：無矛盾，但發現第 1–226 筆與第 227 筆之後的 I 判定標準不同。
+1b. **早期 I 判定重審**：依 guide Step 2 的觸發慣例，重審第 1–226 筆中 I=refuted 且 R 未被否定的 46 筆，分 A／B／C 三批、每批一個 session，計畫見 `docs/golden_revision_i_convention_plan.md`。重審完成前，不計算任何依賴 Gold 的數字（第 3、4 項）。
 2. **Feature 依據改寫**：先前以 Gold 分布作為排除 `linkage_status`、強調 `sink_group_id` 的理由，改以 spec §8.2 與 S 的先驗語意為依據，並揭露曾檢視 Gold 分布。
 3. **規則能走多遠**：在 Gold 二分類上比較 `exported && !protected`、可達性規則、可達性規則加 sink 類別先驗。sink 先驗不得由 Gold 估計，只能取自先驗知識或訓練池。分類與排序指標並列，並先定義 Precision@K 以整體或每個 APK 計算。
-4. **I 瓶頸量化**：在 R confirmed 的 Gold 中，量化因 I 被否定的 negative，並檢查現有自動化特徵能否區分它們。
+4. **程式碼層級瓶頸量化**：在 R confirmed 的 Gold 中，量化因 I 或 S 被否定（合併計算）的 negative，並檢查現有自動化特徵能否區分它們。不以 I、S 各自的次數比較何者為瓶頸。
 5. **M2／M3 縮小規模**：同一 MLP 架構，3 個固定 seeds；LF 只看 I／S，且須避免 LF 依據的欄位被 feature 原樣重建，並記錄 revised 對 LF 輸出的一致率。結果不論 M2 與 M3 是否有差都照實報告。
 
 ### 建議週次
 
 | 週次 | 日期 | 工作 |
 | --- | --- | --- |
-| Week 5 | 2026-09-21～09-27 | ADR-0002、時程更新；執行順序 1、2 |
-| Week 6 | 2026-09-28～10-04 | 執行順序 3 |
+| Week 5 | 2026-09-21～09-27 | ADR-0002、時程更新；執行順序 1、1b（A／B／C 三批）、2 |
+| Week 6 | 2026-09-28～10-04 | 執行順序 1b 收尾；執行順序 3 |
 | Week 7 | 2026-10-05～10-11 | 執行順序 4 |
 | Week 8–9 | 2026-10-12～10-25 | 執行順序 5 |
 | Week 10 | 2026-10-26～11-01 | 錯誤分析、F-Droid／MalDroid subgroup analysis |
