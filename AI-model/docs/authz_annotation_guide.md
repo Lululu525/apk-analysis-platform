@@ -127,7 +127,7 @@ Membership／audit manifest 可以保存上述 metadata 供抽樣稽核，但產
 
 只看到 entry method 有 Intent/URI 參數，不等於已確認 influence。若 input analysis 未執行，使用 `attacker_input_not_analyzed`，I=`unknown`。
 
-> **釐清（2026-09-19 人工核准，2026-09-22 寫入本 guide）：外部觸發本身屬於控制流影響。** 當 R=confirmed，且敏感效果由 component 的 lifecycle／UI chain 執行（例如 `Service.onCreate` → `fillPostData`、`Activity.onCreate` → `sendSMS`、`onReceive` → 網路請求），外部 caller 以 explicit Intent 啟動或送出 broadcast 這個動作就會讓 sink 執行時，I=`confirmed`（控制流），即使沒有任何攻擊者資料流入 sink 的參數。`reviewer_notes` 必須註明「no attacker data reaches the sink arguments; trigger only」作為 limitation。以下情況仍判 I=`refuted`：sink 實際上無法由任何外部觸發到達（例如只有使用者點擊 app 內自建的圖示才會執行），或攻擊者輸入在到達敏感效果之前已被證明替換為固定值或被拒絕。此慣例於 Golden review 第 261–280 筆 session 由 reviewer hikaru820 核准，第 227 筆之後的 event 依此判定；第 1–226 筆中依字面讀法判為 I=`refuted` 的 units，依 `docs/golden_revision_i_convention_plan.md` 以 supersession event 重審。
+> **釐清（2026-09-19 人工核准，2026-09-22 寫入本 guide）：外部觸發本身屬於控制流影響。** 當 R=confirmed，且敏感效果由 component 的 lifecycle／UI chain 執行（例如 `Service.onCreate` → `fillPostData`、`Activity.onCreate` → `sendSMS`、`onReceive` → 網路請求），外部 caller 以 explicit Intent 啟動或送出 broadcast 這個動作就會讓 sink 執行時，I=`confirmed`（控制流），即使沒有任何攻擊者資料流入 sink 的參數。`reviewer_notes` 必須註明「no attacker data reaches the sink arguments; trigger only」作為 limitation。以下情況仍判 I=`refuted`：sink 實際上無法由任何外部觸發到達（例如只有使用者點擊 app 內自建的圖示才會執行），或攻擊者輸入在到達敏感效果之前已被證明替換為固定值或被拒絕。此慣例於 Golden review 第 261–280 筆 session 由 reviewer hikaru820 核准，第 227 筆之後的 event 依此判定；第 1–226 筆中依字面讀法判為 I=`refuted` 的 units，已依 `docs/golden_revision_i_convention_plan.md` 以 supersession event 重審完畢（2026-09-25，46 筆中 37 筆改判、9 筆維持原判定；紀錄見 `docs/golden_revision_i_convention_report_A.md`、`_B.md`、`_C.md`）。
 
 ### Step 3：S — Sensitive effect reachability
 

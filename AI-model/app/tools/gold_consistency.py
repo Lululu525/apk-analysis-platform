@@ -65,22 +65,38 @@ def _group(
     return {key: ids for key, ids in groups.items() if len(ids) > 1}
 
 
+# 這些 evidence status 代表該 predicate 根本沒有被分析（early-stop 或上游 unknown），
+# 不是一個與其他 unit 相左的判定，比較時必須排除，否則審查深度差異會被誤報為矛盾。
+NOT_ANALYSED_STATUSES = frozenset(
+    {
+        "not_analyzed",
+        "not_reviewed_after_decisive_blocker",
+        "not_analyzed_due_to_upstream_unknown",
+        "analysis_failed",
+    }
+)
+
+
 def _diverging(
     unit_ids: Iterable[str],
     events: Mapping[str, Mapping[str, Any]],
     predicates: Sequence[str],
     include_label: bool = False,
 ) -> list[str]:
-    """回傳在此組內取值不一致的欄位名稱。"""
+    """回傳在此組內取值不一致的欄位名稱；未分析的 predicate 不列入比較。"""
     unit_ids = list(unit_ids)
-    fields = [f"{name}_predicate_result" for name in predicates]
-    if include_label:
-        fields.append("gold_authz_label")
-    return [
-        field
-        for field in fields
-        if len({str(events[unit_id].get(field)) for unit_id in unit_ids}) > 1
-    ]
+    diverging: list[str] = []
+    for name in predicates:
+        values = {
+            str(events[unit_id].get(f"{name}_predicate_result"))
+            for unit_id in unit_ids
+            if str(events[unit_id].get(f"{name}_evidence_status")) not in NOT_ANALYSED_STATUSES
+        }
+        if len(values) > 1:
+            diverging.append(f"{name}_predicate_result")
+    if include_label and len({str(events[unit_id].get("gold_authz_label")) for unit_id in unit_ids}) > 1:
+        diverging.append("gold_authz_label")
+    return diverging
 
 
 def check(

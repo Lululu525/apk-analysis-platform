@@ -8,7 +8,7 @@
 
 2026-09-04 區段列出的 6-APK 工具校準、50-APK Golden membership 凍結、evidence packets 與 Gold review 都已完成。已有的成果：
 
-- Gold 授權標籤：385 個 review units 全部審完（以 unit 最新 event 計：positive 58、negative 302、unknown 25，二分類 360）。
+- Gold 授權標籤：385 個 review units 全部審完，且已完成早期 I 判定重審（2026-09-25）。以 unit 最新 event 計：positive 84、negative 265、unknown 36，二分類 349，涵蓋 16 個有 positive 的 APK。
 - 訓練資料已重產為與 Gold 同一粒度與 id：pilot-300 全量 2,121 units，排除 Golden lineage 後訓練池 1,685 units／164 APK（`app/tools/build_training_units.py`、`app/tools/build_training_pool.py`）。
 - 可達性規則（`app/tools/r_gate.py`）與 Gold 的 R 判定 384／384 一致，且沒有任何 Gold 可達的 unit 被規則判為不可達。
 - Gold 中 dangerous permission 的矛盾判定已依 `authz_annotation_guide.md` Step 1 的釐清，以 supersession event 統一。
@@ -22,7 +22,7 @@
 依序進行，前一項完成再做下一項：
 
 1. **Gold 一致性檢查**：以程式找出同一 safe group（同 APK、同 component、同一段程式邏輯）內 R/I/S/A 不一致的 units，只讀不寫。發現矛盾時依 `docs/agents/golden-review-session.md` §5.1 的修訂流程處理，須人工核准。**已完成（2026-09-22，`app/tools/gold_consistency.py`）**：無矛盾，但發現第 1–226 筆與第 227 筆之後的 I 判定標準不同。
-1b. **早期 I 判定重審**：依 guide Step 2 的觸發慣例，重審第 1–226 筆中 I=refuted 且 R 未被否定的 46 筆，分 A／B／C 三批、每批一個 session，計畫見 `docs/golden_revision_i_convention_plan.md`。重審完成前，不計算任何依賴 Gold 的數字（第 3、4 項）。
+1b. **早期 I 判定重審**：依 guide Step 2 的觸發慣例，重審第 1–226 筆中 I=refuted 且 R 未被否定的 46 筆，計畫見 `docs/golden_revision_i_convention_plan.md`。**已完成（2026-09-25）**：A／B／C 三批共寫入 37 筆 supersession event（26 筆 negative→positive、11 筆 negative→unknown），9 筆維持 negative；紀錄見 `docs/golden_revision_i_convention_report_{A,B,C}.md`。完成後重跑 `gold_consistency`（0 矛盾）與 `r_gate`（384／384，不受影響）。
 2. **Feature 依據改寫**：先前以 Gold 分布作為排除 `linkage_status`、強調 `sink_group_id` 的理由，改以 spec §8.2 與 S 的先驗語意為依據，並揭露曾檢視 Gold 分布。
 3. **規則能走多遠**：在 Gold 二分類上比較 `exported && !protected`、可達性規則、可達性規則加 sink 類別先驗。sink 先驗不得由 Gold 估計，只能取自先驗知識或訓練池。分類與排序指標並列，並先定義 Precision@K 以整體或每個 APK 計算。
 4. **程式碼層級瓶頸量化**：在 R confirmed 的 Gold 中，量化因 I 或 S 被否定（合併計算）的 negative，並檢查現有自動化特徵能否區分它們。不以 I、S 各自的次數比較何者為瓶頸。

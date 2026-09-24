@@ -7,7 +7,9 @@ date: 2026-09-21
 
 ADR-0001 定下分析範圍後，Golden APK Set 已完成全部 385 個 review units 的 Gold 授權標籤。實際資料顯示：外部可達性（R）可以完全由 Manifest 語意的確定性規則重現；但在外部可達的候選中，區分真假需要程式碼層級的證據，也就是攻擊者輸入是否影響 sink（I），以及 entry 是否真的能到達 sink（S 的 linkage）。這兩者連同授權控制（A）的自動化需要 taint analysis、call graph 與 runtime guard dominance 分析，工程量超出本專題規模。現有自動化證據只有 Manifest 語意與「component class 內有呼叫敏感 API」，沒有 entry-to-sink 的連結，因此原先以 Vanilla／SLB 比較為主要成果的研究主張，其前提（模型能從自動化特徵學到程式碼層級的差異）不成立。本決策與學姐討論後採用。
 
-> **2026-09-22 修訂**：原文寫「區分真假主要依賴 I」。Gold 一致性檢查（`app/tools/gold_consistency.py`）顯示這個說法不成立：審查依 R → I → S → A 順序，並在第一個被否定的 predicate 停止，所以 I 永遠比 S 先被檢查；外部可達的 51 筆 negative 中，有 37 筆記錄為 I refuted，但 S 並未檢查。另外，同一個事實（外部 entry 到不了 sink）曾被不同 unit 分別記為 I 或 S refuted。因此 I 與 S 的個別次數反映的是審查順序與歸因習慣，不能用來證明瓶頸在 I。改為較保守、但不受審查順序影響的說法：瓶頸在需要讀程式碼的 I 與 S linkage，兩者合併計算。
+> **2026-09-22 修訂**：原文寫「區分真假主要依賴 I」。Gold 一致性檢查（`app/tools/gold_consistency.py`）顯示這個說法不成立：審查依 R → I → S → A 順序，並在第一個被否定的 predicate 停止，所以 I 永遠比 S 先被檢查；當時外部可達的 51 筆 negative 中，有 37 筆記錄為 I refuted，但 S 並未檢查。另外，同一個事實（外部 entry 到不了 sink）曾被不同 unit 分別記為 I 或 S refuted。因此 I 與 S 的個別次數反映的是審查順序與歸因習慣，不能用來證明瓶頸在 I。改為較保守、但不受審查順序影響的說法：瓶頸在需要讀程式碼的 I 與 S linkage，兩者合併計算。
+
+> **2026-09-25 更新（早期 I 判定重審完成）**：同一次一致性檢查也發現第 1–226 筆與第 227 筆之後的 I 判定標準不同。依 `docs/golden_revision_i_convention_plan.md` 重審 46 筆後，Gold 由 positive 58／negative 302／unknown 25 變為 **positive 84／negative 265／unknown 36**（二分類 349）。R 判定未變，可達性規則仍為 384／384。外部可達（R confirmed）的 129 筆中，positive 84、negative 21、unknown 24；那 21 筆 negative 由 I（13 筆）或 S（10 筆）否定，全部屬於程式碼層級，Manifest 語意無法判定，本 ADR 的主張因此更明確。重審後 Gold 內部無矛盾，且每筆 label 都可由 R/I/S/A 唯一推導。
 
 ## 決策
 
