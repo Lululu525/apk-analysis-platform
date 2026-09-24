@@ -1,0 +1,170 @@
+{
+  "baseline_version": "rule-baselines-v1",
+  "high_sensitivity_threshold": 0.7,
+  "layers": {
+    "pipeline_all_binary": {
+      "evaluated_units": 348,
+      "methods": {
+        "R0": {
+          "classification": {
+            "balanced_accuracy": 0.960377358490566,
+            "f1": 0.8877005347593583,
+            "fn": 0,
+            "fp": 21,
+            "macro_f1": 0.9232215836861625,
+            "precision": 0.7980769230769231,
+            "recall": 1.0,
+            "tn": 244,
+            "tp": 83
+          },
+          "ranking": {
+            "P@10": 0.9,
+            "P@50": 0.82,
+            "distinct_scores": 2,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.6875,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 84
+          }
+        },
+        "r_gate": {
+          "classification": {
+            "balanced_accuracy": 0.9566037735849057,
+            "f1": 0.8783068783068783,
+            "fn": 0,
+            "fp": 23,
+            "macro_f1": 0.9164709933940702,
+            "precision": 0.7830188679245284,
+            "recall": 1.0,
+            "tn": 242,
+            "tp": 83
+          },
+          "ranking": {
+            "P@10": 0.9,
+            "P@50": 0.82,
+            "distinct_scores": 3,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.6875,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 84
+          }
+        },
+        "r_gate+sink": {
+          "classification": {
+            "balanced_accuracy": 0.6129347578995226,
+            "f1": 0.37383177570093457,
+            "fn": 63,
+            "fp": 4,
+            "macro_f1": 0.630039826729924,
+            "precision": 0.8333333333333334,
+            "recall": 0.24096385542168675,
+            "tn": 261,
+            "tp": 20
+          },
+          "ranking": {
+            "P@10": 0.9,
+            "P@50": 0.9,
+            "distinct_scores": 8,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.7083333333333334,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 75
+          }
+        }
+      },
+      "negatives": 265,
+      "positives": 83
+    },
+    "reachable_subset": {
+      "evaluated_units": 106,
+      "methods": {
+        "R0": {
+          "classification": {
+            "balanced_accuracy": 0.5434782608695652,
+            "f1": 0.8877005347593583,
+            "fn": 0,
+            "fp": 21,
+            "macro_f1": 0.5238502673796791,
+            "precision": 0.7980769230769231,
+            "recall": 1.0,
+            "tn": 2,
+            "tp": 83
+          },
+          "ranking": {
+            "P@10": 0.9,
+            "P@50": 0.82,
+            "distinct_scores": 2,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.8541666666666666,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 84
+          }
+        },
+        "r_gate": {
+          "classification": {
+            "balanced_accuracy": 0.5,
+            "f1": 0.8783068783068783,
+            "fn": 0,
+            "fp": 23,
+            "macro_f1": 0.43915343915343913,
+            "precision": 0.7830188679245284,
+            "recall": 1.0,
+            "tn": 0,
+            "tp": 83
+          },
+          "ranking": {
+            "P@10": 0.9,
+            "P@50": 0.82,
+            "distinct_scores": 2,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.8541666666666666,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 84
+          }
+        },
+        "r_gate+sink": {
+          "classification": {
+            "balanced_accuracy": 0.5335254059717129,
+            "f1": 0.37383177570093457,
+            "fn": 63,
+            "fp": 4,
+            "macro_f1": 0.36786826880284823,
+            "precision": 0.8333333333333334,
+            "recall": 0.24096385542168675,
+            "tn": 19,
+            "tp": 20
+          },
+          "ranking": {
+            "P@10": 0.9,
+            "P@50": 0.9,
+            "distinct_scores": 7,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.875,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 75
+          }
+        }
+      },
+      "negatives": 23,
+      "positives": 83
+    }
+  },
+  "sink_prior_weights": {
+    "SENSITIVE_API_CAMERA": 0.7,
+    "SENSITIVE_API_CODE_EXEC": 0.2,
+    "SENSITIVE_API_CONTACTS": 0.8,
+    "SENSITIVE_API_DEVICE_ID": 0.9,
+    "SENSITIVE_API_GPS": 0.7,
+    "SENSITIVE_API_MICROPHONE": 0.7,
+    "SENSITIVE_API_NETWORK_CLIPBOARD": 0.5,
+    "SENSITIVE_API_SMS_PHONE": 1.0,
+    "SENSITIVE_API_STORAGE": 0.4
+  },
+  "unknown_sink_weight": 0.3
+}

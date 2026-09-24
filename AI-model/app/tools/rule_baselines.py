@@ -179,13 +179,8 @@ def _ranking(rows: Sequence[Mapping[str, Any]], method: str, ks: Sequence[int]) 
     }
 
 
-def evaluate(rows: Sequence[Mapping[str, Any]], ks: Sequence[int] = (10, 50)) -> dict[str, Any]:
-    methods = ("R0", "r_gate", "r_gate+sink")
+def _layer(rows: Sequence[Mapping[str, Any]], ks: Sequence[int]) -> dict[str, Any]:
     return {
-        "baseline_version": BASELINE_VERSION,
-        "sink_prior_weights": dict(SINK_PRIOR_WEIGHTS),
-        "unknown_sink_weight": UNKNOWN_SINK_WEIGHT,
-        "high_sensitivity_threshold": HIGH_SENSITIVITY_THRESHOLD,
         "evaluated_units": len(rows),
         "positives": sum(1 for row in rows if row["label"] == "positive"),
         "negatives": sum(1 for row in rows if row["label"] == "negative"),
@@ -194,20 +189,42 @@ def evaluate(rows: Sequence[Mapping[str, Any]], ks: Sequence[int] = (10, 50)) ->
                 "classification": _classification(rows, method),
                 "ranking": _ranking(rows, method, ks),
             }
-            for method in methods
+            for method in ("R0", "r_gate", "r_gate+sink")
         },
     }
 
 
-def _print_report(report: Mapping[str, Any]) -> None:
+def evaluate(rows: Sequence[Mapping[str, Any]], ks: Sequence[int] = (10, 50)) -> dict[str, Any]:
+    """依 ADR-0002 分兩層：整條流程，以及模型實際負責的外部可達子集。"""
+    reachable = [row for row in rows if row["reachability"] != "refuted"]
+    return {
+        "baseline_version": BASELINE_VERSION,
+        "sink_prior_weights": dict(SINK_PRIOR_WEIGHTS),
+        "unknown_sink_weight": UNKNOWN_SINK_WEIGHT,
+        "high_sensitivity_threshold": HIGH_SENSITIVITY_THRESHOLD,
+        "layers": {
+            "pipeline_all_binary": _layer(rows, ks),
+            "reachable_subset": _layer(reachable, ks),
+        },
+    }
+
+
+LAYER_TITLES = {
+    "pipeline_all_binary": "整條流程（Gold 全部二分類）",
+    "reachable_subset": "外部可達子集（模型實際負責的那一層）",
+}
+
+
+def _print_layer(title: str, layer: Mapping[str, Any]) -> None:
     print(
-        f"\nGold 二分類 {report['evaluated_units']} 筆"
-        f"（positive {report['positives']}、negative {report['negatives']}）\n"
+        f"\n=== {title} ===\n"
+        f"{layer['evaluated_units']} 筆"
+        f"（positive {layer['positives']}、negative {layer['negatives']}）\n"
     )
     header = f"{'方法':<14}{'TP':>5}{'FP':>5}{'FN':>5}{'TN':>5}{'P':>8}{'R':>8}{'F1':>8}{'MacroF1':>9}{'BalAcc':>8}"
     print(header)
     print("-" * len(header))
-    for method, payload in report["methods"].items():
+    for method, payload in layer["methods"].items():
         c = payload["classification"]
         print(
             f"{method:<14}{c['tp']:>5}{c['fp']:>5}{c['fn']:>5}{c['tn']:>5}"
@@ -217,13 +234,18 @@ def _print_report(report: Mapping[str, Any]) -> None:
     header2 = f"\n{'方法':<14}{'P@10':>8}{'P@50':>8}{'看到80%':>9}{'每APK P@3':>11}{'相異分數':>9}"
     print(header2)
     print("-" * (len(header2) - 1))
-    for method, payload in report["methods"].items():
+    for method, payload in layer["methods"].items():
         r = payload["ranking"]
         print(
             f"{method:<14}{r['P@10']:>8.3f}{r['P@50']:>8.3f}"
             f"{str(r['units_to_80pct_recall']):>9}{r['per_apk_mean_P@3']:>11.3f}"
             f"{r['distinct_scores']:>9}"
         )
+
+
+def _print_report(report: Mapping[str, Any]) -> None:
+    for key, layer in report["layers"].items():
+        _print_layer(LAYER_TITLES[key], layer)
     print("\n「看到80%」= 依分數排序後，要看到第幾筆才能找到 80% 的 positive。")
 
 
