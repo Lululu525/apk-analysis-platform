@@ -24,8 +24,8 @@
 1. **Gold 一致性檢查**：以程式找出同一 safe group（同 APK、同 component、同一段程式邏輯）內 R/I/S/A 不一致的 units，只讀不寫。發現矛盾時依 `docs/agents/golden-review-session.md` §5.1 的修訂流程處理，須人工核准。**已完成（2026-09-22，`app/tools/gold_consistency.py`）**：無矛盾，但發現第 1–226 筆與第 227 筆之後的 I 判定標準不同。
 1b. **早期 I 判定重審**：依 guide Step 2 的觸發慣例，重審第 1–226 筆中 I=refuted 且 R 未被否定的 46 筆，計畫見 `docs/golden_revision_i_convention_plan.md`。**已完成（2026-09-25）**：A／B／C 三批共寫入 37 筆 supersession event（26 筆 negative→positive、11 筆 negative→unknown），9 筆維持 negative；紀錄見 `docs/golden_revision_i_convention_report_{A,B,C}.md`。完成後重跑 `gold_consistency`（0 矛盾）與 `r_gate`（384／384，不受影響）。
 2. **Feature 依據改寫**：先前以 Gold 分布作為排除 `linkage_status`、強調 `sink_group_id` 的理由，改以 spec §8.2 與 S 的先驗語意為依據，並揭露曾檢視 Gold 分布。
-3. **規則能走多遠**：在 Gold 二分類上比較 `exported && !protected`、可達性規則、可達性規則加 sink 類別先驗。sink 先驗不得由 Gold 估計，只能取自先驗知識或訓練池。分類與排序指標並列，並先定義 Precision@K 以整體或每個 APK 計算。
-4. **程式碼層級瓶頸量化**：在 R confirmed 的 Gold 中，量化因 I 或 S 被否定（合併計算）的 negative，並檢查現有自動化特徵能否區分它們。不以 I、S 各自的次數比較何者為瓶頸。
+3. **規則能走多遠**：在 Gold 二分類上比較 `exported && !protected`、可達性規則、可達性規則加 sink 類別先驗。sink 先驗不得由 Gold 估計，只能取自先驗知識或訓練池。分類與排序指標並列。**已完成（2026-09-25，`app/tools/rule_baselines.py`、`dataset/authz_v2/experiments/rule_baselines.json`）**：整條流程 348 筆上 R0 macro F1 0.923、recall 1.000（244／265 的 negative 是未 exported）；外部可達的 106 筆上可達性規則 macro F1 0.439、balanced accuracy 0.500、TN 0，即毫無判斷力。sink 先驗（權重先 commit `e40bb10` 再計算）對分類有害（recall 0.241），對排序僅微幅改善（找到 80% positive 由第 84 筆提前到第 75 筆）。
+4. **程式碼層級瓶頸量化**：在外部可達的 Gold 中，量化因 I 或 S 被否定（合併計算）的 negative，並檢查現有自動化特徵能否區分它們。不以 I、S 各自的次數比較何者為瓶頸。**已完成（2026-09-25，`app/tools/bottleneck_analysis.py`、`dataset/authz_v2/experiments/bottleneck_analysis.json`）**：106 筆中 23 筆 negative 全部由 I（13）、S（8）或兩者（2）否定，沒有任何一筆由 Manifest 語意決定。以 Gold 答案直接擬合的上限（任何僅用這些特徵的分類器都無法超過）最高只有 macro F1 0.695，且需 28 個格子配 106 筆，接近死記；leave-one-APK-out 後降至 0.519，僅辨識出 23 筆中的 5 筆，較粗的特徵組合甚至低於「全判 positive」的 0.439。negative 高度集中，2 個 APK 即佔一半，顯示可分辨的訊號是 app-specific 的程式碼行為。已知限制：僅測試粗粒度特徵（未含 intent filter action、`uses_permissions`、SDK），且使用格子多數決而非 MLP。
 5. **M2／M3 縮小規模**：同一 MLP 架構，3 個固定 seeds；LF 只看 I／S，且須避免 LF 依據的欄位被 feature 原樣重建，並記錄 revised 對 LF 輸出的一致率。結果不論 M2 與 M3 是否有差都照實報告。
 
 ### 建議週次
