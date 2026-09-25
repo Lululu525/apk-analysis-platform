@@ -1,0 +1,104 @@
+{
+  "analysis_version": "bottleneck-analysis-v1",
+  "apks": 21,
+  "apks_holding_half_the_negatives": 2,
+  "leave_one_apk_out": {
+    "component_type": {
+      "balanced_accuracy": 0.5,
+      "fn": 0,
+      "fp": 23,
+      "macro_f1": 0.43915343915343913,
+      "tn": 0,
+      "tp": 83
+    },
+    "sink": {
+      "balanced_accuracy": 0.4457831325301205,
+      "fn": 9,
+      "fp": 23,
+      "macro_f1": 0.4111111111111111,
+      "tn": 0,
+      "tp": 74
+    },
+    "sink+component": {
+      "balanced_accuracy": 0.41566265060240964,
+      "fn": 14,
+      "fp": 23,
+      "macro_f1": 0.39428571428571424,
+      "tn": 0,
+      "tp": 69
+    },
+    "sink+component+method": {
+      "balanced_accuracy": 0.5183342063907805,
+      "fn": 15,
+      "fp": 18,
+      "macro_f1": 0.5186459336727672,
+      "tn": 5,
+      "tp": 68
+    }
+  },
+  "negatives": 23,
+  "negatives_per_apk": {
+    "2a86208f": 1,
+    "340a131b": 1,
+    "43cf3d7a": 2,
+    "73cd2e8a": 1,
+    "98079236": 10,
+    "c9f2c62a": 3,
+    "cdc5a93b": 2,
+    "ce71f089": 1,
+    "d1edd6ab": 2
+  },
+  "negatives_refuted_by": {
+    "I": 13,
+    "I+S": 2,
+    "S": 8
+  },
+  "oracle_ceiling": {
+    "component_type": {
+      "balanced_accuracy": 0.5,
+      "cells": 3,
+      "fn": 0,
+      "fp": 23,
+      "macro_f1": 0.43915343915343913,
+      "tn": 0,
+      "tp": 83
+    },
+    "sink": {
+      "balanced_accuracy": 0.5531691985332635,
+      "cells": 6,
+      "fn": 2,
+      "fp": 20,
+      "macro_f1": 0.547360248447205,
+      "tn": 3,
+      "tp": 81
+    },
+    "sink+component": {
+      "balanced_accuracy": 0.5434782608695652,
+      "cells": 14,
+      "fn": 0,
+      "fp": 21,
+      "macro_f1": 0.5238502673796791,
+      "tn": 2,
+      "tp": 83
+    },
+    "sink+component+method": {
+      "balanced_accuracy": 0.6618648507071765,
+      "cells": 28,
+      "fn": 2,
+      "fp": 15,
+      "macro_f1": 0.6949382089046894,
+      "tn": 8,
+      "tp": 81
+    }
+  },
+  "positives": 83,
+  "predict_all_positive": {
+    "balanced_accuracy": 0.5,
+    "fn": 0,
+    "fp": 23,
+    "macro_f1": 0.43915343915343913,
+    "tn": 0,
+    "tp": 83
+  },
+  "reachable_units": 106
+}
