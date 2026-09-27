@@ -1,0 +1,267 @@
+{
+  "action_buckets": {
+    "boot_power_net": [
+      "android.intent.action.ACTION_POWER_CONNECTED",
+      "android.intent.action.BOOT_COMPLETED",
+      "android.net.conn.CONNECTIVITY_CHANGE"
+    ],
+    "camera_media": [
+      "android.media.action.IMAGE_CAPTURE",
+      "android.media.action.STILL_IMAGE_CAMERA",
+      "android.media.action.VIDEO_CAMERA",
+      "android.media.action.VIDEO_CAPTURE"
+    ],
+    "implicit_content": [
+      "android.intent.action.SEND",
+      "android.intent.action.VIEW"
+    ],
+    "sms_telephony": [
+      "android.intent.action.NEW_OUTGOING_CALL",
+      "android.intent.action.PHONE_STATE",
+      "android.intent.action.START_SMS_SERVICE",
+      "android.provider.Telephony.SMS_RECEIVED"
+    ],
+    "widget_wallpaper": [
+      "android.appwidget.action.APPWIDGET_UPDATE",
+      "android.service.wallpaper.WallpaperService"
+    ]
+  },
+  "audit": {
+    "gold_eval": {
+      "all_zero_dimensions": [
+        "if_action_camera_media",
+        "if_action_widget_wallpaper",
+        "sink_group=SENSITIVE_API_GPS"
+      ],
+      "dimensions": 31,
+      "distinct_feature_vectors": 73,
+      "positives_per_dimension": {
+        "component_type=activity": 237,
+        "component_type=provider": 10,
+        "component_type=receiver": 51,
+        "component_type=service": 86,
+        "has_custom_action": 24,
+        "if_action_boot_power_net": 18,
+        "if_action_camera_media": 0,
+        "if_action_implicit_content": 10,
+        "if_action_platform_oov": 9,
+        "if_action_sms_telephony": 41,
+        "if_action_widget_wallpaper": 0,
+        "sink=__oov__": 114,
+        "sink=android/content/ContentResolver.query": 23,
+        "sink=android/database/Cursor.getString": 57,
+        "sink=android/os/Environment.getExternalStorageDirectory": 32,
+        "sink=android/telephony/SmsManager.sendTextMessage": 3,
+        "sink=android/webkit/WebView.loadUrl": 53,
+        "sink=java/io/FileOutputStream.<init>": 29,
+        "sink=java/lang/Class.forName": 27,
+        "sink=java/lang/reflect/Method.invoke": 46,
+        "sink_group=SENSITIVE_API_CAMERA": 4,
+        "sink_group=SENSITIVE_API_CODE_EXEC": 140,
+        "sink_group=SENSITIVE_API_CONTACTS": 80,
+        "sink_group=SENSITIVE_API_DEVICE_ID": 7,
+        "sink_group=SENSITIVE_API_GPS": 0,
+        "sink_group=SENSITIVE_API_MICROPHONE": 3,
+        "sink_group=SENSITIVE_API_NETWORK_CLIPBOARD": 37,
+        "sink_group=SENSITIVE_API_SMS_PHONE": 49,
+        "sink_group=SENSITIVE_API_STORAGE": 64,
+        "sink_permission_applicable": 170,
+        "sink_permission_declared": 159
+      },
+      "units": 384
+    },
+    "training": {
+      "all_zero_dimensions": [],
+      "dimensions": 31,
+      "distinct_feature_vectors": 119,
+      "positives_per_dimension": {
+        "component_type=activity": 1092,
+        "component_type=provider": 35,
+        "component_type=receiver": 237,
+        "component_type=service": 321,
+        "has_custom_action": 168,
+        "if_action_boot_power_net": 71,
+        "if_action_camera_media": 23,
+        "if_action_implicit_content": 27,
+        "if_action_platform_oov": 50,
+        "if_action_sms_telephony": 146,
+        "if_action_widget_wallpaper": 39,
+        "sink=__oov__": 231,
+        "sink=android/content/ContentResolver.query": 66,
+        "sink=android/database/Cursor.getString": 180,
+        "sink=android/os/Environment.getExternalStorageDirectory": 92,
+        "sink=android/telephony/SmsManager.sendTextMessage": 62,
+        "sink=android/webkit/WebView.loadUrl": 173,
+        "sink=java/io/FileOutputStream.<init>": 55,
+        "sink=java/lang/Class.forName": 228,
+        "sink=java/lang/reflect/Method.invoke": 598,
+        "sink_group=SENSITIVE_API_CAMERA": 2,
+        "sink_group=SENSITIVE_API_CODE_EXEC": 1065,
+        "sink_group=SENSITIVE_API_CONTACTS": 246,
+        "sink_group=SENSITIVE_API_DEVICE_ID": 3,
+        "sink_group=SENSITIVE_API_GPS": 18,
+        "sink_group=SENSITIVE_API_MICROPHONE": 4,
+        "sink_group=SENSITIVE_API_NETWORK_CLIPBOARD": 36,
+        "sink_group=SENSITIVE_API_SMS_PHONE": 136,
+        "sink_group=SENSITIVE_API_STORAGE": 175,
+        "sink_permission_applicable": 405,
+        "sink_permission_declared": 348
+      },
+      "units": 1685
+    }
+  },
+  "component_types": [
+    "activity",
+    "provider",
+    "receiver",
+    "service"
+  ],
+  "config_version": "authz-feature-v1",
+  "excluded_actions": [
+    "android.intent.action.MAIN"
+  ],
+  "fine_sink_min_count": 50,
+  "fine_sinks": [
+    [
+      "android/content/ContentResolver",
+      "query"
+    ],
+    [
+      "android/database/Cursor",
+      "getString"
+    ],
+    [
+      "android/os/Environment",
+      "getExternalStorageDirectory"
+    ],
+    [
+      "android/telephony/SmsManager",
+      "sendTextMessage"
+    ],
+    [
+      "android/webkit/WebView",
+      "loadUrl"
+    ],
+    [
+      "java/io/FileOutputStream",
+      "<init>"
+    ],
+    [
+      "java/lang/Class",
+      "forName"
+    ],
+    [
+      "java/lang/reflect/Method",
+      "invoke"
+    ]
+  ],
+  "platform_prefixes": [
+    "android.",
+    "com.android."
+  ],
+  "provenance": {
+    "fine_sink_coverage": 1454,
+    "gold_consulted": false,
+    "training_units": 1685,
+    "vocabulary_source": "dataset\\authz_v2\\training_units.jsonl"
+  },
+  "sink_groups": [
+    "SENSITIVE_API_CAMERA",
+    "SENSITIVE_API_CODE_EXEC",
+    "SENSITIVE_API_CONTACTS",
+    "SENSITIVE_API_DEVICE_ID",
+    "SENSITIVE_API_GPS",
+    "SENSITIVE_API_MICROPHONE",
+    "SENSITIVE_API_NETWORK_CLIPBOARD",
+    "SENSITIVE_API_SMS_PHONE",
+    "SENSITIVE_API_STORAGE"
+  ],
+  "sink_permissions": {
+    "android/bluetooth/BluetoothAdapter.getAddress": [
+      "android.permission.BLUETOOTH"
+    ],
+    "android/content/ContentResolver.query": [
+      "android.permission.READ_CONTACTS"
+    ],
+    "android/hardware/Camera.open": [
+      "android.permission.CAMERA"
+    ],
+    "android/hardware/Camera.startPreview": [
+      "android.permission.CAMERA"
+    ],
+    "android/hardware/Camera.takePicture": [
+      "android.permission.CAMERA"
+    ],
+    "android/location/LocationManager.getLastKnownLocation": [
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION"
+    ],
+    "android/location/LocationManager.requestLocationUpdates": [
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION"
+    ],
+    "android/location/LocationManager.requestSingleUpdate": [
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION"
+    ],
+    "android/media/AudioRecord.<init>": [
+      "android.permission.RECORD_AUDIO"
+    ],
+    "android/media/AudioRecord.startRecording": [
+      "android.permission.RECORD_AUDIO"
+    ],
+    "android/media/MediaRecorder.setAudioSource": [
+      "android.permission.RECORD_AUDIO"
+    ],
+    "android/media/MediaRecorder.start": [
+      "android.permission.RECORD_AUDIO"
+    ],
+    "android/net/wifi/WifiInfo.getMacAddress": [
+      "android.permission.ACCESS_WIFI_STATE"
+    ],
+    "android/os/Environment.getExternalStorageDirectory": [
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE"
+    ],
+    "android/os/Environment.getExternalStoragePublicDirectory": [
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE"
+    ],
+    "android/telephony/SmsManager.sendDataMessage": [
+      "android.permission.SEND_SMS"
+    ],
+    "android/telephony/SmsManager.sendMultipartTextMessage": [
+      "android.permission.SEND_SMS"
+    ],
+    "android/telephony/SmsManager.sendTextMessage": [
+      "android.permission.SEND_SMS"
+    ],
+    "android/telephony/TelephonyManager.getDeviceId": [
+      "android.permission.READ_PHONE_STATE"
+    ],
+    "android/telephony/TelephonyManager.getImei": [
+      "android.permission.READ_PHONE_STATE"
+    ],
+    "android/telephony/TelephonyManager.getLine1Number": [
+      "android.permission.READ_PHONE_STATE"
+    ],
+    "android/telephony/TelephonyManager.getSimSerialNumber": [
+      "android.permission.READ_PHONE_STATE"
+    ],
+    "android/telephony/TelephonyManager.getSubscriberId": [
+      "android.permission.READ_PHONE_STATE"
+    ],
+    "java/io/FileInputStream.<init>": [
+      "android.permission.READ_EXTERNAL_STORAGE"
+    ],
+    "java/io/FileOutputStream.<init>": [
+      "android.permission.WRITE_EXTERNAL_STORAGE"
+    ],
+    "java/net/URL.openConnection": [
+      "android.permission.INTERNET"
+    ],
+    "okhttp3/OkHttpClient.newCall": [
+      "android.permission.INTERNET"
+    ]
+  }
+}

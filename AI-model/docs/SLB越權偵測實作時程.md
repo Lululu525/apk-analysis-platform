@@ -27,6 +27,9 @@
 3. **規則能走多遠**：在 Gold 二分類上比較 `exported && !protected`、可達性規則、可達性規則加 sink 類別先驗。sink 先驗不得由 Gold 估計，只能取自先驗知識或訓練池。分類與排序指標並列。**已完成（2026-09-25，`app/tools/rule_baselines.py`、`dataset/authz_v2/experiments/rule_baselines.json`）**：整條流程 348 筆上 R0 macro F1 0.923、recall 1.000（244／265 的 negative 是未 exported）；外部可達的 106 筆上可達性規則 macro F1 0.439、balanced accuracy 0.500、TN 0，即毫無判斷力。sink 先驗（權重先 commit `e40bb10` 再計算）對分類有害（recall 0.241），對排序僅微幅改善（找到 80% positive 由第 84 筆提前到第 75 筆）。
 4. **程式碼層級瓶頸量化**：在外部可達的 Gold 中，量化因 I 或 S 被否定（合併計算）的 negative，並檢查現有自動化特徵能否區分它們。不以 I、S 各自的次數比較何者為瓶頸。**已完成（2026-09-25，`app/tools/bottleneck_analysis.py`、`dataset/authz_v2/experiments/bottleneck_analysis.json`）**：106 筆中 23 筆 negative 全部由 I（13）、S（8）或兩者（2）否定，沒有任何一筆由 Manifest 語意決定。以 Gold 答案直接擬合的上限（任何僅用這些特徵的分類器都無法超過）最高只有 macro F1 0.695，且需 28 個格子配 106 筆，接近死記；leave-one-APK-out 後降至 0.519，僅辨識出 23 筆中的 5 筆，較粗的特徵組合甚至低於「全判 positive」的 0.439。negative 高度集中，2 個 APK 即佔一半，顯示可分辨的訊號是 app-specific 的程式碼行為。已知限制：僅測試粗粒度特徵（未含 intent filter action、`uses_permissions`、SDK），且使用格子多數決而非 MLP。
 5. **M2／M3 縮小規模**：同一 MLP 架構，3 個固定 seeds；LF 只看 I／S，且須避免 LF 依據的欄位被 feature 原樣重建，並記錄 revised 對 LF 輸出的一致率。結果不論 M2 與 M3 是否有差都照實報告。
+   - 5a. **抽 feature**：**已完成（2026-09-27，`docs/authz_feature_spec_v1.md`、`app/tools/build_authz_features.py`）**。31 維，由 62 維草案經訓練池普及率、結構冗餘與 APK 指紋三項依據縮減而來；詞彙表只由訓練池統計，Gold 未參與。訓練池 1,685 筆落在 119 個相異 feature vector、Gold 384 筆落在 73 個，因此記憶訓練樣本在結構上不可行，有效容量由格數而非參數量決定。feature 清單自此為 configuration lock。已知代價：Gold 有 114／384 的 sink 落入 OOV、3 個維度在 Gold 上恆為 0。
+   - 5b. **只看 I／S 的 LF 與 `observed_authz_label`**：下一步。撰寫時須使 LF 判準與 feature 不完全同源——sink 身分佔 31 維中的 18 維，若 LF 也主要依據 sink，模型會重建 LF 而使所有內部指標失去診斷力。
+   - 5c. **M2／M3 訓練與評估**：分數須對照第 4 項的三條線判讀（全判 positive 0.439、跨 APK 多數決 0.519、作弊上限 0.695）；超過 0.695 幾乎一定是洩漏。
 
 ### 建議週次
 

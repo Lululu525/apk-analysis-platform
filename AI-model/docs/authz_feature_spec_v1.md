@@ -1,7 +1,16 @@
 # 授權風險模型 Feature 規格 v1
 
-狀態：**草案，尚未鎖定**。依 `SLB越權偵測實作時程.md` 執行順序第 5 項，本規格經確認後才寫入
-`app/tools/build_authz_features.py`；實作並產出 feature 之後即進入 configuration lock，不得再更動。
+狀態：**已實作，已鎖定**（2026-09-27）。實作於 `app/tools/build_authz_features.py`，
+測試於 `tests/test_build_authz_features.py`。產物：
+
+```
+dataset/authz_v2/authz_feature_config_v1.json   詞彙表、語意桶、sink → permission 對應表、audit
+dataset/authz_v2/features_training.jsonl        1,685 筆
+dataset/authz_v2/features_gold_eval.jsonl         384 筆
+```
+
+feature 清單與維度順序自本次 commit 起為 configuration lock，**不得再更動**。
+若訓練時出現過擬合，處理方式為調整 dropout 或 weight decay，不得回頭改 feature。
 
 適用對象：M2（Vanilla MLP）與 M3（MLP + SLB）。M1（Random Forest）是 leakage diagnostic，
 沿用舊 feature，不受本規格拘束。
@@ -135,11 +144,21 @@ SmsManager.sendTextMessage 62    FileOutputStream.<init> 55
 
 **A. `sink_group_id` 與 `sink_class+method` 結構冗餘（30 維 → 18 維）。**
 實測訓練池 30 個 `sink_class+method` **每一個都只對應到 1 個 `sink_group_id`**，細粒度完全
-決定粗粒度，同時放是純冗餘。但不可只留細的：Gold 384 筆中有 **32 筆的 sink 不在訓練池
-≥5 的詞彙表內**（`Camera.*` 4、`AudioRecord.*` 3、`Settings$Secure.getString` 5、
-`TelephonyManager.getSimSerialNumber` 5、`ClipboardManager.setPrimaryClip` 4 等），
-只留細的會使這 32 筆塌進單一 OOV 維度並失去全部 sink 語意。因此保留 group 全部 9 維，
-並把細粒度門檻由 ≥5 拉到 ≥50：粗粒度給全體語意，細粒度只給樣本數足以估計的。
+決定粗粒度，同時放是純冗餘。但不可只留細的：Gold 有相當比例的 sink 落在訓練池的詞彙表外，
+**若只留細粒度，這些 unit 會塌進單一 OOV 維度並失去全部 sink 語意**。因此保留 group 全部
+9 維，並把細粒度門檻由 ≥5 拉到 ≥50：粗粒度給全體語意，細粒度只給樣本數足以估計的。
+
+兩個門檻下 Gold 落入 OOV 的實際筆數（實作後量測）：
+
+| 細粒度門檻 | 選入的 sink 種類 | 訓練池涵蓋 | Gold 落入 OOV |
+|---|--:|--:|--:|
+| ≥5 次 | 20 | 1,665 / 1,685 | 32 / 384（8%） |
+| **≥50 次（採用）** | **8** | **1,454 / 1,685** | **114 / 384（30%）** |
+
+採用 ≥50 使 Gold 有 30% 的 unit 只能靠 `sink_group_id` 表達 sink 語意，比 ≥5 的 8% 高出
+不少。這是以維度數換來的代價，明載於 §7 已知限制。仍採用 ≥50 的理由是 ≥5 需要 21 維、
+其中多數 sink 在訓練池只有 5–20 筆，估不出可靠的權重；而落入 OOV 的 unit 並非失去全部資訊，
+`sink_group_id` 仍然保留其敏感效果類別。
 
 **B. intent filter category 全部排除（4 維 → 0）。** 訓練池普及率
 DEFAULT 7.2%、HOME 2.8%、MONKEY 0.8%、ALTERNATIVE 0.2%、BROWSABLE 0.1%，皆過低；
@@ -248,7 +267,13 @@ sink 數」與「同 component 的 distinct sink group 數」以描述敏感行�
   所以 S 只能由 sink 身分間接表達。這正是 ADR-0002 指出的瓶頸。
 - 訓練池 `sink_group_id` 分布與 Gold 不同（CODE_EXEC 在訓練池佔 63%、在 Gold 佔 32%），
   解讀評估結果時須一併說明。
-- Gold 有 32 / 384 筆的 sink 落在第 3 組的 OOV 維度，只能由 `sink_group_id` 表達。
+- **Gold 有 114 / 384 筆（30%）的 sink 落在第 3 組的 OOV 維度**，只能由 `sink_group_id`
+  表達。這是採用 ≥50 門檻的代價，見 §4.1 A。
+- **Gold 評估集上有 3 個維度恆為 0**：`if_action_camera_media`、
+  `if_action_widget_wallpaper`、`sink_group=SENSITIVE_API_GPS`。
+  即 31 維中有 3 維在評估時完全不帶資訊，實際作用維度為 28。
+- Gold 384 筆只落在 **73 個相異 feature vector**（訓練池為 119 個），
+  評估集的可分辨粒度比訓練集更粗。
 - 沒有 component 層級的敏感行為密度特徵，理由與 future work 見 §4.1 E。
 - 若訓練時出現明顯過擬合，處理方式為調整 dropout 或 weight decay，
   **不得回頭修改 feature 清單**（configuration lock）。
@@ -288,8 +313,19 @@ feature vector 必然輸出同一個機率，無法區分同一格內的樣本�
 而非像 M1 那樣產生看似良好但虛假的指標。第九章的三條參考線（0.439 / 0.519 / 0.695）
 可直接用於判讀。
 
-## 8. 重跑指令
+## 8. 輸出不覆寫上游
+
+`training_units.jsonl` 有一個 `features` 欄位，原先的想法是把 feature 填回該欄位。
+**實作改為輸出獨立的 feature 檔**，因為 `training_units.jsonl` 由
+`build_training_pool.py` 產生，若把 feature 填回原檔，重跑上游會靜默抹掉 feature。
+兩邊以 `review_unit_id` join。
+
+Gold 評估集的 feature 由同一份 config 編碼，載入時只讀 unit identity、不讀任何 label。
+
+## 9. 重跑指令
 
 ```bash
-python -m app.tools.build_authz_features    # 產生 features 與 authz_feature_config_v1.json
+python -m app.tools.build_authz_features              # 產生 config 與兩份 feature 檔
+python -m app.tools.build_authz_features --dry-run    # 只印 audit，不寫檔
+python -m pytest tests/test_build_authz_features.py
 ```
