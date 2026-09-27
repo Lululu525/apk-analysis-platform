@@ -1,0 +1,15 @@
+{
+  "abstain": 268,
+  "lf_version": "authz-lf-v1",
+  "negative": 1030,
+  "positive": 387,
+  "positive_share_of_binary": 0.2731122088920254,
+  "reason_codes": {
+    "i_refuted_not_entry_method": 1022,
+    "positive_i_trigger_and_s_linkage": 387,
+    "s_refuted_sink_permission_undeclared": 8,
+    "s_unknown_caller_class_not_component": 268
+  },
+  "trainable_units": 1417,
+  "units": 1685
+}
