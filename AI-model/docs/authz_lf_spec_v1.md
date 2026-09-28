@@ -22,10 +22,14 @@ A 沒有任何自動化證據（每筆 unit 的 `coverage_limitations` 都含
 
 | 順序 | 條件 | 判定 | reason code |
 |--:|---|---|---|
-| 1 | `caller_method` 不在該 `component_type` 的 entry method 集合內 | **negative** | `i_refuted_not_entry_method` |
-| 2 | sink 需要平台 permission，但該 APK 的 `uses-permission` 沒有宣告 | **negative** | `s_refuted_sink_permission_undeclared` |
-| 3 | `caller_class` 對不上任何 Manifest component（`linkage_status = unlinked_caller`） | **abstain** | `s_unknown_caller_class_not_component` |
-| 4 | 其餘 | **positive** | `positive_i_trigger_and_s_linkage` |
+| 1 | `caller_method` 不在該 `component_type` 的 entry method 集合內 | **negative** | `weak_negative_no_entry_to_sink_evidence` |
+| 2 | sink 需要平台 permission，但該 APK 的 `uses-permission` 沒有宣告 | **negative** | `weak_negative_sink_permission_undeclared` |
+| 3 | `caller_class` 對不上任何 Manifest component（`linkage_status = unlinked_caller`） | **abstain** | `abstain_caller_class_not_component` |
+| 4 | 其餘 | **positive** | `weak_positive_sink_in_entry_method` |
+
+**規則 1 與 2 是 weak-negative 啟發式，不是 I 或 S 的 refutation。** reason code 刻意以
+`weak_` 開頭，以免被讀成 predicate 判定。規則 1 的實質是「沒有找到 entry 到 sink 的證據」，
+誤記為 I refuted 的問題與量測到的代價見 §6.2。
 
 ### 規則 1（I）
 
@@ -139,6 +143,92 @@ unknown 主要來自 R 語意未解與 A 未分析，與本 LF 的 unknown 不�
 
 噪音率是 SLB 要處理的對象，因此必須先凍結再測，不得反過來依 Gold 調整 LF
 （`authz_label_spec.md` §10、時程表 `:453`）。
+
+### 6.1 凍結後的量測結果（2026-09-28）
+
+LF 於 `a7a8327` 凍結，之後才執行 `--noise-rate`。**標籤未因本節的任何數字而改動**，
+只更動 reason code 的命名與本文件的描述（見下）。產物：
+`dataset/authz_v2/experiments/lf_noise_rate.json`。
+
+**外部可達子集**（規則判為可達，與 `bottleneck_analysis` 的母體一致，是模型負責的那一層）：
+
+```
+102 筆比對（另 4 筆 LF abstain）
+TP 14   FP 3   FN 65   TN 20
+
+positive precision  0.824
+positive recall     0.177
+macro F1            0.331
+噪音率              66.7%
+```
+
+放進第九章的判讀框架：
+
+| | macro F1 |
+|---|--:|
+| 全判 negative | 0.184 |
+| **本 LF** | **0.331** |
+| 全判 positive | 0.436 |
+| 跨 APK 多數決 | 0.519 |
+| 作弊上限 | 0.695 |
+
+**LF 比「全部猜 positive」還差。** 精確率高（說是 positive 時八成對），但召回率只有 0.177，
+漏掉 79 筆真 positive 中的 65 筆。
+
+Gold 全部二分類那一層的數字（344 筆、macro F1 0.432、噪音率 43.6%）**不可用於評價本 LF**：
+它被 R 已否定的 unit 主導——那些 unit Gold 判 negative 是因為 R，LF 判 negative 是因為
+entry method，兩者偶然一致；而其中 85 筆 LF 判 positive 的 FP 在實際流程中會先被 R gate
+攔下，不會進到模型。此處僅列出以說明「43.6%」這個較好看的數字為何不適用。
+
+### 6.2 漏判的成因：一個歸因錯誤
+
+LF 的 positive 要求 sink **寫在** entry method 裡。Gold 的 positive 有大量是這種形狀：
+
+```
+onCreate()  →  helper()  →  sendTextMessage()
+```
+
+Reviewer 讀了程式碼看得到這條內部呼叫鏈，判 positive。LF 看不到呼叫鏈，判 negative。
+
+**但這筆帳記錯了。** 外部呼叫者確實觸發了 `onCreate()`，I 是成立的；不明的是
+`onCreate()` 到不到得了 `helper()`，那是 S 的 linkage，而且我們沒有分析。
+這正是 ADR-0002 2026-09-22 修訂警告過的事：
+
+> 同一個事實（外部 entry 到不了 sink）曾被不同 unit 分別記為 I 或 S refuted……
+> 因此 I 與 S 的個別次數反映的是審查順序與歸因習慣
+
+本 LF 犯了同一個歸因錯誤。這一點僅憑定義與 ADR 即可看出，不需要 Gold——
+**但據實記載：實際上是在看到 §6.1 的 Gold 比對之後才發現的。**
+
+### 6.3 照定義修正會使訓練資料消失
+
+若把「sink 不在 entry method 裡」改判 abstain（因為那是未分析，不是否定）：
+
+```
+positive 387、negative 8、abstain 1,290
+```
+
+**negative 只剩 8 筆**，二分類訓練集 395 筆中 98% 為 positive，無法訓練二分類器。
+
+因此本 LF 的標籤維持凍結原樣，理由有兩層：改標籤是拿 Gold 回頭調 LF，違反 §10；
+而且照定義修正的版本在工程上無路可走。
+
+### 6.4 由此得到的研究發現
+
+這比原本的主張更尖銳，且已量化：
+
+> 現有的自動化證據可以產生**高精確率的 positive** 弱標籤（precision 0.824），
+> 但**幾乎無法產生 negative 的 I／S 標籤**。原本唯一大量的 negative 來源
+> （1,022 筆）建立在把「未分析」記成「已否定」的歸因錯誤上。
+
+第九章的結論是「模型分不出來」；本節的結論是「弱標註連訓練訊號都生不出來」。
+兩者指向同一個瓶頸——缺少 entry-to-sink linkage——但本節是在標籤生成端量到的。
+
+### 6.5 對 5c 的意義
+
+M2 要在噪音率 66.7% 且噪音**高度結構化**（幾乎全部集中在 positive 的系統性漏判）
+的標籤上訓練，因此預期 M2 表現很差。SLB 能否修正，取決於那 65 筆漏判在 31 維 feature 上
+是否可分辨——而第九章已經量出那大致不可分辨（跨 APK 0.519、23 筆只抓到 5 筆）。
 
 ### 預先說明的預期
 

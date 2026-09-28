@@ -1,0 +1,45 @@
+{
+  "all_binary": {
+    "agreement_rate": 0.563953488372093,
+    "all_negative_macro_f1": 0.4351395730706076,
+    "all_positive_macro_f1": 0.1867612293144208,
+    "balanced_accuracy": 0.4282302364461428,
+    "compared_units": 344,
+    "fn": 65,
+    "fp": 85,
+    "lf_abstained": 4,
+    "macro_f1": 0.43159286186384666,
+    "noise_rate": 0.436046511627907,
+    "precision": 0.1414141414141414,
+    "recall": 0.17721518987341772,
+    "tn": 180,
+    "tp": 14
+  },
+  "gold_units_seen": 384,
+  "lf_version": "authz-lf-v1",
+  "matrix": {
+    "gold=negative|lf=negative": 180,
+    "gold=negative|lf=positive": 85,
+    "gold=positive|lf=abstain": 4,
+    "gold=positive|lf=negative": 65,
+    "gold=positive|lf=positive": 14,
+    "gold=unknown|lf=negative": 26,
+    "gold=unknown|lf=positive": 10
+  },
+  "reachable_subset": {
+    "agreement_rate": 0.3333333333333333,
+    "all_negative_macro_f1": 0.184,
+    "all_positive_macro_f1": 0.4364640883977901,
+    "balanced_accuracy": 0.523390203632361,
+    "compared_units": 102,
+    "fn": 65,
+    "fp": 3,
+    "lf_abstained": 4,
+    "macro_f1": 0.33101851851851855,
+    "noise_rate": 0.6666666666666667,
+    "precision": 0.8235294117647058,
+    "recall": 0.17721518987341772,
+    "tn": 20,
+    "tp": 14
+  }
+}

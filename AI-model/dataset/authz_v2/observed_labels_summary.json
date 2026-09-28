@@ -5,10 +5,10 @@
   "positive": 387,
   "positive_share_of_binary": 0.2731122088920254,
   "reason_codes": {
-    "i_refuted_not_entry_method": 1022,
-    "positive_i_trigger_and_s_linkage": 387,
-    "s_refuted_sink_permission_undeclared": 8,
-    "s_unknown_caller_class_not_component": 268
+    "abstain_caller_class_not_component": 268,
+    "weak_negative_no_entry_to_sink_evidence": 1022,
+    "weak_negative_sink_permission_undeclared": 8,
+    "weak_positive_sink_in_entry_method": 387
   },
   "trainable_units": 1417,
   "units": 1685

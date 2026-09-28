@@ -27,20 +27,25 @@ def _manifest(uses_permissions=()):
 def test_entry_method_in_a_component_class_is_positive():
     assert lf.label(_unit(), _manifest()) == (
         "positive",
-        "positive_i_trigger_and_s_linkage",
+        "weak_positive_sink_in_entry_method",
     )
 
 
-def test_non_entry_method_is_negative_on_i():
-    """sink 在非 entry method 裡，要到達需要未分析的內部呼叫鏈，I 不成立。"""
+def test_sink_outside_an_entry_method_is_a_weak_negative():
+    """這是「沒找到 entry 到 sink 的證據」的啟發式，不是 I 的 refutation。
+
+    外部呼叫者仍然觸發得到 entry method，所以 I 成立；不明的是 entry 到不到得了 sink。
+    reason code 必須以 weak_ 開頭，避免被讀成 predicate 判定（spec §6.1）。
+    """
     observed, reason = lf.label(_unit(caller_method="bindRowToViews"), _manifest())
 
     assert observed == "negative"
-    assert reason == "i_refuted_not_entry_method"
+    assert reason == "weak_negative_no_entry_to_sink_evidence"
+    assert reason.startswith("weak_")
 
 
-def test_i_is_checked_before_s():
-    """順序依 guide 的 I → S；I 已否定時不得回報 S 的 reason code。"""
+def test_entry_method_rule_is_applied_before_the_sink_permission_rule():
+    """順序依 guide 的 I → S；第一條命中後不得回報後面的 reason code。"""
     unit = _unit(
         caller_method="helper",  # 非 entry method
         linkage_status=lf.UNLINKED,  # S 也不明
@@ -51,10 +56,10 @@ def test_i_is_checked_before_s():
     observed, reason = lf.label(unit, _manifest())
 
     assert observed == "negative"
-    assert reason == "i_refuted_not_entry_method"
+    assert reason == "weak_negative_no_entry_to_sink_evidence"
 
 
-def test_undeclared_sink_permission_refutes_s():
+def test_undeclared_sink_permission_is_a_weak_negative():
     unit = _unit(
         sink_class="android/telephony/SmsManager",
         sink_method="sendTextMessage",
@@ -64,7 +69,7 @@ def test_undeclared_sink_permission_refutes_s():
     observed, reason = lf.label(unit, _manifest(["android.permission.INTERNET"]))
 
     assert observed == "negative"
-    assert reason == "s_refuted_sink_permission_undeclared"
+    assert reason == "weak_negative_sink_permission_undeclared"
 
 
 def test_declared_sink_permission_does_not_refute_s():
@@ -79,7 +84,7 @@ def test_declared_sink_permission_does_not_refute_s():
     assert observed == "positive"
 
 
-def test_sink_without_governing_permission_never_refutes_s():
+def test_sink_without_governing_permission_is_never_a_weak_negative():
     """CODE_EXEC 沒有 permission 管轄，不得因為 APK 什麼都沒宣告就判 negative。"""
     observed, _ = lf.label(_unit(), _manifest([]))
 
@@ -91,7 +96,7 @@ def test_unlinked_caller_abstains_rather_than_being_negative():
     observed, reason = lf.label(_unit(linkage_status=lf.UNLINKED), _manifest())
 
     assert observed is None
-    assert reason == "s_unknown_caller_class_not_component"
+    assert reason == "abstain_caller_class_not_component"
 
 
 def test_entry_methods_deliberately_extend_the_canonical_set():
