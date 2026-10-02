@@ -10,7 +10,7 @@ threshold 或任何超參數**。
 |--:|---|---|
 | 1 | Epoch 預算與 early stopping | **已定案**（2026-10-02）`TOTAL_EPOCHS = 100` |
 | 1b | Optimizer 與其餘訓練超參數 | **已定案**（2026-10-02） |
-| 2 | Warm-up 長度 | 待討論 |
+| 2 | Warm-up 長度 | **已定案**（2026-10-02）`WARM_UP_EPOCHS = 20` |
 | 3 | Consistency ratio 的定義 | 待討論 |
 | 4 | Clean／noisy 的切分方式 | 待討論 |
 | 5 | `label_revision_audit.jsonl` 的欄位 | 待討論 |
@@ -174,7 +174,48 @@ GPU 型號、驅動版本與 torch build 一併記錄。CPU 執行可免除此�
 
 ## 2. Warm-up 長度
 
-待討論。
+**WARM_UP_EPOCHS = 20**（2026-10-02 定案）。
+
+### 2.1 這一項在決定什麼
+
+SLB 不從第一個 epoch 就開始修標籤。它需要先讓模型單純地學一段時間、累積每筆資料的預測
+軌跡，之後才有依據判斷「這筆 label 可不可信」。這段前期即 warm-up。
+
+兩側都有風險：
+
+| warm-up | 問題 |
+|---|---|
+| 太短 | 軌跡只有幾個點，而且是在模型還沒學會時收集的，consistency 幾乎是雜訊，SLB 會開始亂修 |
+| 太長 | 模型已把噪音 label 當成對的，再開始修也修不動；且剩餘的修正時間不夠 |
+
+### 2.2 本資料的情況使選擇很窄
+
+§1.4 量到 `E_plateau = 18`，而 `TOTAL_EPOCHS = 100`。常見做法取總 epoch 的 20–30%
+（20–30 個 epoch），**剛好落在收斂點附近**。
+
+這裡「太長」的風險比教科書的描述更實際：模型第 18 個 epoch 就收斂，若等到第 50 個 epoch
+才開始修，中間 32 個 epoch 都在強化錯誤的標籤。
+
+### 2.3 決定與推導
+
+```
+WARM_UP_EPOCHS = 向上取至 10 的倍數(E_plateau) = 向上取至10倍數(18) = 20
+```
+
+即約等於收斂點，佔總預算 20%（常見區間的下緣），SLB 仍有 **80 個 epoch** 可供修正。
+
+數字固定為 20；推導一併記錄，以說明它不是任意挑的。若日後重跑診斷得到不同的
+`E_plateau`，須重新套用本推導並重新 commit，不得沿用舊數字。
+
+### 2.4 Warm-up 期間與之後的行為
+
+- **warm-up 期間（epoch 1–20）**：以原始 `observed_authz_label` 正常訓練，
+  **不做任何 label 修正**。
+- **per-sample 預測軌跡自 epoch 1 起全程記錄**，不是只從 warm-up 結束才開始。
+  這樣第 3 項在定義 consistency 時，可自由選擇取哪一段視窗，不必受 warm-up 邊界限制。
+- **warm-up 之後（epoch 21–100）**：SLB 機制啟動。
+- **M2 沒有 warm-up 的概念**（無 SLB），全程 100 epoch 以原始標籤訓練。兩者的 epoch
+  總預算相同，控制變數不受影響。
 
 ## 3. Consistency ratio 的定義
 
