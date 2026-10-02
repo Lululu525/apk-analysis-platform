@@ -8,7 +8,7 @@ threshold 或任何超參數**。
 
 | # | 項目 | 狀態 |
 |--:|---|---|
-| 1 | Epoch 預算與 early stopping | **已定案**（2026-10-02） |
+| 1 | Epoch 預算與 early stopping | **已定案**（2026-10-02）`TOTAL_EPOCHS = 100` |
 | 1b | Optimizer 與其餘訓練超參數 | **已定案**（2026-10-02） |
 | 2 | Warm-up 長度 | 待討論 |
 | 3 | Consistency ratio 的定義 | 待討論 |
@@ -77,7 +77,63 @@ TOTAL_EPOCHS = min(600, 向上取至 50 的倍數(3 × E_plateau))
 `TOTAL_EPOCHS` 算出後寫入本節並 commit，才執行正式的 6 次（M2、M3 各
 seed `20260823`、`20260824`、`20260825`）。正式執行不得再改動此數字。
 
-**TOTAL_EPOCHS = 待診斷執行後填入。**
+### 1.4 診斷執行結果（2026-10-02）
+
+規則於 `517187e` 先 commit，之後才執行。產物：
+`dataset/authz_v2/experiments/epoch_budget_diagnostic.json`。
+
+```
+1,417 筆 × 31 維（positive 387、27.3%），裝置 cuda，600 epoch，耗時 24.4 秒
+
+平滑後峰值準確率  0.8493
+門檻              0.8393
+E_plateau         18
+TOTAL_EPOCHS      min(600, 取50倍數(3 × 18)) = 100
+```
+
+**TOTAL_EPOCHS = 100。** 正式的 6 次執行（M2、M3 各 3 seed）一律使用此數字，不得更改。
+
+曲線取樣：
+
+| epoch | 1 | 5 | 10 | 20 | 30 | 50 | 100 | 200 | 400 | 600 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| accuracy | .778 | .830 | .835 | .849 | .826 | .849 | .819 | .842 | — | .842 |
+| loss | .655 | .477 | .444 | .411 | .402 | .388 | .380 | .377 | — | .369 |
+
+兩點與 §1.2 的預測一致：
+
+- **收斂極快**，第 1 個 epoch 就到 0.778，第 20 個 epoch 已達 0.849。113 格的結構使模型
+  很快把每格的多數標籤學完。
+- **峰值 0.8493 未超過 0.852 的硬上限**，sanity check 通過。
+
+### 1.5 收斂後的震盪，以及它對第 3 項的意義
+
+收斂後準確率並未持平，而是在約 0.816–0.849 之間來回約 3 個百分點。這不是單一樣本的雜訊：
+**格子是一起翻的**。最大的格子有 219 筆，一旦該格的決策翻面，數百筆樣本同時改變預測。
+
+這對第 3 項（consistency ratio）是關鍵前提，待該項展開時以 per-sample 預測軌跡實測，
+此處先記錄現象，不先下結論。
+
+### 1.6 已知限制：規則的輸出不是裝置穩定的
+
+同一個 seed、同一份資料、同一份程式，在 CPU 上執行得到
+`E_plateau = 15`、`TOTAL_EPOCHS = 50`，與 CUDA 的 `18`／`100` 相差兩倍
+（最終訓練準確率兩者皆為 0.8419，差異來自收斂後的震盪使平滑序列跨越門檻的時點對微小
+數值差異敏感）。
+
+採用 CUDA 的數值，因為 `裝置 = CUDA` 已於 §1b 在執行前凍結，CPU 那次僅為 `--dry-run`
+對照、未產生任何 artifact。協議因此成立；但這是 §1b.1「可重現性有環境條件」的具體實例，
+報告須一併揭露，不可只說結論數字。
+
+也記錄實測的執行時間，以免報告出現「GPU 加速」的錯誤敘述：
+
+| 裝置 | 600 epoch 耗時 | 每 epoch |
+|---|--:|--:|
+| CUDA（RTX 3070） | 24.4 秒 | 40.6 ms |
+| CPU | **14.7 秒** | 24.5 ms |
+
+CPU 比 GPU 快約 1.66 倍，與 §1b.1 的說明一致：此規模下每個 step 的 kernel 發射與同步
+開銷主導總時間。選用 GPU 是專案決定，不是效能考量。
 
 ## 1b. Optimizer 與其餘訓練超參數
 
@@ -96,9 +152,25 @@ seed `20260823`、`20260824`、`20260825`）。正式執行不得再改動此數
 | Dropout | 0.3（兩層隱藏層） | 已於模型設計定案 |
 | 架構 | 31 → 128 → 64 → 2，ReLU，softmax | 已於模型設計定案 |
 | Seeds | `20260823`、`20260824`、`20260825` | 已於模型設計定案 |
+| 執行裝置 | **CUDA**（NVIDIA GeForce RTX 3070、sm_86） | 2026-10-02 決定 |
+| torch 版本 | `2.14.1+cu126` | CUDA 版不在 PyPI 預設 wheel 內，安裝方式見 `requirements.txt` |
 
-可重現性：`torch`、`numpy`、`random` seed、`cudnn.deterministic`、DataLoader worker seed
-全部鎖定，並將 fingerprint 寫入 audit log。
+### 1b.1 可重現性設定與其已知限制
+
+全部鎖定並將 fingerprint 寫入 audit log：`torch`、`numpy`、`random` 的 seed、
+`torch.backends.cudnn.deterministic = True`、`cudnn.benchmark = False`、
+`torch.use_deterministic_algorithms(True)`、環境變數
+`CUBLAS_WORKSPACE_CONFIG=:4096:8`（deterministic cuBLAS matmul 的前提）、
+DataLoader worker seed。
+
+**已知限制：在 CUDA 上執行，可重現性只在同一張卡與同一組驅動／CUDA 版本下成立。**
+換卡或換驅動版本可能產生數值差異，因此 Week 13 凍結的 artifact fingerprint 必須連同
+GPU 型號、驅動版本與 torch build 一併記錄。CPU 執行可免除此限制，但本專案已決定使用 GPU；
+此限制列入報告的已知限制，不以「結果不可重現」描述，而是「可重現性有環境條件」。
+
+本模型規模（約 12,300 參數、1,417 筆、batch 64）遠低於 GPU 的飽和點，**選擇 GPU 不是
+為了速度**；實際執行時間會與 CPU 相當或更慢，因為每個 step 的 kernel 發射與同步開銷
+主導總時間。此事實應在報告中如實說明，不宣稱 GPU 加速。
 
 ## 2. Warm-up 長度
 

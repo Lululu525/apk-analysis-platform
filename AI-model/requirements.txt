@@ -2,4 +2,9 @@ pydantic>=2.0
 androguard>=4.0          # APK analysis: manifest parsing, permission extraction
 pytest>=7.0             # Testing framework
 pandas>=2.0              # dataset split / ground truth handling
-scikit-learn>=1.3        # train/val/test split
+scikit-learn>=1.3        # train/val/test split（M1 的 Random Forest 洩漏基線）
+
+# M2／M3 的 MLP 與 SLB。CUDA 版不在 PyPI 預設 wheel 內，Windows 上需指定 index：
+#   python -m pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cu126
+# 不指定 index 會裝到 CPU-only 版（torch==X.Y.Z+cpu），cuda.is_available() 為 False。
+torch>=2.0               # M2／M3：MLP + SLB（需 softmax 機率軌跡，見 slb_config_spec_v1.md）
