@@ -15,7 +15,23 @@
 
 ### 研究主張
 
-一次分析一個目標 APK，以 R/I/S/A 定義並人工建立 Gold 授權標籤，並用 Gold 量化自動化越權風險偵測的難點。目前資料顯示：Gold negative 中約八成是 R 被否定，而 R 可以完全由 Manifest 語意規則重現；外部可達的候選中，區分真假需要程式碼層級的 I 與 S linkage 證據，其自動化（連同 A）超出本專題工程範圍。因審查在第一個被否定的 predicate 停止，I 與 S 不分開計算瓶頸（見 ADR-0002 2026-09-22 修訂）。Vanilla／SLB 降為探索性實驗，回答「缺少程式碼層級證據時模型與 weak-label revision 能做到什麼」。
+一次分析一個目標 APK，以 R/I/S/A 定義並人工建立 Gold 授權標籤，並用 Gold 量化自動化越權風險偵測的難點。報告主軸為「R/I/S/A 評估框架加上難點拆解」；Vanilla／SLB 降為探索性實驗，回答「缺少程式碼層級證據時模型與 weak-label revision 能做到什麼」。
+
+**六項主張與各自的證據。** 本清單為權威版本，對外敘述（含桌面報告分冊）一律以此為準；數字更動時先改此處。
+
+| # | 主張 | 證據 | 產物 |
+|--:|---|---|---|
+| 1 | 原本的做法得到 F1 = 1.0，那是 label leakage 而非效能 | 標籤定義為 `exported && !protected`，而同一組欄位也在 feature 內，因此模型只是把產生標籤的規則重建一次。這是「標籤與特徵之間的關係」的性質，不是模型架構的性質——同一份資料上連深度 1 的決策樹都會得到 1.0 | `app/ml/encoder.py`、`trainer.py`（刻意保留為展示品，不得修改） |
+| 2 | R/I/S/A 可以由人一致地套用在 385 筆真實候選上 | 385 筆全部審完；safe group 內 R/I/S/A 一致性檢查 **0 矛盾**。**但這個一致性是在一次有紀錄的修訂之後才成立的**：一致性檢查發現第 1–226 筆與第 227 筆之後的 I 判定標準不同，重審 46 筆後寫入 37 筆 supersession event。框架可用，但需要把觸發慣例寫成明文規則 | `app/tools/gold_consistency.py`、`docs/golden_revision_i_convention_report_{A,B,C}.md`、`authz_annotation_guide.md` Step 2 |
+| 3 | 靜態分析產生的候選中，只有約 **五分之一**真的有風險 | Gold 385 筆：positive 84、negative 265、unknown 36。**positive 占 84／385 = 21.8%，二分類母體下 84／349 = 24.1%** | `dataset/authz_v2/gold_review_log.jsonl` |
+| 4 | negative 的絕大多數是 R 的問題，而 R 可以完全用規則解決 | 265 筆 negative 中 **242 筆（91.3%）** R 被否定（R 單獨 236、R 與 I 同時 6）。`r_gate` 與 Gold 的 R 判定 **384／384** 一致，且沒有任何一筆 Gold 判為可達的 unit 被規則判為不可達 | `app/tools/r_gate.py` |
+| 5 | 剩下能區分真假的訊號在**程式層級的 I／S linkage（合併計算）**，那正是現有自動化證據缺的一塊 | 外部可達的 23 筆 negative **全部**由 I、S 或兩者否定，**沒有任何一筆由 Manifest 語意決定**。以 Gold 答案直接擬合的上限只有 macro F1 0.695，跨 APK 降到 0.519 | `app/tools/bottleneck_analysis.py` |
+| 6 | A 在這批樣本裡從未決定過結果，且它的「確認」建立在未分析的證據上 | **385 筆中 `A_predicate_result = refuted` 為 0 筆**——A 從來不是任何 negative 的原因。84 筆 positive 的 A 皆為 confirmed，其中 82 筆 `confirmed_absent`、2 筆 `confirmed_present`；而每一筆 unit 的 `coverage_limitations` 都含 `runtime_guard_not_analyzed` | `gold_review_log.jsonl`、`authz_feature_spec_v1.md` §7 |
+
+**第 3、5 點有兩個已知的誤述形式，不得使用：**
+
+- **不可寫「約 15%」。** `15.1%`（58／385）是 2026-09-25 I 觸發慣例重審**之前**的比例。該次重審把 26 筆 negative 改判 positive，理由（外部呼叫者的觸發動作本身即構成 I 的控制流影響）已經人工核准並寫入 `authz_annotation_guide.md` Step 2。沿用 15% 等於拿舊慣例的數字搭配新慣例的框架。現行數字為 **21.8%**。
+- **不可寫「主要在 I」。** ADR-0002 2026-09-22 修訂已否決此說法：審查依 R → I → S → A 順序並在第一個被否定處停止，所以 I 永遠比 S 先被檢查；同一個事實（外部 entry 到不了 sink）也曾被不同 unit 分別記為 I 或 S refuted。`13 比 8` 反映的是審查順序與歸因習慣，不是瓶頸位置。`authz_lf_spec_v1.md` §6.2 已量到 LF 自己犯了同一個歸因錯誤。正確的說法是 **I 與 S linkage 合併**，而且這個說法的證據更強——23 筆全部由程式層級的 predicate 否定，Manifest 語意一筆都沒決定。
 
 ### 執行順序
 
