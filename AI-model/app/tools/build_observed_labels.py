@@ -49,6 +49,7 @@ DEFAULT_SAMPLES = Path(
 DEFAULT_OUTPUT = Path("dataset/authz_v2/observed_labels_training.jsonl")
 DEFAULT_SUMMARY = Path("dataset/authz_v2/observed_labels_summary.json")
 DEFAULT_NOISE_OUTPUT = Path("dataset/authz_v2/experiments/lf_noise_rate.json")
+DEFAULT_GOLD_EVAL_OUTPUT = Path("dataset/authz_v2/observed_labels_gold_eval.jsonl")
 
 # 外部呼叫者能使其執行的 entry method。刻意與
 # `canonical_dataset_pilot.ENTRY_METHODS` 分歧——那組是為保守的 direct identity match
@@ -120,6 +121,24 @@ def label_all(
             }
         )
     return rows
+
+
+def label_gold_eval_units(
+    gold_log: Path, candidate_units: Path, manifests: ManifestCache
+) -> list[dict[str, Any]]:
+    """把 `--noise-rate` 內部已經算過的 LF-on-Gold 輸出落成逐筆產物。
+
+    `authz_eval_protocol_v1.md` §6 的錯誤分析需要知道每一筆 Gold unit 的 LF 標籤
+    （哪些是 LF 漏判的 positive），而 `lf_noise_rate.json` 只有聚合的混淆矩陣。
+
+    **這裡用的是同一個凍結的 `label()`，LF 沒有任何改動。** 本函式不讀取
+    `gold_authz_label`，只用 Gold log 取得 unit 清單；輸出是 LF 的標籤，不是 Gold 的。
+    """
+    identities = load_identities(candidate_units, set(load_latest_events(gold_log)))
+    return label_all(
+        [identities[unit_id] for unit_id in sorted(identities)],
+        manifests,
+    )
 
 
 def summarise(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -252,6 +271,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="對 Gold 量 LF 的噪音率。依 spec §6 只能在 LF 已 commit 凍結後執行。",
     )
     parser.add_argument("--noise-output", type=Path, default=DEFAULT_NOISE_OUTPUT)
+    parser.add_argument(
+        "--gold-eval-labels",
+        action="store_true",
+        help="以同一個凍結 LF 產出 Gold 評估集的逐筆標籤，供評估協議 §6 的錯誤分析使用。",
+    )
+    parser.add_argument(
+        "--gold-eval-output", type=Path, default=DEFAULT_GOLD_EVAL_OUTPUT
+    )
     return parser
 
 
@@ -292,6 +319,21 @@ def main(argv: list[str] | None = None) -> int:
                 encoding="utf-8",
             )
             LOGGER.info("已寫出 %s。", args.noise_output)
+
+    if args.gold_eval_labels:
+        gold_rows = label_gold_eval_units(args.gold_log, args.candidate_units, manifests)
+        gold_summary = summarise(gold_rows)
+        print(
+            f"\nGold 評估集的 LF 標籤：{gold_summary['units']} 筆"
+            f"（positive {gold_summary['positive']}、negative {gold_summary['negative']}、"
+            f"abstain {gold_summary['abstain']}）"
+        )
+        if not args.dry_run:
+            args.gold_eval_output.parent.mkdir(parents=True, exist_ok=True)
+            with args.gold_eval_output.open("w", encoding="utf-8", newline="\n") as handle:
+                for row in gold_rows:
+                    handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+            LOGGER.info("已寫出 %s。", args.gold_eval_output)
 
     if args.dry_run:
         return 0
