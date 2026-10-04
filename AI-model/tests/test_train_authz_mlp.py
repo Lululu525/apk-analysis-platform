@@ -173,6 +173,29 @@ def test_epoch_metrics_only_cover_units_that_entered_the_loss():
     # 格 0 進 loss 的兩筆標籤相異（1 與 0）、格 1 只有一筆 → (2 + 1) / 2
     assert row["distinct_training_labels_per_cell_mean"] == pytest.approx(1.5)
     assert row["noisy_set_size"] == 1
+    # spec §7.3 第 4 項：逐 epoch 的 n_{y_b}，只數進 loss 的那 3 筆（negative 1、positive 2）。
+    assert row["cb_class_counts"] == [1, 2]
+
+
+def test_logged_class_counts_match_the_weights_the_loss_actually_used():
+    """audit log 記的 n_{y_b} 必須與 make_loss 實際生效的權重同源（spec §7.3 第 4 項）。"""
+    training_labels = np.array([1, 0, 1, 1], dtype=np.int64)
+    trained_indices = np.array([0, 1, 2])
+    cells = np.array([0, 0, 1, 1], dtype=np.int64)
+
+    row = mlp.epoch_metrics(
+        run_id="r", model_name="M3", seed=1, stage="revision", epoch=1,
+        train_loss=0.5, train_accuracy=0.75,
+        trained_indices=trained_indices,
+        training_labels=training_labels,
+        observed_labels=training_labels,
+        cells=cells,
+        cell_majority_labels=cells,
+    )
+    expected = mlp.cb_class_weights(mlp.label_counts(training_labels[trained_indices]))
+    logged = mlp.cb_class_weights(row["cb_class_counts"])
+
+    assert logged.tolist() == expected.tolist()
 
 
 def test_epoch_budget_applies_the_frozen_rule():

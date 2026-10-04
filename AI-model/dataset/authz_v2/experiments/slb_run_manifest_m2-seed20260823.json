@@ -1,0 +1,75 @@
+{
+  "config": {
+    "architecture": [
+      31,
+      128,
+      64,
+      2
+    ],
+    "batch_size": 64,
+    "cb_beta": 0.9999,
+    "checkpoint_selection": false,
+    "data_split_epochs_e": null,
+    "dropout": 0.3,
+    "early_stopping": false,
+    "ema_alpha": null,
+    "learning_rate": 0.001,
+    "loss": "class_balanced_cross_entropy",
+    "optimizer": "Adam",
+    "revision_total_T": null,
+    "revision_warmup_m": null,
+    "total_epochs": 100,
+    "weight_init": "xavier_uniform"
+  },
+  "config_spec_commit": {
+    "commit": "79629c8f770026d1e407532298d6c95f4e2ce1de",
+    "dirty": false
+  },
+  "environment": {
+    "cublas_workspace_config": ":4096:8",
+    "cuda_build": "12.6",
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "device": "cuda",
+    "gpu_capability": "sm_86",
+    "gpu_name": "NVIDIA GeForce RTX 3070",
+    "numpy": "2.5.1",
+    "nvidia_driver": "610.74",
+    "torch": "2.14.1+cu126"
+  },
+  "gold_consulted": false,
+  "input_files": {
+    "features": {
+      "path": "dataset/authz_v2/features_training.jsonl",
+      "sha256": "fe60c00df6503a67b836ac3f6f579c0bac859905a7837fa9472c26d2f6df2fec"
+    },
+    "gold_eval_features": {
+      "path": "dataset/authz_v2/features_gold_eval.jsonl",
+      "sha256": "00a9bbeb68bcf077942cb4d012e4c6af453d046c26aeee8efd79f03f4b18cd88"
+    },
+    "observed_labels": {
+      "path": "dataset/authz_v2/observed_labels_training.jsonl",
+      "sha256": "77cbe0ad3e38a597331561838f5e72df11a89b18db7f446149db5a0209389241"
+    }
+  },
+  "model": "M2",
+  "model_version": "authz-mlp-m2-v1",
+  "output_row_counts": {
+    "label_revision_audit": 0,
+    "predictions_m2-seed20260823.jsonl": 1801,
+    "slb_epoch_metrics.jsonl": 100
+  },
+  "run_id": "m2-seed20260823",
+  "seed": 20260823,
+  "summary": {
+    "cell_majority_ceiling": 0.8517995765702188,
+    "cells": 113,
+    "final_train_accuracy": 0.8405081157374735,
+    "final_train_loss": 0.38002581314966555,
+    "predicted_positive_share_gold_eval": 0.3854166666666667,
+    "predicted_positive_share_training": 0.33380381086803107,
+    "run_id": "m2-seed20260823",
+    "wall_clock_seconds": 5.40261029987596
+  },
+  "wall_clock_seconds": 5.40261029987596
+}

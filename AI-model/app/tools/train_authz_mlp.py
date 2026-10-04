@@ -361,6 +361,10 @@ def epoch_metrics(
     `agreement_*`、`distinct_training_labels_per_cell_mean` 與
     `positive_share_of_training_labels` 一律**只在該 epoch 實際進入 loss 的集合上**
     計算，與 `train_accuracy` 的母體一致（spec §7.3）。
+
+    `cb_class_counts` 是 spec §7.3 第 4 項要求的逐 epoch `n_{y_b}`。刻意在此由同一個
+    子集算出、而非由呼叫端傳入：它必須與 `make_loss` 實際用的計數同源，否則 audit log
+    記的權重可能與訓練時生效的權重不一致。
     """
     subset = training_labels[trained_indices]
     subset_cells = cells[trained_indices]
@@ -382,6 +386,7 @@ def epoch_metrics(
         "demoted_count": demoted_count,
         "flips_to_pseudo": flips_to_pseudo,
         "flips_to_observed": flips_to_observed,
+        "cb_class_counts": label_counts(subset).tolist(),
         "agreement_revised_vs_observed": float(
             (subset == observed_labels[trained_indices]).mean()
         ),
@@ -493,7 +498,8 @@ def run_manifest(
         "config": dict(config),
         "config_spec_commit": git_commit_for(CONFIG_SPEC),
         "input_files": {
-            name: {"path": str(path), "sha256": sha256_of(path)}
+            # as_posix()：路徑是紀錄而非本機操作，寫成平台中立的形式才能跨機器比對。
+            name: {"path": path.as_posix(), "sha256": sha256_of(path)}
             for name, path in input_paths.items()
         },
         "environment": environment_fingerprint(device),
