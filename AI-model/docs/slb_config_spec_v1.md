@@ -1,6 +1,7 @@
 # M2／M3 訓練與 SLB 設定規格 v1
 
-狀態：**逐項討論中**。執行順序第 5c 項（ADR-0002）。
+狀態：**設定全部凍結**（2026-10-04）。執行順序第 5c 項（ADR-0002）。
+第 1–5 項皆已定案，可進入 M3 實作與正式的 6 次執行。
 
 本文件凍結 M2（vanilla MLP）與 M3（MLP + SLB）的全部訓練設定。依
 `authz_label_spec.md` §10 與時程表 `:453`，**Gold 授權標籤不得用於選擇 epoch、
@@ -13,7 +14,7 @@ threshold 或任何超參數**。
 | 2 | 兩階段結構與三個 epoch 參數 | **已定案**（2026-10-03）`e=20`、`m=5`、`T=100`。取代原「Warm-up 長度」 |
 | 3 | Consistency ratio 的定義 | **已定案**（2026-10-03）依論文 Eq. (3) |
 | 4 | Clean／noisy 的切分方式 | **已定案**（2026-10-03）嚴格門檻 `r_i = 1`，依論文 Eq. (4) |
-| 5 | `label_revision_audit.jsonl` 的欄位 | 待討論 |
+| 5 | Audit log 的欄位（四個產物） | **已定案**（2026-10-04） |
 | 6 | 與論文原文的對照與修正紀錄 | **2026-10-03** 新增 |
 
 > **來源論文**：Alotaibi et al., *Deep Learning from Imperfectly Labeled Malware Data*,
@@ -318,9 +319,159 @@ $$\text{EN}_{y_b} = \frac{1 - \beta^{n_{y_b}}}{1 - \beta}, \qquad
 因此 `D_c` 可能很小，而階段二只用 `D_c` 訓練。這是可量測的，應在正式 6 次執行之前先以
 階段一量出 `r_i` 的分布與 `|D_c|`，並與本預測對照。
 
-## 5. `label_revision_audit.jsonl` 的欄位
+## 5. Audit log 的欄位
 
-待討論。
+### 5.1 目的不是模型的可解釋性
+
+這份 log 解釋的是 **SLB 這個程序對標籤做了什麼**，不是模型對某一筆輸入為什麼給出某個預測。
+後者在本專題幾乎不需要工具：1,417 筆只落在 113 個格子，任一筆的預測完全由「它落在哪一格」
+決定，查 `features_training.jsonl` 即可。
+
+三個用途：
+
+| 用途 | 性質 | 回答 |
+|---|---|---|
+| 可稽核性 | 事後驗證 | 這個程序實際做了什麼、報告的數字怎麼來 |
+| 錯誤分析 | 研究問題本身 | `authz_lf_spec_v1.md` §6.1 那 65 筆漏判，SLB 有沒有救回來 |
+| 絆索 | 訓練中的即時檢查 | 有沒有發生 revision collapse（見 §5.5） |
+
+報告用詞應為「可稽核性與錯誤分析」，不宜寫成「可解釋性」——後者會引來「那你的 SHAP 呢」
+這類與本專題無關的質疑。
+
+### 5.2 不變量
+
+1. **寫 log 時不得讀取 Gold。** audit log 必須能在完全不接觸 Gold 的情況下寫出；
+   與 Gold 的 join 是之後獨立的分析步驟。這維持 §0 的協議。
+2. **以 `review_unit_id` 為唯一 join key**，與 feature、observed label、Gold 都對得上。
+3. **一次寫出就是最終版**，不得在分析階段回頭補欄位。理由見 §5.6。
+
+### 5.3 四個產物與各自的粒度
+
+粒度不同的東西不放同一個檔案，否則任何分析都得掃全檔。
+
+| 檔案 | 粒度 | 模型 |
+|---|---|---|
+| `dataset/authz_v2/label_revision_audit.jsonl` | (run, stage, epoch, unit) | **M3 密集** |
+| `dataset/authz_v2/experiments/slb_epoch_metrics.jsonl` | (run, stage, epoch) | M2 與 M3 |
+| `dataset/authz_v2/experiments/slb_run_manifest.json` | run | M2 與 M3 |
+| `dataset/authz_v2/experiments/predictions_<run>.jsonl` | (run, unit) | M2 與 M3，訓練池與 Gold 評估集各一份 |
+
+`label_revision_audit.jsonl` 的檔名與路徑沿用 `SLB越權偵測實作時程.md` 既有的交付物指定。
+
+**M2 不寫 per-unit-per-epoch log**：它沒有標籤修正，該檔對 M2 按定義為空。M2 的逐 epoch
+聚合指標與最終預測仍照寫。需要「vanilla 的預測軌跡」時，M3 階段一本身就是一次 20 epoch 的
+vanilla 執行（全部資料、原始標籤），可直接用。
+
+### 5.4 `label_revision_audit.jsonl` 的欄位
+
+| 欄位 | 階段 | 說明 |
+|---|---|---|
+| `run_id` | 兩者 | 例 `m3-seed20260823` |
+| `model` | 兩者 | `M3` |
+| `seed` | 兩者 | |
+| `stage` | 兩者 | `data_split`（階段一）｜`revision`（階段二） |
+| `epoch` | 兩者 | 階段內的 1-based 編號 |
+| `review_unit_id` | 兩者 | join key |
+| `observed_authz_label` | 兩者 | LF 產生的原始標籤。每列重複存，使本檔對錯誤分析自足 |
+| `predicted_label` | 階段一 | 該 epoch 的硬預測（argmax）。`r_i` 的計算基礎，也是驗證「格子一起翻」的唯一證據 |
+| `predicted_prob_positive` | 階段一 | 該 epoch 的 softmax `P(positive)`，階段二 EMA 的初始值來源 |
+| `consistency_ratio` | 兩者 | 階段一算出的 `r_i`；階段二每列重複存 |
+| `pseudo_label` | 兩者 | `majority(P_i)`；階段二每列重複存 |
+| `ema_prob_positive` | 階段二 | 本 epoch 更新後的 EMA 值 |
+| `ema_label` | 階段二 | `argmax` EMA |
+| `set_membership` | 兩者 | `clean`｜`noisy`。階段一為初始切分結果 |
+| `training_label` | 階段二 | **本 epoch 實際進入 loss 的標籤**。這才是「revised label」的操作定義 |
+| `label_source` | 階段二 | `observed`｜`pseudo`，指出 `training_label` 來自哪一個 |
+| `included_in_training` | 階段二 | 階段二只用 `D_c` 訓練，`D_n` 的樣本雖仍計算 EMA 但不進 loss，必須記下 |
+| `membership_changed` | 階段二 | 與前一 epoch 相比是否變動（可推導，但materialise 以便查詢） |
+| `training_label_changed` | 階段二 | 同上 |
+
+`observed_authz_label`、`consistency_ratio`、`pseudo_label` 在階段二是每筆固定值，逐列重複
+存屬刻意的反正規化：錯誤分析發生在數週之後，此檔應只需與 Gold join 即可完成，不必再回頭
+串接其他檔案。
+
+### 5.5 線索必須改寫——原設計在這裡會退化
+
+報告 §10.6 原本指定兩個 per-epoch 指標：`revised` 對 `observed` 的一致率（修了多少）、
+以及 `revised` 對 **LF 公式直接輸出**的一致率（往哪個方向修）。
+
+**在本專題這兩者是同一個東西。** 我們只有一條 LF，`observed_authz_label` 就是 LF 公式的
+直接輸出，所以第二個指標退化成第一個，偵測不到任何東西。
+
+實際在這裡會發生的 collapse 是另一種形狀。推論如下，待實測驗證：
+
+```
+模型的輸出是 per-cell 的（113 格）
+  → 某筆的逐 epoch 預測 = 該格的逐 epoch 預測
+  → pseudo_label = majority(該格的預測) ≈ 該格 observed 標籤的多數
+  → 把樣本改標成 pseudo_label = 把它的標籤換成「它所在格子的多數 observed 標籤」
+```
+
+也就是說 **SLB 在這份資料上能做的最大動作，是把每個格子內的標籤同質化**。這不是往 LF
+公式收斂，而是往「LF 輸出的格內多數」收斂。而那 210 筆衝突格少數類正是會被翻的對象——
+若其所在格子的多數是 negative（依 LF 的分布很可能如此），被漏判的真 positive 會**被翻成
+negative，等於強化錯誤**。
+
+因此改用這個指標作為線索：
+
+```
+agreement_training_label_vs_cell_majority
+  = training_label 等於「該 unit 所在 feature 格子的 observed 多數標籤」的比例
+```
+
+隨 epoch 單調上升且趨近 1.0，即為格內同質化，當場停下來檢查。此指標**只需 feature 與
+observed label，不需要 Gold**，可即時計算。
+
+一併記錄 `distinct_training_labels_per_cell` 的分布，作為同質化程度的直接量測。
+
+原 §10.6 的兩個指標仍照寫（`agreement_revised_vs_observed` 保留，另一個標註為與前者等價、
+在單一 LF 下不具獨立資訊），但報告中須說明其退化原因，不得假裝有兩個獨立防線。
+
+### 5.6 `slb_epoch_metrics.jsonl` 的欄位
+
+| 欄位 | 說明 |
+|---|---|
+| `run_id`、`model`、`seed`、`stage`、`epoch` | |
+| `train_loss`、`train_accuracy` | 在該 epoch 實際用於訓練的集合上計算 |
+| `trained_on_units` | 該 epoch 進入 loss 的筆數（階段二等於 `\|D_c\|`） |
+| `clean_set_size`、`noisy_set_size` | |
+| `promoted_count`、`demoted_count` | 本 epoch 的 `D_n→D_c`、`D_c→D_n` 筆數 |
+| `flips_to_pseudo`、`flips_to_observed` | 本 epoch 的標籤翻轉筆數 |
+| `agreement_revised_vs_observed` | §10.6 原指標 |
+| **`agreement_training_label_vs_cell_majority`** | §5.5 的線索 |
+| `distinct_training_labels_per_cell_mean` | 同質化程度 |
+| `positive_share_of_training_labels` | 監看 SLB 是否把 positive 整批抹掉 |
+
+### 5.7 `slb_run_manifest.json` 的欄位
+
+| 欄位 | 說明 |
+|---|---|
+| `run_id`、`model`、`seed` | |
+| `config` | `e`、`m`、`T`、`α`、`β`、lr、batch、dropout、架構 的實際值 |
+| `config_spec_commit` | 本規格文件當時的 commit SHA，使設定可回溯 |
+| `input_files` | feature、observed label 檔的路徑與 SHA-256 |
+| `environment` | torch 版本、CUDA build、GPU 型號與 capability、`CUBLAS_WORKSPACE_CONFIG`、determinism 旗標（沿用 `train_authz_mlp.environment_fingerprint`） |
+| `wall_clock_seconds` | |
+| `output_row_counts` | 各產物的列數，供完整性檢查 |
+| `gold_consulted` | 固定為 `false`，明示此執行未讀取 Gold |
+
+### 5.8 為什麼採密集記錄而非 event-sourced
+
+資料量：M3 每個 seed 為 `1,417 × (20 + 100) = 170,040` 列，3 個 seed 共約 51 萬列，
+估計 70–80 MB。repo 既有的 `sensitive_api_callers.jsonl` 為 47.8 MB，同一量級。
+
+Event-sourced（只在狀態改變時寫）可大幅縮小檔案，但有兩個代價：重建「第 t 個 epoch 的狀態」
+需要額外的 replay 程式，而 EMA 是每個 epoch 都在變的連續值，本質上無法事件化。
+
+在「漏了補不回來」的前提下，簡單與完整優先於儲存效率。
+
+### 5.9 漏欄位的真正代價
+
+不是資料遺失——理論上可以重跑補記錄。問題是**重跑出來的是另一次執行**：報告的分數來自第一次、
+錯誤分析來自第二次。而 §1.6 已實測到同一份程式在不同裝置上得出不同結果
+（`E_plateau` 15 vs 18），「重跑應該一樣」在本專案已被證明不能照單全收。
+
+因此欄位寧可多記。
 
 ---
 
