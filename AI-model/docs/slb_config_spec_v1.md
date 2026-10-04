@@ -685,6 +685,28 @@ loss 改為 CB loss、把初始化改為 Xavier。因此 **`E_plateau = 18`、`T
    這類 fallback 掩蓋。
 7. **M2 的 `stage` 欄位固定為 `vanilla`。** §5.6 的 `stage` 只定義了 `data_split` 與
    `revision`，兩者都是 M3 的階段。M2 需要一個值才能與 M3 共用同一個檔案。
+8. **`promoted_count`／`demoted_count`／`membership_changed`／`training_label_changed`
+   一律比較「epoch *t* 用來訓練的集合」與「epoch *t−1* 用來訓練的集合」。**
+   §5.6 只寫「本 epoch 的 `D_n→D_c`」，但 Algorithm 2 的重組發生在 epoch 結束之後
+   （line 27–36 產生的是 `D_c^{t+1}`），所以「本 epoch 的變動」有兩個讀法。
+   採此讀法的理由：每一列的計數因此描述**該列自己的集合**是怎麼來的，與同一列的
+   `trained_on_units`、`train_accuracy` 指同一個集合；另一個讀法會讓同一列的欄位
+   分別指向兩個不同的集合。`t = 1` 的變動量為 0（階段一的切分即為 `D_c^0`）。
+   `t ≤ m` 全部為 0（warm-up 期間不重組）。
+9. **`flips_to_pseudo`／`flips_to_observed` 只在兩個 epoch 的 `label_source` 皆非 null
+   時計算。** 樣本離開 `D_c` 時 `training_label` 與 `label_source` 皆為 null（§5.4 定義
+   `training_label` 為「本 epoch 實際進入 loss 的標籤」），若把 null 也算成一次翻轉，
+   flip 數就會與 `promoted`／`demoted` 重複計算同一件事。離開與回到 `D_c` 由
+   `membership_changed` 表達，`training_label_changed` 仍會因 null 而為 true，
+   這是刻意的：它問的是「這一列進 loss 的標籤和上一列一樣嗎」。
+
+### 7.5 階段二輸出的 `D̂`（revised dataset）不另存檔
+
+論文 Algorithm 2 line 38 回傳 `D_c^{T+1}`，即第二個研究目標「較乾淨的資料集」。
+本專題**不另存一份 revised label 檔**，因為它可由 audit log 完全還原：
+`D̂` 是以 epoch `T` 那一列的 `ema_label` 對 `observed_authz_label`、`pseudo_label` 與
+origin flag（由 epoch 1 的 `set_membership` 給出）套用同一條重組規則的結果，四個欄位
+都已逐列存在。另存一檔只會多出一個必須與 log 保持同步的產物。
 
 ### 7.4 產物的檔名與儲存格式
 
