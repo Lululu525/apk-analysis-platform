@@ -16,6 +16,7 @@ threshold 或任何超參數**。
 | 4 | Clean／noisy 的切分方式 | **已定案**（2026-10-03）嚴格門檻 `r_i = 1`，依論文 Eq. (4) |
 | 5 | Audit log 的欄位（四個產物） | **已定案**（2026-10-04） |
 | 6 | 與論文原文的對照與修正紀錄 | **2026-10-03** 新增 |
+| 7 | 實作前的最後校正（原文 pseudocode、順序揭露、機械細節） | **2026-10-04** 新增；§2、§5 的敘述有五處由 §7.1 校正 |
 
 > **來源論文**：Alotaibi et al., *Deep Learning from Imperfectly Labeled Malware Data*,
 > CCS '25。第 2、3、4 項依原文 Algorithm 1／2 與 Eq. (3)(4)(5)(6)(9) 定案；
@@ -195,7 +196,7 @@ GPU 型號、驅動版本與 torch build 一併記錄。CPU 執行可免除此�
   f^DS 是拋棄式的，不是最終模型
 
 階段二 Continuous Revision（Algorithm 2）
-  EMA 初始值取自階段一的 softmax 輸出
+  EMA 初始值取自階段一的 softmax 輸出   ← 精確定義見 §7.1 第 1 項：e 個 epoch 的平均
   訓練一個全新模型 f̂，跑 T 個 epoch，每輪只用當時的 D_c
   前 m 個 epoch 為 revision warm-up，期間不重組資料集
   第 m 個 epoch 後首次重組，之後逐輪重組並在 ỹ_i 與 y_i^maj 之間翻標籤
@@ -569,3 +570,116 @@ a02a36f  凍結 warm-up = 20
 
 另外，論文使用 seed 1–10 共 10 個 seed，本專題依既有決定使用 3 個
 （`20260823`／`20260824`／`20260825`），統計力較弱，此差異亦須載明。
+
+---
+
+## 7. 實作前的最後校正（2026-10-04）
+
+§1–§6 是設定的決定。本節是把這些決定寫成程式時，發現**必須再凍結一次**的東西：
+原文細節的校正（§7.1）、一處順序瑕疵的揭露（§7.2），以及 spec 沒寫但程式非選不可的
+機械細節（§7.3）。一律在執行之前 commit，仍未讀取 Gold。
+
+### 7.1 依 Algorithm 1／2 原文校正五處實作細節
+
+§6 修正設定時引用的是論文正文。實作時取得 Algorithm 1 與 Algorithm 2 的完整 pseudocode
+（來源同 §6.1），其中五處比 §2 的敘述更精確，或與之不同：
+
+| # | §2 的敘述 | 原文 pseudocode | 處置 |
+|--:|---|---|---|
+| 1 | §2.1「EMA 初始值取自階段一的 softmax 輸出」 | Eq. (8)：`p̄⁽⁰⁾ᵢ = (1/e) Σₜ₌₁ᵉ pᵢ,ₜ`，即**階段一全部 e 個 epoch 的 softmax 平均** | 依原文改為平均。不是最後一個 epoch |
+| 2 | §2.2「`α`（EMA 平滑）0.95」 | Eq. (9)：`p̄⁽ʳ⁾ᵢ = α·p⁽ʳ⁾ᵢ + (1−α)·p̄⁽ʳ⁻¹⁾ᵢ`，`α` 乘在**新的** prediction 上 | 依原文字面實作。後果見下 |
+| 3 | §2.1、§5.4 未提及 | Algorithm 2 `Require` 有 **origin flag `oᵢ ∈ {c, n}`**，取自階段一且**全程不更新**。line 15／31 的 `oᵢ = n ∧ ŷ⁽ᵗ⁾ᵢ = y^majᵢ` 表示**只有階段一判為 noisy 的樣本才可以帶 pseudo-label 進 `D_c`** | 補上。階段一判 clean 的樣本永遠只能以 observed 標籤進 `D_c` |
+| 4 | §2.4 記為「論文語意不明」，本專題選「`T` 含 `m`」 | Algorithm 2 line 2 `for r = 1 to m`、line 21 `for t = m+1 to T`：**pseudocode 毫無歧義，`T` 確實含 `m`** | §2.4 的選擇與 pseudocode 一致。歧義只存在於正文敘述，報告改以此陳述，不再寫成「我們在兩個讀法中選一個」 |
+| 5 | §4.3 只定義階段一的 CB loss | Algorithm 2 未重述 loss；`n_{y_b}` 在階段二沒有定義 | 見 §7.3 第 4 項 |
+
+**第 2 項的後果必須寫進報告。** `α = 0.95` 乘在新 prediction 上，意味 EMA 的半衰期約為
+1 個 epoch——它幾乎跟隨當下 epoch 的 softmax，**不是強平滑**。這直接放大 §4.4 預先登記的
+那個風險：§1.5 已實測格子會整片翻面，而 EMA 既然緊跟當下預測，`ema_label` 也會整片翻，
+重組與翻標籤因此可能逐 epoch 大幅震盪。此處不預判結果，只指出 §4.4 的預測在這個 `α`
+的語意下更可能成立。
+
+**第 3 項的後果**是 `D_c` 的成長被限制住：階段一的 `D_c` 只能縮小或換成員，
+`pseudo_label` 只對階段一的 `D_n` 有效。`label_source = pseudo` 因此永遠只出現在
+`oᵢ = n` 的樣本上，這是 audit log 的一條不變量，可用於驗證實作。
+
+### 7.2 揭露：epoch 預算的診斷早於 loss 與初始化的修正
+
+**順序上有一處瑕疵，必須自己講出來。** §1.4 的診斷執行於 2026-10-02，當時的 loss 是
+反比於頻率的 class weight、初始化是 PyTorch 預設的 Kaiming uniform。§6 在 2026-10-03 把
+loss 改為 CB loss、把初始化改為 Xavier。因此 **`E_plateau = 18`、`TOTAL_EPOCHS = 100`、
+`e = 20` 這三個數字是在與正式執行不同的設定下量出來的。**
+
+處置**先於觀察**登記如下，本節連同程式一併 commit，之後才執行：
+
+```
+採用的數字：TOTAL_EPOCHS = 100、e = 20、T = 100。不因任何後續量測而改變。
+
+敏感度檢查：以修正後的設定（CB loss + Xavier）重跑一次 §1.3 的診斷規則，
+            產物寫入 experiments/epoch_budget_diagnostic_corrected_config.json。
+            此檢查只為揭露，不觸發任何數字變更。無論它算出什麼，正式執行一律用 100／20。
+```
+
+為什麼不改用新數字？因為 `100` 與 `20` 已經 commit 在 `8f594e8`、`a02a36f`，而
+§0 的協議保護的正是「已 commit 的數字不得事後替換」。重跑之後挑一個用，就是把一個
+已凍結的數字換成另一個——即使兩次都沒碰 Gold，這個動作本身會讓「凍結」失去意義。
+反過來說，**預先宣告「無論結果如何都用舊值」，再去量**，是這個協議允許的唯一做法：
+它只能讓紀錄變得更完整，不可能讓數字朝任何方向偏移。
+
+§1.6 已經記載同一個規則在 CPU 與 CUDA 上得出 `15` 與 `18`。本節是同一件事的第二個實例：
+**這條規則的輸出對設定與環境都敏感，`100` 應當被讀成「一個寬鬆且事先固定的預算」，
+而不是一個有意義的估計值。** §1.2 已論證寬鬆的預算在本資料上無害，該論證不依賴
+`E_plateau` 的精確值。
+
+### 7.3 spec 沒指定但程式必須選的機械細節
+
+以下七項，spec §1–§6 都沒有規定，但程式不可能不選。先登記，避免事後被誤認為是調過的。
+
+1. **`majority(Pᵢ)` 平手 → 取 observed 標籤。** `e = 20` 為偶數，10:10 可能發生。
+   取 observed 的理由：平手代表沒有證據支持改標籤，保守處置。等價的說法是
+   `pseudo_label ≠ observed` 恰好發生在 `rᵢ < 0.5` 時。平手筆數寫入 manifest。
+2. **格子多數決平手 → 取 negative。** `cell_majority` 用於 §5.5 的
+   `agreement_training_label_vs_cell_majority`。訓練池 113 格中有 **3 格平手、共 16 筆**
+   （此數字只用訓練池的 feature 與 observed label 算出，未觸及 Gold）。
+   取 negative 的理由：它是多數類，與 §1.2「格子多數決上限 0.852」的計算採同一規則——
+   實測此規則下的上限恰為 0.8518，與 §1.2 一致，可互相驗證。
+3. **§5.6 的聚合指標只在「該 epoch 實際進入 loss 的集合」上計算**，與 `train_accuracy`
+   的母體相同。涵蓋 `agreement_revised_vs_observed`、
+   `agreement_training_label_vs_cell_majority`、
+   `distinct_training_labels_per_cell_mean`、`positive_share_of_training_labels`。
+   理由：這些指標問的是「進入 loss 的標籤長什麼樣」，母體不一致會使 M2 與 M3 的數字不可比。
+   `distinct_training_labels_per_cell_mean` 的分母為「該 epoch 至少有一筆進 loss 的格子數」。
+4. **階段二 CB loss 的 `n_{y_b}` 每個 epoch 由當時 `D_c` 的 training label 重算。**
+   論文的 `n_{y_b}` 定義為「該類別的樣本數」，而階段二實際訓練的集合是 `D_c^t`，
+   其類別組成逐 epoch 改變；用固定的 1,030／387 會使權重與實際訓練集脫節。
+   逐 epoch 的 `n_{y_b}` 寫入 `slb_epoch_metrics.jsonl`，可稽核。
+   `D_c` 中某類別為 0 筆時該類別權重設為 0（`1/EN` 在 `n = 0` 時未定義，而該類別沒有樣本
+   進 loss，權重無作用）。
+5. **CB 權重正規化為「總和等於出現的類別數」**（Cui et al. 原實作）。
+   `nn.CrossEntropyLoss(reduction="mean")` 算的是加權平均 `Σwᵢlᵢ / Σwᵢ`，對 `w` 的整體
+   縮放不變，**此正規化不改變 loss 與梯度**（有單元測試），只讓寫進 log 的權重可讀
+   （未正規化時 `1/EN` 約 1e-3 量級）。
+6. **`D_c` 變成空集合時中止執行並回報，不退回用全部資料。** §4.4 已預先登記 `D_c` 可能很小。
+   若 `|D_c^0| = 0` 或某個 `|D_c^t| = 0`，程式以錯誤中止並記下 epoch 編號。
+   這是研究結果（revision collapse 的極端形式），不是待修的 bug，不得以「沒資料就用全部」
+   這類 fallback 掩蓋。
+7. **M2 的 `stage` 欄位固定為 `vanilla`。** §5.6 的 `stage` 只定義了 `data_split` 與
+   `revision`，兩者都是 M3 的階段。M2 需要一個值才能與 M3 共用同一個檔案。
+
+### 7.4 產物的檔名與儲存格式
+
+§5.3 的四個產物在實作上作三處具名化，內容與粒度完全依 §5.3–§5.7，不增刪欄位：
+
+| §5.3 的指定 | 實際檔名 | 理由 |
+|---|---|---|
+| `experiments/slb_run_manifest.json` | `slb_run_manifest_<run_id>.json` | 粒度是 run，6 次執行需要 6 份；單一檔名會被後一次覆寫 |
+| `experiments/predictions_<run>.jsonl` | 同名，訓練池與 Gold 評估集合併於一檔，以 `split` 欄位區分 | §5.3 的粒度是 (run, unit)，兩個 split 的 unit 不重疊，`split` 即可分辨；分兩檔會讓 join 多一步 |
+| `label_revision_audit.jsonl` | `label_revision_audit_<run_id>.jsonl.gz` | 見下 |
+
+**audit log 分檔並壓縮的理由是 git，不是儲存成本。** §5.8 估計 51 萬列、70–80 MB，但該估計
+沒算 `review_unit_id` 的長度（76 字元），實測每列約 470 bytes，三個 seed 合計約 **240 MB**。
+repo 目前最大的追蹤檔案是 2.2 MB（§5.8 引用的 47.8 MB 檔案並未被 git 追蹤），而單一檔案
+240 MB 無法 push。分 run 並 gzip 後每份約數 MB。
+
+**這不是 §5.8 的退讓**：§5.8 拒絕的是 event-sourced（只在狀態改變時寫），因為那需要 replay
+程式、且 EMA 無法事件化。本處仍然每個 (run, stage, epoch, unit) 都寫一列，欄位一個不少，
+只是換了容器。manifest 記錄未壓縮的列數與壓縮檔的 SHA-256，完整性檢查不受影響。
