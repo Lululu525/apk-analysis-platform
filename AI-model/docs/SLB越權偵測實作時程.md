@@ -31,7 +31,7 @@
    - 5b. **只看 I／S 的 LF 與 `observed_authz_label`**：下一步。撰寫時須使 LF 判準與 feature 不完全同源——sink 身分佔 31 維中的 18 維，若 LF 也主要依據 sink，模型會重建 LF 而使所有內部指標失去診斷力。
    - 5c. **M2／M3 訓練與評估**：分數須對照第 4 項的三條線判讀（全判 positive 0.439、跨 APK 多數決 0.519、作弊上限 0.695）；超過 0.695 幾乎一定是洩漏。
      - 5c-i. **設定凍結與 6 次訓練執行**：**已完成（2026-10-04，`docs/slb_config_spec_v1.md`、`app/tools/train_authz_mlp.py`、`app/tools/train_authz_slb.py`）**。設定逐項先 commit 再執行，git 歷史即為順序證據。M2 三個 seed 各 100 epoch，最終訓練準確率 0.8405／0.8419／0.8419，未超過 113 格的多數決上限 0.8518。M3 依論文 Algorithm 1／2 實作（嚴格門檻 `r_i = 1`、CB loss、EMA 初值取階段一 e 個 epoch 的平均、origin flag 固定），`|D_c|` 為 1,039／1,056／786，176／188／207 筆以 pseudo-label 進 loss 且方向以 negative→positive 為主。兩項預先登記的預測與實測相反（`D_c` 不小、翻標籤方向相反），見 spec §9.2、§9.4。全部 6 次**未讀取 Gold**。
-     - 5c-ii. **與 Gold 的評估**：下一步。對照三條參考線，並檢查 `authz_lf_spec_v1.md` §6.1 那 65 筆漏判有沒有被 SLB 救回。評估時須注意 M3 階段二的 `train_accuracy` 恆為 1.0000 是重組規則的恆真式、不具診斷力（spec §9.5）。
+     - 5c-ii. **與 Gold 的評估**：**已完成（2026-10-04，`docs/authz_eval_protocol_v1.md`、`app/tools/evaluate_authz_models.py`、`dataset/authz_v2/experiments/model_eval_gold.json`）**。協議（threshold 固定 0.5、兩層都報、三個 seed 全報、不取最佳 seed、不做 ensemble、不做顯著性檢定）在看到任何 Gold 分數之前 commit。外部可達子集 106 筆上：**M2 平均 macro F1 0.400**（precision 0.81–0.86、recall 0.289–0.301）、**M3 平均 0.207**，M3 在三個 seed 上配對差全為負（−0.163～−0.215）。M2 高於自己的訓練標籤（LF 0.331）但低於可達性規則（0.439）；M3 僅略高於全判 negative（0.184）。無洩漏跡象（最高 0.433 ≪ 0.695）。那 65 筆 LF 漏判：M2 救回 14／13／13，M3 退到 1／1／13，且前兩個 seed 的 Gold negative TN 同時由 17／19 掉到 16，**兩側同時變差**。排序無判斷力（看到 80% positive 需 85–89 筆，與隨機相當）。這確認了 `authz_lf_spec_v1.md` §6.5 的預先登記預期，並在第三個獨立位置（標籤修正端）量到同一個瓶頸。
 
 ### 建議週次
 

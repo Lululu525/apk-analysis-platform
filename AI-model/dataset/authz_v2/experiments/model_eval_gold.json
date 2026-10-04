@@ -1,0 +1,700 @@
+{
+  "best_seed_selected": false,
+  "eval_version": "model-eval-gold-v1",
+  "layers": {
+    "pipeline_all_binary": {
+      "aggregates": {
+        "m2": {
+          "balanced_accuracy": {
+            "max": 0.43739486246874293,
+            "mean": 0.4346366598469349,
+            "min": 0.4313707660832007,
+            "per_seed": {
+              "20260823": 0.43739486246874293,
+              "20260824": 0.4313707660832007,
+              "20260825": 0.43514435098886106
+            },
+            "spread": 0.006024096385542244
+          },
+          "macro_f1": {
+            "max": 0.43312217194570135,
+            "mean": 0.4312694291552956,
+            "min": 0.4284186401833461,
+            "per_seed": {
+              "20260823": 0.43312217194570135,
+              "20260824": 0.4284186401833461,
+              "20260825": 0.4322674753368393
+            },
+            "spread": 0.004703531762355273
+          },
+          "precision": {
+            "max": 0.18115942028985507,
+            "mean": 0.17803989327315253,
+            "min": 0.17518248175182483,
+            "per_seed": {
+              "20260823": 0.18115942028985507,
+              "20260824": 0.17518248175182483,
+              "20260825": 0.17777777777777778
+            },
+            "spread": 0.0059769385380302464
+          },
+          "recall": {
+            "max": 0.30120481927710846,
+            "mean": 0.29317269076305225,
+            "min": 0.2891566265060241,
+            "per_seed": {
+              "20260823": 0.30120481927710846,
+              "20260824": 0.2891566265060241,
+              "20260825": 0.2891566265060241
+            },
+            "spread": 0.012048192771084376
+          }
+        },
+        "m3": {
+          "balanced_accuracy": {
+            "max": 0.40240963855421685,
+            "mean": 0.37371372281579146,
+            "min": 0.3527619913616731,
+            "per_seed": {
+              "20260823": 0.3659695385314844,
+              "20260824": 0.3527619913616731,
+              "20260825": 0.40240963855421685
+            },
+            "spread": 0.049647647192543776
+          },
+          "macro_f1": {
+            "max": 0.40701406776302756,
+            "mean": 0.3791311734982454,
+            "min": 0.3601573523752512,
+            "per_seed": {
+              "20260823": 0.3702221003564574,
+              "20260824": 0.3601573523752512,
+              "20260825": 0.40701406776302756
+            },
+            "spread": 0.04685671538777636
+          },
+          "precision": {
+            "max": 0.13821138211382114,
+            "mean": 0.08102141956860938,
+            "min": 0.050505050505050504,
+            "per_seed": {
+              "20260823": 0.05434782608695652,
+              "20260824": 0.050505050505050504,
+              "20260825": 0.13821138211382114
+            },
+            "spread": 0.08770633160877064
+          },
+          "recall": {
+            "max": 0.20481927710843373,
+            "mean": 0.10843373493975904,
+            "min": 0.060240963855421686,
+            "per_seed": {
+              "20260823": 0.060240963855421686,
+              "20260824": 0.060240963855421686,
+              "20260825": 0.20481927710843373
+            },
+            "spread": 0.14457831325301204
+          }
+        }
+      },
+      "evaluated_units": 348,
+      "leakage_check": {
+        "m2": {
+          "seeds_exceeding": [],
+          "suspected": false,
+          "threshold": 0.695
+        },
+        "m3": {
+          "seeds_exceeding": [],
+          "suspected": false,
+          "threshold": 0.695
+        }
+      },
+      "m3_minus_m2": {
+        "balanced_accuracy": {
+          "directions_agree": true,
+          "mean_difference": -0.06092293703114345,
+          "metric": "balanced_accuracy",
+          "note": "三個差值方向一致",
+          "per_seed": {
+            "20260823": -0.07142532393725853,
+            "20260824": -0.07860877472152761,
+            "20260825": -0.03273471243464421
+          }
+        },
+        "macro_f1": {
+          "directions_agree": true,
+          "mean_difference": -0.05213825565705018,
+          "metric": "macro_f1",
+          "note": "三個差值方向一致",
+          "per_seed": {
+            "20260823": -0.06290007158924393,
+            "20260824": -0.06826128780809487,
+            "20260825": -0.025253407573811726
+          }
+        },
+        "precision": {
+          "directions_agree": true,
+          "mean_difference": -0.09701847370454318,
+          "metric": "precision",
+          "note": "三個差值方向一致",
+          "per_seed": {
+            "20260823": -0.12681159420289856,
+            "20260824": -0.12467743124677433,
+            "20260825": -0.039566395663956644
+          }
+        },
+        "recall": {
+          "directions_agree": true,
+          "mean_difference": -0.18473895582329317,
+          "metric": "recall",
+          "note": "三個差值方向一致",
+          "per_seed": {
+            "20260823": -0.24096385542168677,
+            "20260824": -0.2289156626506024,
+            "20260825": -0.08433734939759036
+          }
+        }
+      },
+      "negatives": 265,
+      "positives": 83,
+      "runs": {
+        "m2-seed20260823": {
+          "classification": {
+            "balanced_accuracy": 0.43739486246874293,
+            "f1": 0.22624434389140274,
+            "fn": 58,
+            "fp": 113,
+            "macro_f1": 0.43312217194570135,
+            "precision": 0.18115942028985507,
+            "recall": 0.30120481927710846,
+            "tn": 152,
+            "tp": 25
+          },
+          "ranking": {
+            "P@10": 0.2,
+            "P@50": 0.06,
+            "distinct_scores": 67,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.3541666666666667,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 298
+          }
+        },
+        "m2-seed20260824": {
+          "classification": {
+            "balanced_accuracy": 0.4313707660832007,
+            "f1": 0.21818181818181817,
+            "fn": 59,
+            "fp": 113,
+            "macro_f1": 0.4284186401833461,
+            "precision": 0.17518248175182483,
+            "recall": 0.2891566265060241,
+            "tn": 152,
+            "tp": 24
+          },
+          "ranking": {
+            "P@10": 0.3,
+            "P@50": 0.06,
+            "distinct_scores": 67,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.375,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 299
+          }
+        },
+        "m2-seed20260825": {
+          "classification": {
+            "balanced_accuracy": 0.43514435098886106,
+            "f1": 0.22018348623853212,
+            "fn": 59,
+            "fp": 111,
+            "macro_f1": 0.4322674753368393,
+            "precision": 0.17777777777777778,
+            "recall": 0.2891566265060241,
+            "tn": 154,
+            "tp": 24
+          },
+          "ranking": {
+            "P@10": 0.3,
+            "P@50": 0.16,
+            "distinct_scores": 67,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.375,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 308
+          }
+        },
+        "m3-seed20260823": {
+          "classification": {
+            "balanced_accuracy": 0.3659695385314844,
+            "f1": 0.05714285714285714,
+            "fn": 78,
+            "fp": 87,
+            "macro_f1": 0.3702221003564574,
+            "precision": 0.05434782608695652,
+            "recall": 0.060240963855421686,
+            "tn": 178,
+            "tp": 5
+          },
+          "ranking": {
+            "P@10": 0.0,
+            "P@50": 0.0,
+            "distinct_scores": 63,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.2708333333333333,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 318
+          }
+        },
+        "m3-seed20260824": {
+          "classification": {
+            "balanced_accuracy": 0.3527619913616731,
+            "f1": 0.054945054945054944,
+            "fn": 78,
+            "fp": 94,
+            "macro_f1": 0.3601573523752512,
+            "precision": 0.050505050505050504,
+            "recall": 0.060240963855421686,
+            "tn": 171,
+            "tp": 5
+          },
+          "ranking": {
+            "P@10": 0.4,
+            "P@50": 0.08,
+            "distinct_scores": 59,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.3541666666666667,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 304
+          }
+        },
+        "m3-seed20260825": {
+          "classification": {
+            "balanced_accuracy": 0.40240963855421685,
+            "f1": 0.1650485436893204,
+            "fn": 66,
+            "fp": 106,
+            "macro_f1": 0.40701406776302756,
+            "precision": 0.13821138211382114,
+            "recall": 0.20481927710843373,
+            "tn": 159,
+            "tp": 17
+          },
+          "ranking": {
+            "P@10": 0.2,
+            "P@50": 0.08,
+            "distinct_scores": 62,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.3541666666666667,
+            "positives": 83,
+            "total_units": 348,
+            "units_to_80pct_recall": 308
+          }
+        }
+      }
+    },
+    "reachable_subset": {
+      "aggregates": {
+        "m2": {
+          "balanced_accuracy": {
+            "max": 0.5576217915138816,
+            "mean": 0.5451370700192072,
+            "min": 0.5201676270298585,
+            "per_seed": {
+              "20260823": 0.5201676270298585,
+              "20260824": 0.5576217915138816,
+              "20260825": 0.5576217915138816
+            },
+            "spread": 0.037454164484023056
+          },
+          "macro_f1": {
+            "max": 0.40433502809740435,
+            "mean": 0.4004792298546486,
+            "min": 0.3927676333691371,
+            "per_seed": {
+              "20260823": 0.3927676333691371,
+              "20260824": 0.40433502809740435,
+              "20260825": 0.40433502809740435
+            },
+            "spread": 0.011567394728267233
+          },
+          "precision": {
+            "max": 0.8571428571428571,
+            "mean": 0.8402457757296466,
+            "min": 0.8064516129032258,
+            "per_seed": {
+              "20260823": 0.8064516129032258,
+              "20260824": 0.8571428571428571,
+              "20260825": 0.8571428571428571
+            },
+            "spread": 0.05069124423963134
+          },
+          "recall": {
+            "max": 0.30120481927710846,
+            "mean": 0.29317269076305225,
+            "min": 0.2891566265060241,
+            "per_seed": {
+              "20260823": 0.30120481927710846,
+              "20260824": 0.2891566265060241,
+              "20260825": 0.2891566265060241
+            },
+            "spread": 0.012048192771084376
+          }
+        },
+        "m3": {
+          "balanced_accuracy": {
+            "max": 0.37794656888423256,
+            "mean": 0.35131831674524183,
+            "min": 0.2980618124672604,
+            "per_seed": {
+              "20260823": 0.37794656888423256,
+              "20260824": 0.37794656888423256,
+              "20260825": 0.2980618124672604
+            },
+            "spread": 0.07988475641697218
+          },
+          "macro_f1": {
+            "max": 0.2409595417114214,
+            "mean": 0.20657565770347722,
+            "min": 0.18938371569950516,
+            "per_seed": {
+              "20260823": 0.18938371569950516,
+              "20260824": 0.18938371569950516,
+              "20260825": 0.2409595417114214
+            },
+            "spread": 0.05157582601191624
+          },
+          "precision": {
+            "max": 0.5483870967741935,
+            "mean": 0.460573476702509,
+            "min": 0.4166666666666667,
+            "per_seed": {
+              "20260823": 0.4166666666666667,
+              "20260824": 0.4166666666666667,
+              "20260825": 0.5483870967741935
+            },
+            "spread": 0.13172043010752682
+          },
+          "recall": {
+            "max": 0.20481927710843373,
+            "mean": 0.10843373493975904,
+            "min": 0.060240963855421686,
+            "per_seed": {
+              "20260823": 0.060240963855421686,
+              "20260824": 0.060240963855421686,
+              "20260825": 0.20481927710843373
+            },
+            "spread": 0.14457831325301204
+          }
+        }
+      },
+      "evaluated_units": 106,
+      "leakage_check": {
+        "m2": {
+          "seeds_exceeding": [],
+          "suspected": false,
+          "threshold": 0.695
+        },
+        "m3": {
+          "seeds_exceeding": [],
+          "suspected": false,
+          "threshold": 0.695
+        }
+      },
+      "m3_minus_m2": {
+        "balanced_accuracy": {
+          "directions_agree": true,
+          "mean_difference": -0.1938187532739654,
+          "metric": "balanced_accuracy",
+          "note": "三個差值方向一致",
+          "per_seed": {
+            "20260823": -0.14222105814562597,
+            "20260824": -0.17967522262964902,
+            "20260825": -0.2595599790466212
+          }
+        },
+        "macro_f1": {
+          "directions_agree": true,
+          "mean_difference": -0.19390357215117138,
+          "metric": "macro_f1",
+          "note": "三個差值方向一致",
+          "per_seed": {
+            "20260823": -0.20338391766963196,
+            "20260824": -0.2149513123978992,
+            "20260825": -0.16337548638598295
+          }
+        },
+        "precision": {
+          "directions_agree": true,
+          "mean_difference": -0.37967229902713767,
+          "metric": "precision",
+          "note": "三個差值方向一致",
+          "per_seed": {
+            "20260823": -0.38978494623655907,
+            "20260824": -0.4404761904761904,
+            "20260825": -0.3087557603686636
+          }
+        },
+        "recall": {
+          "directions_agree": true,
+          "mean_difference": -0.18473895582329317,
+          "metric": "recall",
+          "note": "三個差值方向一致",
+          "per_seed": {
+            "20260823": -0.24096385542168677,
+            "20260824": -0.2289156626506024,
+            "20260825": -0.08433734939759036
+          }
+        }
+      },
+      "negatives": 23,
+      "positives": 83,
+      "runs": {
+        "m2-seed20260823": {
+          "classification": {
+            "balanced_accuracy": 0.5201676270298585,
+            "f1": 0.43859649122807026,
+            "fn": 58,
+            "fp": 6,
+            "macro_f1": 0.3927676333691371,
+            "precision": 0.8064516129032258,
+            "recall": 0.30120481927710846,
+            "tn": 17,
+            "tp": 25
+          },
+          "ranking": {
+            "P@10": 0.6,
+            "P@50": 0.72,
+            "distinct_scores": 37,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.8541666666666666,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 87
+          }
+        },
+        "m2-seed20260824": {
+          "classification": {
+            "balanced_accuracy": 0.5576217915138816,
+            "f1": 0.43243243243243246,
+            "fn": 59,
+            "fp": 4,
+            "macro_f1": 0.40433502809740435,
+            "precision": 0.8571428571428571,
+            "recall": 0.2891566265060241,
+            "tn": 19,
+            "tp": 24
+          },
+          "ranking": {
+            "P@10": 0.6,
+            "P@50": 0.7,
+            "distinct_scores": 37,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.8541666666666666,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 87
+          }
+        },
+        "m2-seed20260825": {
+          "classification": {
+            "balanced_accuracy": 0.5576217915138816,
+            "f1": 0.43243243243243246,
+            "fn": 59,
+            "fp": 4,
+            "macro_f1": 0.40433502809740435,
+            "precision": 0.8571428571428571,
+            "recall": 0.2891566265060241,
+            "tn": 19,
+            "tp": 24
+          },
+          "ranking": {
+            "P@10": 0.8,
+            "P@50": 0.72,
+            "distinct_scores": 37,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.8541666666666666,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 88
+          }
+        },
+        "m3-seed20260823": {
+          "classification": {
+            "balanced_accuracy": 0.37794656888423256,
+            "f1": 0.10526315789473684,
+            "fn": 78,
+            "fp": 7,
+            "macro_f1": 0.18938371569950516,
+            "precision": 0.4166666666666667,
+            "recall": 0.060240963855421686,
+            "tn": 16,
+            "tp": 5
+          },
+          "ranking": {
+            "P@10": 0.3,
+            "P@50": 0.64,
+            "distinct_scores": 36,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.8333333333333334,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 89
+          }
+        },
+        "m3-seed20260824": {
+          "classification": {
+            "balanced_accuracy": 0.37794656888423256,
+            "f1": 0.10526315789473684,
+            "fn": 78,
+            "fp": 7,
+            "macro_f1": 0.18938371569950516,
+            "precision": 0.4166666666666667,
+            "recall": 0.060240963855421686,
+            "tn": 16,
+            "tp": 5
+          },
+          "ranking": {
+            "P@10": 0.4,
+            "P@50": 0.66,
+            "distinct_scores": 34,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.875,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 85
+          }
+        },
+        "m3-seed20260825": {
+          "classification": {
+            "balanced_accuracy": 0.2980618124672604,
+            "f1": 0.2982456140350877,
+            "fn": 66,
+            "fp": 14,
+            "macro_f1": 0.2409595417114214,
+            "precision": 0.5483870967741935,
+            "recall": 0.20481927710843373,
+            "tn": 9,
+            "tp": 17
+          },
+          "ranking": {
+            "P@10": 0.4,
+            "P@50": 0.66,
+            "distinct_scores": 35,
+            "per_apk_counted": 16,
+            "per_apk_mean_P@3": 0.8333333333333334,
+            "positives": 83,
+            "total_units": 106,
+            "units_to_80pct_recall": 87
+          }
+        }
+      }
+    }
+  },
+  "lf_error_analysis_reachable_subset": {
+    "gold_negatives": {
+      "by_run": {
+        "m2-seed20260823": 17,
+        "m2-seed20260824": 19,
+        "m2-seed20260825": 19,
+        "m3-seed20260823": 16,
+        "m3-seed20260824": 16,
+        "m3-seed20260825": 9
+      },
+      "metric": "predicted_negative",
+      "units": 23
+    },
+    "lf_abstained": {
+      "by_run": {
+        "m2-seed20260823": 4,
+        "m2-seed20260824": 4,
+        "m2-seed20260825": 4,
+        "m3-seed20260823": 3,
+        "m3-seed20260824": 3,
+        "m3-seed20260825": 3
+      },
+      "metric": "predicted_positive",
+      "units": 4
+    },
+    "lf_false_positives": {
+      "by_run": {
+        "m2-seed20260823": 2,
+        "m2-seed20260824": 2,
+        "m2-seed20260825": 2,
+        "m3-seed20260823": 2,
+        "m3-seed20260824": 2,
+        "m3-seed20260825": 2
+      },
+      "metric": "predicted_positive",
+      "units": 3
+    },
+    "lf_missed_positives": {
+      "by_run": {
+        "m2-seed20260823": 14,
+        "m2-seed20260824": 13,
+        "m2-seed20260825": 13,
+        "m3-seed20260823": 1,
+        "m3-seed20260824": 1,
+        "m3-seed20260825": 13
+      },
+      "metric": "predicted_positive",
+      "units": 65
+    },
+    "lf_true_positives": {
+      "by_run": {
+        "m2-seed20260823": 7,
+        "m2-seed20260824": 7,
+        "m2-seed20260825": 7,
+        "m3-seed20260823": 1,
+        "m3-seed20260824": 1,
+        "m3-seed20260825": 1
+      },
+      "metric": "predicted_positive",
+      "units": 14
+    }
+  },
+  "population_accounting": {
+    "excluded_gold_unknown": 36,
+    "excluded_no_identity": 1,
+    "excluded_no_prediction": 0,
+    "gold_binary": 348,
+    "gold_events": 385,
+    "r_refuted": 242,
+    "reachable": 106,
+    "with_identity": 384,
+    "with_prediction": 384
+  },
+  "probability_ensemble": false,
+  "protocol": "docs/authz_eval_protocol_v1.md",
+  "reference_lines": {
+    "all_negative": {
+      "macro_f1": 0.184,
+      "source": "lf_noise_rate.json"
+    },
+    "cross_apk_majority": {
+      "macro_f1": 0.519,
+      "source": "bottleneck_analysis.json"
+    },
+    "fitted_on_gold_ceiling": {
+      "macro_f1": 0.695,
+      "source": "bottleneck_analysis.json"
+    },
+    "lf_observed_label": {
+      "macro_f1": 0.331,
+      "source": "lf_noise_rate.json"
+    },
+    "reachability_rule_all_positive": {
+      "macro_f1": 0.439,
+      "source": "bottleneck_analysis.json"
+    }
+  },
+  "significance_test": false,
+  "threshold": 0.5,
+  "threshold_searched": false
+}

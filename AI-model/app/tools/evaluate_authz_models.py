@@ -396,14 +396,14 @@ def _print_report(report: Mapping[str, Any]) -> None:
     analysis = report.get("lf_error_analysis_reachable_subset")
     if analysis:
         print("\n=== 協議 §6 的錯誤分析（外部可達子集）===")
-        header = f"{'LF 的格子':<24}{'筆數':>6}{'要的':>18}" + "".join(
+        header = f"{'LF 的格子':<22}{'筆數':>6}  {'要的':<19}" + "".join(
             f"{run_id.replace('-seed2026', '·'):>10}" for run_id in RUNS
         )
         print(header)
         print("-" * len(header))
         for name, payload in analysis.items():
             print(
-                f"{name:<24}{payload['units']:>6}{payload['metric']:>18}"
+                f"{name:<22}{payload['units']:>6}  {payload['metric']:<19}"
                 + "".join(f"{payload['by_run'][run_id]:>10}" for run_id in RUNS)
             )
         print(
