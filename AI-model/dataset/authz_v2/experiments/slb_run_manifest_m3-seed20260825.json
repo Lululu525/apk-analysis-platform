@@ -1,0 +1,121 @@
+{
+  "config": {
+    "architecture": [
+      31,
+      128,
+      64,
+      2
+    ],
+    "batch_size": 64,
+    "cb_beta": 0.9999,
+    "checkpoint_selection": false,
+    "data_split_epochs_e": 20,
+    "dropout": 0.3,
+    "early_stopping": false,
+    "ema_alpha": 0.95,
+    "learning_rate": 0.001,
+    "loss": "class_balanced_cross_entropy",
+    "optimizer": "Adam",
+    "revision_total_T": 100,
+    "revision_warmup_m": 5,
+    "total_epochs": 100,
+    "weight_init": "xavier_uniform"
+  },
+  "config_spec_commit": {
+    "commit": "1dd74a72ecddd728a1df394fa1e22100a04a8386",
+    "dirty": true
+  },
+  "environment": {
+    "cublas_workspace_config": ":4096:8",
+    "cuda_build": "12.6",
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "device": "cuda",
+    "gpu_capability": "sm_86",
+    "gpu_name": "NVIDIA GeForce RTX 3070",
+    "numpy": "2.5.1",
+    "nvidia_driver": "610.74",
+    "torch": "2.14.1+cu126"
+  },
+  "gold_consulted": false,
+  "input_files": {
+    "features": {
+      "path": "dataset/authz_v2/features_training.jsonl",
+      "sha256": "fe60c00df6503a67b836ac3f6f579c0bac859905a7837fa9472c26d2f6df2fec"
+    },
+    "gold_eval_features": {
+      "path": "dataset/authz_v2/features_gold_eval.jsonl",
+      "sha256": "00a9bbeb68bcf077942cb4d012e4c6af453d046c26aeee8efd79f03f4b18cd88"
+    },
+    "observed_labels": {
+      "path": "dataset/authz_v2/observed_labels_training.jsonl",
+      "sha256": "77cbe0ad3e38a597331561838f5e72df11a89b18db7f446149db5a0209389241"
+    }
+  },
+  "model": "M3",
+  "model_version": "authz-mlp-slb-m3-v1",
+  "output_files": {
+    "label_revision_audit_m3-seed20260825.jsonl.gz": {
+      "sha256": "8249495447fd5e785cc62132a4a635449b81740ff6d35a34071152106ec41041",
+      "uncompressed_rows": 170040
+    }
+  },
+  "output_row_counts": {
+    "label_revision_audit_m3-seed20260825.jsonl.gz": 170040,
+    "predictions_m3-seed20260825.jsonl": 1801,
+    "slb_epoch_metrics.jsonl": 120
+  },
+  "run_id": "m3-seed20260825",
+  "seed": 20260825,
+  "summary": {
+    "cell_majority_ceiling": 0.8517995765702188,
+    "cells": 113,
+    "data_split": {
+      "cells_entirely_noisy": 30,
+      "cells_total": 113,
+      "clean_negative": 507,
+      "clean_positive": 279,
+      "clean_set_size": 786,
+      "clean_share": 0.5546930134086098,
+      "consistency_ratio_histogram": {
+        "0.00": 143,
+        "0.05": 31,
+        "0.10": 4,
+        "0.15": 2,
+        "0.20": 58,
+        "0.25": 4,
+        "0.30": 3,
+        "0.35": 4,
+        "0.40": 5,
+        "0.45": 2,
+        "0.55": 1,
+        "0.60": 11,
+        "0.65": 2,
+        "0.70": 4,
+        "0.80": 31,
+        "0.85": 30,
+        "0.90": 24,
+        "0.95": 272,
+        "1.00": 786
+      },
+      "consistency_ratio_mean": 0.809880028228652,
+      "noisy_set_size": 631,
+      "pseudo_differs_from_observed": 256,
+      "pseudo_majority_ties": 0
+    },
+    "predicted_positive_share_gold_eval": 0.3645833333333333,
+    "predicted_positive_share_training": 0.5920959774170783,
+    "revision": {
+      "epochs_with_reassembly": 95,
+      "final_agreement_revised_vs_observed": 0.8043478260869565,
+      "final_agreement_training_label_vs_cell_majority": 0.8818525519848771,
+      "final_clean_set_size": 1058,
+      "final_train_accuracy": 1.0,
+      "total_flips_to_observed": 0,
+      "total_flips_to_pseudo": 207
+    },
+    "run_id": "m3-seed20260825",
+    "wall_clock_seconds": 7.043694899883121
+  },
+  "wall_clock_seconds": 7.043694899883121
+}

@@ -218,7 +218,11 @@ def continuous_revision(
     included = split.clean.copy()
     training_label = np.where(included, observed, _NOT_INCLUDED).astype(np.int64)
     label_source = np.where(included, 0, _NOT_INCLUDED).astype(np.int64)
-    previous = (included.copy(), training_label.copy(), label_source.copy())
+    previous = (included.copy(), training_label.copy())
+    # 每筆最近一次非 null 的 label_source，未進過 loss 的視為 observed（spec §7.3 第 9 項）。
+    # 不可改用「前一個 epoch 的 label_source」：樣本由 D_n 帶著 pseudo-label 被提拔進
+    # D_c 時，前一個 epoch 是 null，那樣會把實際發生的翻標籤記成 0。
+    last_source = np.zeros(len(observed), dtype=np.int64)
 
     model = m2.build_model(matrix.shape[1]).to(device)
     optimiser = torch.optim.Adam(model.parameters(), lr=m2.LEARNING_RATE)
@@ -250,8 +254,10 @@ def continuous_revision(
         ema = EMA_ALPHA * probabilities + (1.0 - EMA_ALPHA) * ema
         ema_label = (ema >= 0.5).astype(np.int64)
 
-        previous_included, previous_label, previous_source = previous
-        flip_candidates = (label_source >= 0) & (previous_source >= 0)
+        previous_included, previous_label = previous
+        flipped_to_pseudo = included & (label_source == 1) & (last_source == 0)
+        flipped_to_observed = included & (label_source == 0) & (last_source == 1)
+        last_source = np.where(included, label_source, last_source)
         metrics.append(
             m2.epoch_metrics(
                 run_id=run_id,
@@ -270,8 +276,8 @@ def continuous_revision(
                 noisy_set_size=int((~included).sum()),
                 promoted_count=int((included & ~previous_included).sum()),
                 demoted_count=int((~included & previous_included).sum()),
-                flips_to_pseudo=int((flip_candidates & (label_source == 1) & (previous_source == 0)).sum()),
-                flips_to_observed=int((flip_candidates & (label_source == 0) & (previous_source == 1)).sum()),
+                flips_to_pseudo=int(flipped_to_pseudo.sum()),
+                flips_to_observed=int(flipped_to_observed.sum()),
             )
         )
         audit.write(
@@ -292,7 +298,7 @@ def continuous_revision(
             )
         )
 
-        previous = (included.copy(), training_label.copy(), label_source.copy())
+        previous = (included.copy(), training_label.copy())
         # Algorithm 2：epoch m 結束後首次重組，之後逐輪重組。最後一輪的重組會產生
         # D_c^{T+1}，它不再被訓練，且可由本列的 ema_label 還原（spec §7.5），故不計算。
         if warmup <= epoch < total_epochs:

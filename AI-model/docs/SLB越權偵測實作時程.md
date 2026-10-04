@@ -30,6 +30,8 @@
    - 5a. **抽 feature**：**已完成（2026-09-27，`docs/authz_feature_spec_v1.md`、`app/tools/build_authz_features.py`）**。31 維，由 62 維草案經訓練池普及率、結構冗餘與 APK 指紋三項依據縮減而來；詞彙表只由訓練池統計，Gold 未參與。訓練池 1,685 筆落在 119 個相異 feature vector、Gold 384 筆落在 73 個，因此記憶訓練樣本在結構上不可行，有效容量由格數而非參數量決定。feature 清單自此為 configuration lock。已知代價：Gold 有 114／384 的 sink 落入 OOV、3 個維度在 Gold 上恆為 0。
    - 5b. **只看 I／S 的 LF 與 `observed_authz_label`**：下一步。撰寫時須使 LF 判準與 feature 不完全同源——sink 身分佔 31 維中的 18 維，若 LF 也主要依據 sink，模型會重建 LF 而使所有內部指標失去診斷力。
    - 5c. **M2／M3 訓練與評估**：分數須對照第 4 項的三條線判讀（全判 positive 0.439、跨 APK 多數決 0.519、作弊上限 0.695）；超過 0.695 幾乎一定是洩漏。
+     - 5c-i. **設定凍結與 6 次訓練執行**：**已完成（2026-10-04，`docs/slb_config_spec_v1.md`、`app/tools/train_authz_mlp.py`、`app/tools/train_authz_slb.py`）**。設定逐項先 commit 再執行，git 歷史即為順序證據。M2 三個 seed 各 100 epoch，最終訓練準確率 0.8405／0.8419／0.8419，未超過 113 格的多數決上限 0.8518。M3 依論文 Algorithm 1／2 實作（嚴格門檻 `r_i = 1`、CB loss、EMA 初值取階段一 e 個 epoch 的平均、origin flag 固定），`|D_c|` 為 1,039／1,056／786，176／188／207 筆以 pseudo-label 進 loss 且方向以 negative→positive 為主。兩項預先登記的預測與實測相反（`D_c` 不小、翻標籤方向相反），見 spec §9.2、§9.4。全部 6 次**未讀取 Gold**。
+     - 5c-ii. **與 Gold 的評估**：下一步。對照三條參考線，並檢查 `authz_lf_spec_v1.md` §6.1 那 65 筆漏判有沒有被 SLB 救回。評估時須注意 M3 階段二的 `train_accuracy` 恆為 1.0000 是重組規則的恆真式、不具診斷力（spec §9.5）。
 
 ### 建議週次
 

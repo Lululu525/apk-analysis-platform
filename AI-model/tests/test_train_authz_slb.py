@@ -125,6 +125,8 @@ def test_matching_the_observed_label_keeps_a_sample_clean_with_its_own_label():
 
 
 def _toy_revision(total_epochs=8, warmup=3, clean_rows=None):
+    # 自足：階段二會以全域 RNG 做 Xavier 初始化，不先鎖定的話結果會隨測試執行順序改變。
+    mlp.set_determinism(20260823)
     rng = np.random.default_rng(0)
     matrix = (rng.random((40, 5)) < 0.5).astype(np.float32)
     targets = (rng.random(40) < 0.4).astype(np.int64)
@@ -168,12 +170,15 @@ def test_no_reassembly_happens_before_the_warmup_ends():
     """Algorithm 2 line 3：warm-up 期間固定訓練 D_c^0，不重組。"""
     _, metrics, _, _ = _toy_revision(total_epochs=8, warmup=3)
 
-    warmup_rows = metrics[:3]
+    warmup_rows, revised_rows = metrics[:3], metrics[3:]
+    # warm-up 期間訓練集合完全不動。
     assert all(row["promoted_count"] == 0 for row in warmup_rows)
     assert all(row["demoted_count"] == 0 for row in warmup_rows)
+    assert all(row["flips_to_pseudo"] == 0 for row in warmup_rows)
     assert len({row["clean_set_size"] for row in warmup_rows}) == 1
-    # 第一次重組的效果出現在 epoch m+1 那一列的集合上（spec §7.3 第 8 項）。
-    assert metrics[3]["clean_set_size"] != metrics[2]["clean_set_size"]
+    # m 之後才有重組。某一個 epoch 恰好沒有變動是可能的，所以斷言整段期間有動過，
+    # 而不是斷言第 m+1 個 epoch 一定變動（後者是資料巧合，不是 Algorithm 2 的性質）。
+    assert sum(row["promoted_count"] + row["demoted_count"] for row in revised_rows) > 0
 
 
 def test_warmup_must_be_shorter_than_the_total():
@@ -205,6 +210,47 @@ def test_an_empty_clean_set_aborts_instead_of_falling_back():
                 total_epochs=4,
                 warmup=2,
             )
+
+
+def test_a_promotion_that_brings_a_pseudo_label_counts_as_a_flip(tmp_path):
+    """spec §7.3 第 9 項的修正：樣本帶著 pseudo-label 由 D_n 進 D_c 時前一個 epoch 是
+    null，若要求「兩端都非 null」就會把這份資料上唯一真正發生的標籤修正記成 0。"""
+    rng = np.random.default_rng(6)
+    matrix = (rng.random((40, 5)) < 0.5).astype(np.float32)
+    targets = (rng.random(40) < 0.4).astype(np.int64)
+    path = tmp_path / "audit.jsonl.gz"
+
+    _, metrics, _, summary, _ = slb.run_m3(
+        seed=20260823,
+        matrix=matrix,
+        targets=targets,
+        unit_ids=[f"u{i}" for i in range(40)],
+        gold_matrix=matrix[:2],
+        gold_unit_ids=["g0", "g1"],
+        device=mlp.torch.device("cpu"),
+        audit_path=path,
+        data_split_epochs=4,
+        revision_total=8,
+        revision_warmup=2,
+    )
+
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        written = [json.loads(line) for line in handle]
+    first_reassembly = 3  # m + 1
+    pseudo_at_first = sum(
+        1
+        for row in written
+        if row["stage"] == "revision"
+        and row["epoch"] == first_reassembly
+        and row["label_source"] == "pseudo"
+    )
+    revision_metrics = [row for row in metrics if row["stage"] == "revision"]
+
+    # warm-up 期間不可能有翻標籤（還沒重組）。
+    assert all(row["flips_to_pseudo"] == 0 for row in revision_metrics[:2])
+    # 首次重組帶進來的 pseudo-label 必須被算進去，不得因前一個 epoch 是 null 而漏掉。
+    assert revision_metrics[first_reassembly - 1]["flips_to_pseudo"] == pseudo_at_first
+    assert summary["revision"]["total_flips_to_pseudo"] >= pseudo_at_first
 
 
 def test_ema_update_weights_the_new_prediction_by_alpha():
