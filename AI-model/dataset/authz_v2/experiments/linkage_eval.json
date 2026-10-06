@@ -1,0 +1,141 @@
+{
+  "analysis_version": "authz-linkage-v1",
+  "design_apk_prefixes": [
+    "9b2a8728",
+    "9ed8ab7e"
+  ],
+  "design_informed_by_gold_positives": true,
+  "error_analysis": {
+    "gold_negatives": {
+      "not_linked": 16,
+      "units": 23
+    },
+    "lf_missed_positives": {
+      "linked": 56,
+      "units": 65
+    }
+  },
+  "errors_counted_as_not_linked": 0,
+  "layers": {
+    "pipeline_all_binary": {
+      "apks": 35,
+      "classification": {
+        "balanced_accuracy": 0.6288020004546487,
+        "f1": 0.45538461538461533,
+        "fn": 9,
+        "fp": 168,
+        "macro_f1": 0.48914783329877665,
+        "precision": 0.30578512396694213,
+        "recall": 0.891566265060241,
+        "tn": 97,
+        "tp": 74
+      },
+      "evaluated_units": 348,
+      "negatives": 265,
+      "positives": 83,
+      "ranking": {
+        "P@10": 0.5,
+        "P@50": 0.34,
+        "distinct_scores": 2,
+        "per_apk_counted": 16,
+        "per_apk_mean_P@3": 0.5208333333333334,
+        "positives": 83,
+        "total_units": 348,
+        "units_to_80pct_recall": 213
+      }
+    },
+    "reachable_subset": {
+      "apks": 21,
+      "classification": {
+        "balanced_accuracy": 0.7936092194866422,
+        "f1": 0.9024390243902438,
+        "fn": 9,
+        "fp": 7,
+        "macro_f1": 0.7845528455284552,
+        "precision": 0.9135802469135802,
+        "recall": 0.891566265060241,
+        "tn": 16,
+        "tp": 74
+      },
+      "evaluated_units": 106,
+      "negatives": 23,
+      "positives": 83,
+      "ranking": {
+        "P@10": 0.9,
+        "P@50": 0.94,
+        "distinct_scores": 2,
+        "per_apk_counted": 16,
+        "per_apk_mean_P@3": 0.9166666666666666,
+        "positives": 83,
+        "total_units": 106,
+        "units_to_80pct_recall": 72
+      }
+    },
+    "reachable_subset_excluding_design_apks": {
+      "apks": 19,
+      "classification": {
+        "balanced_accuracy": 0.7910079051383399,
+        "f1": 0.8666666666666666,
+        "fn": 5,
+        "fp": 7,
+        "macro_f1": 0.7969696969696969,
+        "precision": 0.8478260869565217,
+        "recall": 0.8863636363636364,
+        "tn": 16,
+        "tp": 39
+      },
+      "evaluated_units": 67,
+      "negatives": 23,
+      "positives": 44,
+      "ranking": {
+        "P@10": 0.9,
+        "P@50": 0.82,
+        "distinct_scores": 2,
+        "per_apk_counted": 14,
+        "per_apk_mean_P@3": 0.9047619047619048,
+        "positives": 44,
+        "total_units": 67,
+        "units_to_80pct_recall": 41
+      }
+    }
+  },
+  "reference_lines": {
+    "cross_apk_majority": 0.519,
+    "fitted_on_gold_ceiling": 0.695,
+    "lf_observed_label": 0.331,
+    "m2_mean": 0.4,
+    "m3_mean": 0.207,
+    "reachability_rule_all_positive": 0.439
+  },
+  "run_summary": {
+    "analysis_version": "authz-linkage-v1",
+    "apks": 208,
+    "callback_methods": [
+      "call",
+      "doInBackground",
+      "handleMessage",
+      "onClick",
+      "onItemClick",
+      "onLongClick",
+      "onPostExecute",
+      "onPreExecute",
+      "onProgressUpdate",
+      "onReceive",
+      "run"
+    ],
+    "counts": {
+      "linked": 1491,
+      "needed_callback_edge": 166,
+      "needed_init_as_entry": 49,
+      "not_linked": 630,
+      "reason:call_chain": 687,
+      "reason:sink_in_entry_method": 804
+    },
+    "gold_consulted": false,
+    "max_depth": 8,
+    "synthetic_callback_edges": 62134,
+    "units": 2121,
+    "wall_clock_seconds": 886.955840199953
+  },
+  "spec": "docs/authz_linkage_spec_v1.md"
+}

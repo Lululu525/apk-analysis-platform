@@ -9,6 +9,45 @@ ADR-0001 定下分析範圍後，Golden APK Set 已完成全部 385 個 review u
 
 > **2026-09-22 修訂**：原文寫「區分真假主要依賴 I」。Gold 一致性檢查（`app/tools/gold_consistency.py`）顯示這個說法不成立：審查依 R → I → S → A 順序，並在第一個被否定的 predicate 停止，所以 I 永遠比 S 先被檢查；當時外部可達的 51 筆 negative 中，有 37 筆記錄為 I refuted，但 S 並未檢查。另外，同一個事實（外部 entry 到不了 sink）曾被不同 unit 分別記為 I 或 S refuted。因此 I 與 S 的個別次數反映的是審查順序與歸因習慣，不能用來證明瓶頸在 I。改為較保守、但不受審查順序影響的說法：瓶頸在需要讀程式碼的 I 與 S linkage，兩者合併計算。
 
+> **2026-10-06 修訂（本 ADR 的核心前提有一部分被推翻）**：本文第一段寫
+> 「這兩者連同授權控制（A）的自動化需要 taint analysis、call graph 與 runtime guard
+> dominance 分析，工程量超出本專題規模」。**這句話把三件不同的事綁在一起一併寫掉，
+> 而其中 call graph 那一件實際上很便宜。**
+>
+> 2026-10-06 實作了 `app/tools/entry_sink_linkage.py`（規格
+> `docs/authz_linkage_spec_v1.md`）：以 Androguard 的 XREF 建反向呼叫圖，判定 component
+> 的 entry method 到不到得了 sink 所在的 method。約 200 行，37 個 Gold APK 跑 154 秒。
+> 在外部可達子集上，**排除設計時看過的 APK 後 macro F1 0.797**（母體 67 筆、19 個 APK），
+> 對照可達性規則 0.439、跨 APK 多數決 0.519、M2 0.400、M3 0.207。
+> LF 系統性漏判的那 65 筆真 positive 接起來 56 筆，代價是 23 筆 Gold negative 的真陰性
+> 由 20 降到 16。
+>
+> **三件事要分開記，否則這個修訂會被讀成「原本的判斷全錯」：**
+>
+> 1. **call graph：原判斷錯了。** 它不需要新工具——Androguard 已在用，
+>    完整的呼叫關係在抽取敏感 API 證據時就存在過，只是沒有被寫進產物
+>    （`sensitive_api_callers.jsonl` 的 `linkage_limit` 欄位自己寫著「未建立跨方法
+>    call graph」）。
+> 2. **taint analysis：原判斷仍然成立，但本專題不需要它。** 下方「暫不採用」第 3 項說的是
+>    追 `getIntent()`／extras 的資料流，那確實工程量中等且準確度不確定。
+>    但依 `authz_annotation_guide.md` Step 2 於 2026-09-19 經人工核准的觸發慣例，
+>    **外部呼叫者的觸發動作本身即構成 I 的控制流影響，不要求攻擊者資料流進 sink 參數**。
+>    因此只做控制流可達性就足以對應 Gold 的 I 判準。新增的分析**不是** taint analysis。
+> 3. **runtime guard dominance（A）：原判斷完全成立。** A 仍然沒有任何自動化證據，
+>    385 筆的 `A_predicate_result = refuted` 為 0 筆，全部 positive 的 A 確認都建立在
+>    `runtime_guard_not_analyzed` 之上。本次修訂不觸及 A。
+>
+> **對主軸的影響**：原本第 5 項主張（剩下的訊號在程式層級的 I／S linkage）只有負面證據
+> ——三份獨立量測都在證明「沒有它不行」，但答不出「有了它會怎樣」。
+> 現在那個問題有數字了，主張由負面證據變成可量化的 demonstration。
+> 主軸（以 R/I/S/A 評估框架量化自動化瓶頸）不變，而且更完整：
+> **R 可由 Manifest 規則解決、剩下的那一層可由呼叫圖解決到約 0.80、A 仍然無解。**
+>
+> **必須一併記載的程序瑕疵**：這條規則的設計過程接觸了 Gold 的 positive 側
+> （規格 §0），與本專題其他每一份規格的「先凍結再量」順序相反。
+> 緩解與對照見規格 §0、§7.3——設計時看過的 2 顆 APK 貢獻 0 筆 Gold negative，
+> 而 negative 側是全部判別困難的所在。
+
 > **2026-09-25 更新（早期 I 判定重審完成）**：同一次一致性檢查也發現第 1–226 筆與第 227 筆之後的 I 判定標準不同。依 `docs/golden_revision_i_convention_plan.md` 重審 46 筆後，Gold 由 positive 58／negative 302／unknown 25 變為 **positive 84／negative 265／unknown 36**（二分類 349）。R 判定未變，可達性規則仍為 384／384。外部可達（R confirmed）的 129 筆中，positive 84、negative 21、unknown 24；那 21 筆 negative 由 I（13 筆）或 S（10 筆）否定，全部屬於程式碼層級，Manifest 語意無法判定，本 ADR 的主張因此更明確。重審後 Gold 內部無矛盾，且每筆 label 都可由 R/I/S/A 唯一推導。
 
 ## 決策
@@ -25,6 +64,7 @@ ADR-0001 定下分析範圍後，Golden APK Set 已完成全部 385 個 review u
 - **採用：評估框架與瓶頸拆解為主軸，SLB 為探索性實驗。** 成果建立在已完成、可稽核的 Gold 與已驗證的可達性規則上，不依賴專題無法完成的程式碼層級（I、S linkage、A）自動化。
 - **不採用：照原計畫以 Vanilla／SLB 比較為主要成果。** 模型幾乎只能從自動化特徵學到 S；若 LF 也主要依據 sink，模型會重建 LF，SLB 的 revision 會把 label 往規則推（revision collapse），結論很可能是各模型重疊而無法解讀。
 - **暫不採用：補一個最小版 I 分析（method 內追 `getIntent()`／extras 是否流到 sink）。** 工程量中等但準確度不確定；保留為時間允許時的加強項或 future work，不列入本版主線。
+  > **2026-10-06**：此項維持不採用，且**不需要**採用——依核准的觸發慣例，I 不要求資料流（見上方修訂第 2 點）。實際補上的是另一件事：控制流可達性（entry method 到 sink method 的呼叫鏈），不追任何資料流。兩者不可混稱。
 - **不採用：以可達性規則先篩掉訓練資料。** 會連帶縮減訓練池並牽動其他已定案的範圍決定；改為訓練時使用全部訓練 units，可達性只在判定與評估時由規則處理。
 
 ## Consequences
