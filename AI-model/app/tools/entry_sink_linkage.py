@@ -60,6 +60,8 @@ CALLBACK_METHODS = frozenset(
 )
 MAX_DEPTH = 8
 CONSTRUCTOR = "<init>"
+# candidate unit 的 `linkage_status`：caller class 對不上任何 Manifest component。
+UNLINKED_CALLER = "unlinked_caller"
 
 # 設計這些規則時實際看過的 APK（規格 §0 第 2 項、§4 第 2 組）。
 DESIGN_APK_PREFIXES = ("9b2a8728", "9ed8ab7e")
@@ -192,14 +194,16 @@ def judge_unit(unit: Mapping[str, Any], graph: CallGraph) -> dict[str, Any]:
             "used_init_as_entry": False,
         }
 
-    # 由最弱的假設往上試，使記錄下來的是「最少需要哪幾條近似」。
+    # 規則 B 只適用於 component 類別（規格 §2.2、§2.3）：它的辯護是「框架先建構 component
+    # 實例才呼叫生命週期方法」，對 caller class 不是 Manifest component 的 unit 不成立。
+    # `linkage_status = unlinked_caller` 正是「caller class 對不上任何 component」的判定。
     with_init = entries | {CONSTRUCTOR}
-    for use_callbacks, targets in (
-        (False, entries),
-        (False, with_init),
-        (True, entries),
-        (True, with_init),
-    ):
+    candidates: list[tuple[bool, frozenset[str]]] = [(False, entries), (True, entries)]
+    if str(unit.get("linkage_status")) != UNLINKED_CALLER:
+        candidates = [(False, entries), (False, with_init), (True, entries), (True, with_init)]
+
+    # 由最弱的假設往上試，使記錄下來的是「最少需要哪幾條近似」。
+    for use_callbacks, targets in candidates:
         depth = graph.reach_entry(
             caller_class, caller_method, targets, use_callbacks=use_callbacks
         )

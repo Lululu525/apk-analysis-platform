@@ -303,23 +303,40 @@ M2 在相同的代價區間（TN 17–19）只救回 13–14 筆。
 
 ### 7.7 全量執行與訓練池的交叉結果
 
-全量：**2,121 筆 unit × 208 個 APK，887 秒**，補出的回呼邊 62,134 條，
+全量：**2,121 筆 unit × 208 個 APK**，補出的回呼邊 62,134 條，
 `error` 0 筆（全部 APK 都讀得到）。Gold 那 384 筆的判定與 §7.1 的單獨執行**完全相同**，
 分析是決定性的。
 
 ```
-linked      1,491      其中 sink 就在 entry method 裡   804
-not_linked    630           由呼叫鏈接起來               687
+linked      1,481      其中 sink 就在 entry method 裡   804
+not_linked    640           由呼叫鏈接起來               677
 ```
 
-需要近似的比例與 Gold 上一致：規則 A 166 筆、規則 B 49 筆，合計僅佔 linked 的 14%。
+需要近似的比例與 Gold 上一致：規則 A 156 筆、規則 B 39 筆，合計僅佔 linked 的 13%。
+
+> **【2026-10-07 修正：實作與本規格不符，非規則變更】**
+> §2.2 規則 B 寫的是「**component 類別的** `<init>`」，§2.3 的辯護也只對 component 成立
+> （框架先建構 component 實例才呼叫生命週期方法）。但初版實作對**任何**類別都套用了這條
+> 規則——而每個類別都有 `<init>`，等於對非 component 的 caller class 幾乎無條件放行。
+>
+> 已加上閘門：`linkage_status = unlinked_caller`（caller class 對不上任何 Manifest
+> component）的 unit 不適用規則 B，並補上一條專門的測試。
+>
+> **影響範圍先量過才修**：Gold 外部可達子集 106 筆中，用到規則 B 的 21 筆**全部是
+> component 類別**，因此 §7.2、§7.4 的全部數字**一字未變**（重跑後逐欄位核對相同）。
+> 受影響的只有全量：linked 1,491 → 1,481、規則 B 49 → 39、規則 A 166 → 156，
+> 恰好是那 10 筆非 component 的 unit。訓練池交叉的數字（§7.7 下方）隨之更新。
+>
+> 這是「實作沒照著凍結的規格做」的修正，不是「改規則」——§2.2 的文字未改動。
+> 發現過程：在檢查 §7.4 那 7 筆 false positive 的樣態時，注意到 `abstain` 的 268 筆
+> 全部被判為 `linked` 這個過於整齊的數字，追下去才發現閘門缺失。
 
 **與弱標籤的交叉（訓練池 1,685 筆）：**
 
 | LF 的 reason code | 筆數 | linked | not_linked |
 |---|--:|--:|--:|
 | `weak_positive_sink_in_entry_method` | 387 | **387** | 0 |
-| `weak_negative_no_entry_to_sink_evidence` | 1,022 | **534** | 488 |
+| `weak_negative_no_entry_to_sink_evidence` | 1,022 | **524** | 498 |
 | `weak_negative_sink_permission_undeclared` | 8 | 8 | 0 |
 | `abstain_caller_class_not_component` | 268 | 268 | 0 |
 
@@ -334,7 +351,7 @@ method 裡」，linkage 對它們必然回報 `sink_in_entry_method`，實測 38
 ```
 現行弱標籤   positive   387、negative 1,030   （positive 佔 27.3%）
 若把 linked 的 weak negative 改判 positive
-             positive   921、negative   496   （positive 佔 65.0%）
+             positive   911、negative   506   （positive 佔 64.3%）
 ```
 
 **兩邊都有足夠的筆數，§6.3 的死路因此被解開了。**

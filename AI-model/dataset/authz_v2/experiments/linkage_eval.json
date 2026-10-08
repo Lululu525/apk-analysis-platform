@@ -124,18 +124,18 @@
       "run"
     ],
     "counts": {
-      "linked": 1491,
-      "needed_callback_edge": 166,
-      "needed_init_as_entry": 49,
-      "not_linked": 630,
-      "reason:call_chain": 687,
+      "linked": 1481,
+      "needed_callback_edge": 156,
+      "needed_init_as_entry": 39,
+      "not_linked": 640,
+      "reason:call_chain": 677,
       "reason:sink_in_entry_method": 804
     },
     "gold_consulted": false,
     "max_depth": 8,
     "synthetic_callback_edges": 62134,
     "units": 2121,
-    "wall_clock_seconds": 886.955840199953
+    "wall_clock_seconds": 684.5352904999163
   },
   "spec": "docs/authz_linkage_spec_v1.md"
 }

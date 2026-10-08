@@ -25,7 +25,8 @@ def _node(text):
     return (cls, method)
 
 
-def _unit(caller="Lcom/x/A;.helper", component_type="activity"):
+def _unit(caller="Lcom/x/A;.helper", component_type="activity",
+          linkage_status="component_class_caller"):
     cls, method = caller.rsplit(".", 1)
     return {
         "review_unit_id": "u0",
@@ -33,6 +34,7 @@ def _unit(caller="Lcom/x/A;.helper", component_type="activity"):
         "component_type": component_type,
         "caller_class": cls,
         "caller_method": method,
+        "linkage_status": linkage_status,
     }
 
 
@@ -176,6 +178,28 @@ def test_rule_b_covers_a_handler_built_in_a_field_initialiser():
     assert verdict["linkage_result"] == "linked"
     assert verdict["used_callback_edge"] is True
     assert verdict["used_init_as_entry"] is True
+
+
+def test_rule_b_does_not_apply_when_the_caller_class_is_not_a_component():
+    """規則 B 的辯護是「框架先建構 component 才呼叫生命週期方法」，對非 component 不成立。
+
+    `linkage_status = unlinked_caller` 即「caller class 對不上任何 Manifest component」。
+    少了這道閘，規則 B 會對任意類別生效——每個類別都有 `<init>`，等於幾乎無條件放行。
+    """
+    edges = [
+        ("Lcom/x/A;.<init>", "Lcom/x/A$1;.<init>"),
+        ("Lcom/x/A$1;.run", "Lcom/x/A;.helper"),
+    ]
+    graph = _graph(edges, {"Lcom/x/A$1;": {"run", "<init>"}})
+
+    component = linkage.judge_unit(_unit("Lcom/x/A;.helper"), graph)
+    unlinked = linkage.judge_unit(
+        _unit("Lcom/x/A;.helper", linkage_status="unlinked_caller"), graph
+    )
+
+    assert component["linkage_result"] == "linked"
+    assert component["used_init_as_entry"] is True
+    assert unlinked["linkage_result"] == "not_linked"
 
 
 def test_weaker_assumptions_are_preferred_so_the_record_is_the_minimum_needed():
