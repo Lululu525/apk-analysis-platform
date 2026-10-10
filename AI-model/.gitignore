@@ -39,9 +39,14 @@ output/framework_poc/
 .claude/
 
 # Local pytest output created by Codex review/test runs
+.codex-*/
 .codex-pytest-tmp/
 .codex-*-pytest-tmp/
 .pytest_cache/
 
 # Local Golden review session narratives; authoritative review history is JSONL
 docs/golden_review_experiment_log*.md
+
+# Personal progress reports and talk scripts (kept locally in docs/, not tracked)
+docs/*_進度報告.md
+docs/*_報告講稿與問答準備.md
