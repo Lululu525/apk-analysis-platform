@@ -100,6 +100,58 @@ def _resolve_artifact(root: Path, relative_path: str) -> Path:
     return artifact
 
 
+def audit_checksum_manifest(checksum_csv: Path, artifact_root: Path) -> dict[str, Any]:
+    """Verify every file declared by the portable evidence package inventory."""
+    errors: list[dict[str, str]] = []
+    files: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    with checksum_csv.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fields = reader.fieldnames or []
+        if len(fields) < 2:
+            raise ValueError("checksum CSV 至少需要相對路徑與 SHA256 兩欄")
+        path_field, sha_field = fields[:2]
+        for line_number, raw in enumerate(reader, 2):
+            relative_path = (raw.get(path_field) or "").strip().replace("\\", "/")
+            expected_sha = (raw.get(sha_field) or "").strip().lower()
+            row_errors: list[str] = []
+            if not relative_path:
+                row_errors.append("附件相對路徑不得為空")
+            elif relative_path in seen_paths:
+                row_errors.append("附件相對路徑必須唯一")
+            seen_paths.add(relative_path)
+            if len(expected_sha) != 64 or any(c not in "0123456789abcdef" for c in expected_sha):
+                row_errors.append("SHA256 必須是 64 位小寫十六進位")
+            actual_sha = None
+            try:
+                artifact = _resolve_artifact(artifact_root, relative_path)
+                if not artifact.is_file():
+                    raise ValueError("附件不存在")
+                actual_sha = sha256_file(artifact)
+                if actual_sha != expected_sha:
+                    row_errors.append("附件 SHA-256 與清單不符")
+            except (OSError, ValueError) as exc:
+                row_errors.append(str(exc))
+            for message in row_errors:
+                errors.append({"line": str(line_number), "path": relative_path, "message": message})
+            files.append({
+                "path": relative_path,
+                "expected_sha256": expected_sha,
+                "actual_sha256": actual_sha,
+                "status": "error" if row_errors else "verified",
+            })
+    return {
+        "checksum_file": str(checksum_csv),
+        "summary": {
+            "file_count": len(files),
+            "verified_count": sum(row["status"] == "verified" for row in files),
+            "error_count": len(errors),
+        },
+        "errors": errors,
+        "files": files,
+    }
+
+
 def audit_claims(claims_csv: Path, artifact_root: Path) -> dict[str, Any]:
     errors: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
@@ -238,12 +290,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--claims", type=Path, required=True, help="research claims CSV")
     parser.add_argument("--artifact-root", type=Path, required=True, help="原始 JSON 所在根目錄")
     parser.add_argument("--out", type=Path, required=True, help="稽核報告 JSON")
+    parser.add_argument("--checksums", type=Path, help="可選：整包附件 SHA-256 清單 CSV")
     args = parser.parse_args(argv)
     report = audit_claims(args.claims, args.artifact_root)
+    if args.checksums:
+        report["package_integrity"] = audit_checksum_manifest(args.checksums, args.artifact_root)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(report["summary"], ensure_ascii=False))
-    return 2 if report["errors"] else 0
+    console_summary = {"claims": report["summary"]}
+    if "package_integrity" in report:
+        console_summary["package_integrity"] = report["package_integrity"]["summary"]
+    print(json.dumps(console_summary, ensure_ascii=False))
+    package_errors = report.get("package_integrity", {}).get("errors", [])
+    return 2 if report["errors"] or package_errors else 0
 
 
 if __name__ == "__main__":

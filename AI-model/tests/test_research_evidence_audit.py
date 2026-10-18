@@ -127,3 +127,39 @@ def test_20261019_manifest_preserves_reported_populations_and_boundaries():
     linkage = [row for row in rows if row["metric_name"].startswith("linkage_")]
     assert linkage and all(row["claim_scope"] == "static_possible_path" for row in linkage)
     assert all(len(row["artifact_sha256"]) == 64 for row in rows)
+
+
+def test_checksum_manifest_verifies_entire_package_and_detects_tampering(tmp_path):
+    first = tmp_path / "原始結果" / "a.json"
+    second = tmp_path / "報告.md"
+    first.parent.mkdir()
+    first.write_text('{"ok": true}', encoding="utf-8")
+    second.write_text("evidence", encoding="utf-8")
+    inventory = tmp_path / "檔案校驗_SHA256.csv"
+    with inventory.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["附件相對路徑", "SHA256", "原專題路徑"])
+        writer.writerow(["原始結果/a.json", hashlib.sha256(first.read_bytes()).hexdigest(), "source/a.json"])
+        writer.writerow(["報告.md", hashlib.sha256(second.read_bytes()).hexdigest(), ""])
+    report = audit.audit_checksum_manifest(inventory, tmp_path)
+    assert report["summary"] == {"file_count": 2, "verified_count": 2, "error_count": 0}
+    second.write_text("tampered", encoding="utf-8")
+    report = audit.audit_checksum_manifest(inventory, tmp_path)
+    assert report["summary"]["verified_count"] == 1
+    assert report["errors"] == [{
+        "line": "3", "path": "報告.md", "message": "附件 SHA-256 與清單不符"
+    }]
+
+
+def test_checksum_manifest_rejects_duplicate_and_escape_paths(tmp_path):
+    inventory = tmp_path / "checksums.csv"
+    valid_sha = "0" * 64
+    with inventory.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["path", "sha"])
+        writer.writerow(["../outside", valid_sha])
+        writer.writerow(["../outside", valid_sha])
+    report = audit.audit_checksum_manifest(inventory, tmp_path)
+    messages = [error["message"] for error in report["errors"]]
+    assert "artifact_path 不得離開 artifact root" in messages
+    assert "附件相對路徑必須唯一" in messages

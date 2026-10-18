@@ -51,8 +51,12 @@ Gold 的結果，也不得標成獨立泛化成績。`linked` 只能表示靜態
 python -m app.tools.research_evidence_audit `
   --claims dataset/authz_v2/research_claims_20261019.csv `
   --artifact-root C:\path\to\1019-evidence-package `
+  --checksums C:\path\to\1019-evidence-package\檔案校驗_SHA256.csv `
   --out C:\path\to\1019-evidence-package\research_claims_audit.json
 ```
+
+`--checksums` 會先逐檔驗證附件包的 SHA-256，包含原始 JSONL、模型 run manifests、
+衍生 CSV 與 README；遺失、被修改、重複或跳出 evidence root 的路徑都會使指令失敗。
 
 一般用途則可從 `dataset/authz_v2/research_claims_template.csv` 建立新的 manifest：
 
