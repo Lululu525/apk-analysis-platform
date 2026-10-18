@@ -213,3 +213,20 @@ def test_empty_multi_hot_field_defaults_to_empty_list():
     ]
     assert multi_hot_indexes
     assert matrix[0, multi_hot_indexes].tolist() == [0.0] * len(multi_hot_indexes)
+
+
+def test_excluded_direct_label_features_are_not_encoded():
+    records = [
+        _record(permission=None, exported=True, protected=False, actions=["A"]),
+        _record(permission="P", exported=False, protected=True, actions=["B"]),
+    ]
+    encoder = FilterRowEncoder(
+        excluded_features=["permission", "exported", "protected"]
+    )
+
+    matrix = encoder.fit_transform(records)
+
+    assert "exported" not in encoder.feature_names_
+    assert "protected" not in encoder.feature_names_
+    assert not any(name.startswith("permission_") for name in encoder.feature_names_)
+    assert matrix.shape[1] == len(encoder.feature_names_)

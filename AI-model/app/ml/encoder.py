@@ -85,7 +85,8 @@ def load_jsonl(path: Path) -> list[dict]:
 
 
 class FilterRowEncoder:
-    def __init__(self) -> None:
+    def __init__(self, excluded_features: list[str] | None = None) -> None:
+        self.excluded_features = set(excluded_features or [])
         self.onehot = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
         self.mlbs: dict[str, MultiLabelBinarizer] = {
             field: MultiLabelBinarizer() for field in MULTI_HOT_FIELDS
@@ -93,13 +94,26 @@ class FilterRowEncoder:
         self.feature_names_: list[str] = []
         self._fitted = False
 
+    def _excluded(self) -> set[str]:
+        # Older serialized encoders predate this option; keep them loadable.
+        return set(getattr(self, "excluded_features", set()))
+
+    def _categorical_columns(self) -> list[str]:
+        return [name for name in CATEGORICAL_COLUMNS if name not in self._excluded()]
+
+    def _boolean_columns(self) -> list[str]:
+        return [name for name in BOOLEAN_COLUMNS if name not in self._excluded()]
+
     def _categorical_matrix(self, records: list[dict], fit: bool) -> np.ndarray:
+        columns = self._categorical_columns()
+        if not columns:
+            return np.empty((len(records), 0))
         rows = []
         for r in records:
             f = r["features"]
             rows.append([
-                str(f.get("component_type")),
-                _normalize_permission(f.get("permission")),
+                _normalize_permission(f.get(name)) if name == "permission" else str(f.get(name))
+                for name in columns
             ])
         arr = np.array(rows, dtype=object)
         if fit:
@@ -107,10 +121,13 @@ class FilterRowEncoder:
         return np.asarray(self.onehot.transform(arr))
 
     def _boolean_matrix(self, records: list[dict]) -> np.ndarray:
+        columns = self._boolean_columns()
+        if not columns:
+            return np.empty((len(records), 0))
         rows = []
         for r in records:
             f = r["features"]
-            rows.append([int(bool(f.get(col))) for col in BOOLEAN_COLUMNS])
+            rows.append([int(bool(f.get(col))) for col in columns])
         return np.array(rows, dtype=float)
 
     def _multi_hot_matrix(self, records: list[dict], field: str, fit: bool) -> np.ndarray:
@@ -131,8 +148,8 @@ class FilterRowEncoder:
         multi_parts = [self._multi_hot_matrix(records, field, fit=True) for field in MULTI_HOT_FIELDS]
 
         self.feature_names_ = (
-            list(self.onehot.get_feature_names_out(CATEGORICAL_COLUMNS))
-            + BOOLEAN_COLUMNS
+            list(self.onehot.get_feature_names_out(self._categorical_columns()))
+            + self._boolean_columns()
             + [
                 f"{MULTI_HOT_FIELDS[field]}{cls}"
                 for field in MULTI_HOT_FIELDS

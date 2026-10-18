@@ -1,0 +1,61 @@
+{
+  "created_at_utc": "2026-10-18T19:58:12.001134+00:00",
+  "model_purpose": "component-level exported/unprotected weak-label baseline",
+  "model_class": "sklearn.ensemble.RandomForestClassifier",
+  "parameters": {
+    "n_estimators": 200,
+    "class_weight": "balanced",
+    "random_state": 42,
+    "excluded_features": [
+      "exported",
+      "permission",
+      "protected"
+    ]
+  },
+  "training_data": {
+    "path": "AI-model\\dataset\\training\\filter_rows.jsonl",
+    "sha256": "2124bc6e1745ebd5efba0b14f3e219cb824ea5e577d81e15cc471831f711557c",
+    "records": 256,
+    "unique_sample_ids": 68,
+    "label_sources": {
+      "rule_weak_label": 256
+    },
+    "label_definition": "1 iff exported is true and protected is false; otherwise 0",
+    "splits": {
+      "train": {
+        "records": 184,
+        "positive": 127,
+        "negative": 57
+      },
+      "val": {
+        "records": 31,
+        "positive": 23,
+        "negative": 8
+      },
+      "test": {
+        "records": 41,
+        "positive": 30,
+        "negative": 11
+      }
+    }
+  },
+  "artifacts": {
+    "model.joblib": {
+      "sha256": "ec10ca3df692c6516783af12f36dbbc9b012b77dff9e1ee401f5d525577d84e8"
+    },
+    "encoder.joblib": {
+      "sha256": "25e4c9a603e33e33d417241d3306a149e479d3fce3e16c0a8c4ea8232447e44a"
+    },
+    "metrics.json": {
+      "sha256": "46cf1e4fc57aeafcc62fdfc2a8d1fc3a96b62a8e71a2653eab996bd900ff5308"
+    }
+  },
+  "software": {
+    "python": "3.12.7",
+    "numpy": "2.5.4",
+    "scikit_learn": "1.9.1",
+    "joblib": "1.6.0"
+  },
+  "source_git_commit": "de781b23896f4a368d7040ddb3623ee3f3ab3d17",
+  "research_warning": "The weak label is computed directly from exported and protected, and both fields are model inputs. Perfect evaluation therefore demonstrates rule reconstruction, not independent prediction of real-world security outcomes."
+}

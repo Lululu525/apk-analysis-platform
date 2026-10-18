@@ -104,6 +104,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="訓練 filter_row 的 v1 Random Forest 模型")
     parser.add_argument("--data", type=Path, required=True, help="filter_rows.jsonl 路徑")
     parser.add_argument("--out-dir", type=Path, required=True, help="輸出模型/encoder/metrics 的資料夾")
+    parser.add_argument(
+        "--exclude-feature",
+        action="append",
+        default=[],
+        choices=["component_type", "permission", "exported", "protected"],
+        help="Ablation 用：排除指定輸入特徵；可重複指定",
+    )
     args = parser.parse_args()
 
     if not args.data.exists():
@@ -119,7 +126,7 @@ def main() -> None:
 
     print(f"資料筆數 -> train: {len(by_split['train'])}, val: {len(by_split['val'])}, test: {len(by_split['test'])}")
 
-    encoder = FilterRowEncoder()
+    encoder = FilterRowEncoder(excluded_features=args.exclude_feature)
     X_train = encoder.fit_transform(by_split["train"])
     y_train = [r["label"] for r in by_split["train"]]
 
@@ -137,6 +144,7 @@ def main() -> None:
         "n_estimators": N_ESTIMATORS,
         "class_weight": "balanced",
         "random_state": RANDOM_STATE,
+        "excluded_features": sorted(args.exclude_feature),
         "n_features": int(X_train.shape[1]),
         "train": evaluate(model, X_train, y_train, "train"),
     }
@@ -186,6 +194,7 @@ def main() -> None:
             "n_estimators": N_ESTIMATORS,
             "class_weight": "balanced",
             "random_state": RANDOM_STATE,
+            "excluded_features": sorted(args.exclude_feature),
         },
         "training_data": {
             "path": str(args.data),
