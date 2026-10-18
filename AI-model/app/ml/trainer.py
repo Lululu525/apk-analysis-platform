@@ -20,11 +20,17 @@ hyperparameter search，只用合理的預設值。
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import platform
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import joblib
+import sklearn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score, recall_score
 
@@ -32,6 +38,27 @@ from encoder import FilterRowEncoder, load_jsonl
 
 RANDOM_STATE = 42
 N_ESTIMATORS = 200
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def git_revision(repo_root: Path) -> str | None:
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
 
 
 def split_records(records: list[dict]) -> dict[str, list[dict]]:
@@ -137,15 +164,71 @@ def main() -> None:
     encoder_path = args.out_dir / "encoder.joblib"
     metrics_path = args.out_dir / "metrics.json"
 
-    import joblib
     joblib.dump(model, model_path)
     encoder.save(encoder_path)
     with metrics_path.open("w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False, indent=2)
 
+    repo_root = Path(__file__).resolve().parents[3]
+    label_sources: dict[str, int] = {}
+    sample_ids: set[str] = set()
+    for record in records:
+        source = str(record.get("label_source", "<missing>"))
+        label_sources[source] = label_sources.get(source, 0) + 1
+        if record.get("sample_id"):
+            sample_ids.add(str(record["sample_id"]))
+
+    manifest = {
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "model_purpose": "component-level exported/unprotected weak-label baseline",
+        "model_class": "sklearn.ensemble.RandomForestClassifier",
+        "parameters": {
+            "n_estimators": N_ESTIMATORS,
+            "class_weight": "balanced",
+            "random_state": RANDOM_STATE,
+        },
+        "training_data": {
+            "path": str(args.data),
+            "sha256": sha256_file(args.data),
+            "records": len(records),
+            "unique_sample_ids": len(sample_ids),
+            "label_sources": label_sources,
+            "label_definition": "1 iff exported is true and protected is false; otherwise 0",
+            "splits": {
+                name: {
+                    "records": len(split_records_),
+                    "positive": sum(int(row["label"]) for row in split_records_),
+                    "negative": len(split_records_) - sum(int(row["label"]) for row in split_records_),
+                }
+                for name, split_records_ in by_split.items()
+            },
+        },
+        "artifacts": {
+            "model.joblib": {"sha256": sha256_file(model_path)},
+            "encoder.joblib": {"sha256": sha256_file(encoder_path)},
+            "metrics.json": {"sha256": sha256_file(metrics_path)},
+        },
+        "software": {
+            "python": platform.python_version(),
+            "numpy": np.__version__,
+            "scikit_learn": sklearn.__version__,
+            "joblib": joblib.__version__,
+        },
+        "source_git_commit": git_revision(repo_root),
+        "research_warning": (
+            "The weak label is computed directly from exported and protected, and both fields "
+            "are model inputs. Perfect evaluation therefore demonstrates rule reconstruction, "
+            "not independent prediction of real-world security outcomes."
+        ),
+    }
+    manifest_path = args.out_dir / "training_manifest.json"
+    with manifest_path.open("w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+
     print(f"\n[OK] 模型輸出至 {model_path}")
     print(f"[OK] encoder 輸出至 {encoder_path}")
     print(f"[OK] metrics 輸出至 {metrics_path}")
+    print(f"[OK] 訓練來源紀錄輸出至 {manifest_path}")
 
 
 if __name__ == "__main__":

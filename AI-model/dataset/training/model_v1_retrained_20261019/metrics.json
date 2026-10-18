@@ -1,0 +1,580 @@
+{
+  "model": "RandomForestClassifier",
+  "n_estimators": 200,
+  "class_weight": "balanced",
+  "random_state": 42,
+  "n_features": 109,
+  "train": {
+    "n_samples": 184,
+    "n_positive": 127,
+    "n_negative": 57,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "classification_report": {
+      "0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 57.0
+      },
+      "1": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 127.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 184.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 184.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        57,
+        0
+      ],
+      [
+        0,
+        127
+      ]
+    ]
+  },
+  "val": {
+    "n_samples": 31,
+    "n_positive": 23,
+    "n_negative": 8,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "classification_report": {
+      "0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 8.0
+      },
+      "1": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 23.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 31.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 31.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        8,
+        0
+      ],
+      [
+        0,
+        23
+      ]
+    ]
+  },
+  "test": {
+    "n_samples": 41,
+    "n_positive": 30,
+    "n_negative": 11,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "classification_report": {
+      "0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 11.0
+      },
+      "1": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 30.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 41.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 41.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        11,
+        0
+      ],
+      [
+        0,
+        30
+      ]
+    ]
+  },
+  "feature_importance": [
+    {
+      "feature": "permission_<NONE>",
+      "importance": 0.23651450428211057
+    },
+    {
+      "feature": "protected",
+      "importance": 0.22398797068510118
+    },
+    {
+      "feature": "exported",
+      "importance": 0.09958185408621409
+    },
+    {
+      "feature": "permission_android.permission.DUMP",
+      "importance": 0.03994073293400972
+    },
+    {
+      "feature": "has_action_androidx.profileinstaller.action.SAVE_PROFILE",
+      "importance": 0.03813896284193121
+    },
+    {
+      "feature": "has_action_androidx.profileinstaller.action.BENCHMARK_OPERATION",
+      "importance": 0.03238823098387033
+    },
+    {
+      "feature": "component_type_activity",
+      "importance": 0.03223944137281885
+    },
+    {
+      "feature": "has_action_android.appwidget.action.APPWIDGET_UPDATE",
+      "importance": 0.027636567938805437
+    },
+    {
+      "feature": "has_action_androidx.profileinstaller.action.SKIP_FILE",
+      "importance": 0.02584792817933428
+    },
+    {
+      "feature": "has_action_androidx.profileinstaller.action.INSTALL_PROFILE",
+      "importance": 0.023892987038145866
+    },
+    {
+      "feature": "has_action_com.google.android.c2dm.intent.RECEIVE",
+      "importance": 0.02223383143891093
+    },
+    {
+      "feature": "has_action_android.intent.action.MAIN",
+      "importance": 0.01733253832056076
+    },
+    {
+      "feature": "has_action_com.google.android.gms.iid.InstanceID",
+      "importance": 0.016398542308914726
+    },
+    {
+      "feature": "has_category_android.intent.category.LAUNCHER",
+      "importance": 0.01495480320792661
+    },
+    {
+      "feature": "has_action_com.google.android.c2dm.intent.REGISTRATION",
+      "importance": 0.014447935714292936
+    },
+    {
+      "feature": "component_type_receiver",
+      "importance": 0.012297318855766343
+    },
+    {
+      "feature": "permission_com.google.android.c2dm.permission.SEND",
+      "importance": 0.011929646371649864
+    },
+    {
+      "feature": "permission_android.permission.BROADCAST_SMS",
+      "importance": 0.011321377746885672
+    },
+    {
+      "feature": "component_type_service",
+      "importance": 0.007059824048204194
+    },
+    {
+      "feature": "has_category_android.intent.category.EMBED",
+      "importance": 0.006168732314486002
+    },
+    {
+      "feature": "permission_com.toyapk.scenario_c.case3.ACCESS_CONTACTS",
+      "importance": 0.006114073254458722
+    },
+    {
+      "feature": "has_action_com.tremorvideo.sdk.android.videoad.Playvideo",
+      "importance": 0.006057007466340009
+    },
+    {
+      "feature": "permission_android.permission.BIND_DEVICE_ADMIN",
+      "importance": 0.005591570611158583
+    },
+    {
+      "feature": "has_action_android.app.action.DEVICE_ADMIN_ENABLED",
+      "importance": 0.005118407527109614
+    },
+    {
+      "feature": "has_action_com.sonos.intent.action.TRANSPORT_NEXT",
+      "importance": 0.0037033446534870213
+    },
+    {
+      "feature": "has_action_com.sonos.intent.action.TRANSPORT_PREV",
+      "importance": 0.003634026295527997
+    },
+    {
+      "feature": "permission_android.permission.RECEIVE_BOOT_COMPLETED",
+      "importance": 0.003452844038169274
+    },
+    {
+      "feature": "permission_com.toyapk.scenario_a.case5.permission.ACCESS_MAIN",
+      "importance": 0.0033440491812289125
+    },
+    {
+      "feature": "has_action_com.sonos.intent.action.TRANSPORT_PLAYPAUSE",
+      "importance": 0.003152483716100218
+    },
+    {
+      "feature": "has_action_android.provider.Telephony.SMS_RECEIVED",
+      "importance": 0.002694101434540036
+    },
+    {
+      "feature": "component_type_provider",
+      "importance": 0.0024942792919855367
+    },
+    {
+      "feature": "has_action_android.intent.action.QUICKBOOT_POWERON",
+      "importance": 0.002417020223003265
+    },
+    {
+      "feature": "permission_com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION",
+      "importance": 0.002352743750773237
+    },
+    {
+      "feature": "has_action_android.intent.action.BOOT_COMPLETED",
+      "importance": 0.002230325341272377
+    },
+    {
+      "feature": "permission_android.permission.INSTALL_PACKAGES",
+      "importance": 0.0021047200171368913
+    },
+    {
+      "feature": "permission_com.toyapk.scenario_e.case2.READ",
+      "importance": 0.002077216143758542
+    },
+    {
+      "feature": "has_category_air.nn.mobile.app.main",
+      "importance": 0.0017401607095546034
+    },
+    {
+      "feature": "permission_com.toyapk.scenario_e.case4.READ",
+      "importance": 0.0016983700356995603
+    },
+    {
+      "feature": "permission_com.toyapk.scenario_b.case3.permission.BIND_PROTECTED",
+      "importance": 0.0016752278944175258
+    },
+    {
+      "feature": "permission_com.toyapk.scenario_e.case5.READ",
+      "importance": 0.0015937891483595419
+    },
+    {
+      "feature": "has_action_android.app.action.ACTION_DEVICE_ADMIN_DISABLE_REQUESTED",
+      "importance": 0.0015036811688467538
+    },
+    {
+      "feature": "has_category_android.intent.category.DEFAULT",
+      "importance": 0.0013887669033639742
+    },
+    {
+      "feature": "has_action_android.intent.action.AIRPLANE_MODE",
+      "importance": 0.0013816551611673675
+    },
+    {
+      "feature": "has_category_android.intent.category.HOME",
+      "importance": 0.0011698861000150986
+    },
+    {
+      "feature": "permission_android.permission.BIND_INPUT_METHOD",
+      "importance": 0.0011205489319399346
+    },
+    {
+      "feature": "has_action_android.view.InputMethod",
+      "importance": 0.0011162864258495776
+    },
+    {
+      "feature": "has_action_android.intent.action.PHONE_STATE",
+      "importance": 0.000953328366995604
+    },
+    {
+      "feature": "has_action_com.google.firebase.INSTANCE_ID_EVENT",
+      "importance": 0.0007927076543703756
+    },
+    {
+      "feature": "has_action_android.intent.action.VIEW",
+      "importance": 0.0007121517675904354
+    },
+    {
+      "feature": "has_action_com.google.firebase.MESSAGING_EVENT",
+      "importance": 0.0006626302629053272
+    },
+    {
+      "feature": "has_action_com.google.android.gms.measurement.UPLOAD",
+      "importance": 0.0005903719246161649
+    },
+    {
+      "feature": "has_action_android.provider.Telephony.SMS_SENT",
+      "importance": 0.0005373847896332699
+    },
+    {
+      "feature": "has_category_com.in22labs.companypattern",
+      "importance": 0.0005256759267448711
+    },
+    {
+      "feature": "has_category_com.kgsinfoway.emojikeyboard",
+      "importance": 0.0004846430299003786
+    },
+    {
+      "feature": "has_action_android.provider.Telephony.SMS_DELIVER",
+      "importance": 0.0004804197155450204
+    },
+    {
+      "feature": "has_category_android.intent.category.BROWSABLE",
+      "importance": 0.0004638477253127047
+    },
+    {
+      "feature": "has_action_android.intent.action.DATA_SMS_RECEIVED",
+      "importance": 0.00045151576241661177
+    },
+    {
+      "feature": "has_action_com.android.vending.billing.RESPONSE_CODE",
+      "importance": 0.00043988277284605674
+    },
+    {
+      "feature": "has_action_com.toyapk.scenario_b.case5.action.SYNC_DATA",
+      "importance": 0.00043308480595674695
+    },
+    {
+      "feature": "has_action_com.android.vending.INSTALL_REFERRER",
+      "importance": 0.0004177770683807353
+    },
+    {
+      "feature": "has_action_android.app.action.ACTION_DEVICE_ADMIN_DISABLED",
+      "importance": 0.0004091301737726172
+    },
+    {
+      "feature": "has_action_com.toyapk.scenario_b.case5.action.UPLOAD_FILE",
+      "importance": 0.00038172919501031126
+    },
+    {
+      "feature": "has_action_com.toyapk.scenario_b.case4.action.PROCESS",
+      "importance": 0.0003692660979875333
+    },
+    {
+      "feature": "has_action_android.intent.action.NEW_OUTGOING_CALL",
+      "importance": 0.0003593763325255967
+    },
+    {
+      "feature": "has_action_android.media.MediaRouteProviderService",
+      "importance": 0.00033137395947051886
+    },
+    {
+      "feature": "has_category_ru.kidcontrol.gpstracker",
+      "importance": 0.0003152265708022732
+    },
+    {
+      "feature": "has_action_android.net.conn.CONNECTIVITY_CHANGE",
+      "importance": 0.0002987406571296449
+    },
+    {
+      "feature": "has_action_android.appwidget.action.APPWIDGET_CONFIGURE",
+      "importance": 0.0002844115388918983
+    },
+    {
+      "feature": "has_action_com.android.vending.billing.PURCHASE_STATE_CHANGED",
+      "importance": 0.0002748097853650017
+    },
+    {
+      "feature": "has_action_android.app.action.DEVICE_ADMIN_DISABLED",
+      "importance": 0.00026780492306981076
+    },
+    {
+      "feature": "has_category_com.gamevilusa.dungeonlink.android.google.global.normal",
+      "importance": 0.0002661436736366938
+    },
+    {
+      "feature": "has_action_jtqsawchyv.qerbfsott.sactdels",
+      "importance": 0.00025735041682091323
+    },
+    {
+      "feature": "has_action_android.send.mms",
+      "importance": 0.0002554464649448727
+    },
+    {
+      "feature": "has_action_android.media.AUDIO_BECOMING_NOISY",
+      "importance": 0.00024273458799838057
+    },
+    {
+      "feature": "has_category_com.software.chrome",
+      "importance": 0.0002155835946297891
+    },
+    {
+      "feature": "has_action_android.intent.action.MY_PACKAGE_REPLACED",
+      "importance": 0.00019837215310302664
+    },
+    {
+      "feature": "has_action_com.android.vending.billing.IN_APP_NOTIFY",
+      "importance": 0.0001877964211699604
+    },
+    {
+      "feature": "has_action_com.software.CHECKER",
+      "importance": 0.00016914890756725717
+    },
+    {
+      "feature": "has_action_com.software.app.CHECKER",
+      "importance": 0.00016792637060614133
+    },
+    {
+      "feature": "has_action_com.kauf.intent.action.applist.com.kauf.talking.baum.TalkingJoeOstrich.main",
+      "importance": 0.0001622712281467705
+    },
+    {
+      "feature": "has_action_llebapbtewj.dbyffkesr.apeujawlStart76",
+      "importance": 0.00016226130727168935
+    },
+    {
+      "feature": "has_action_llebapbtewj.dbyffkesr.RSNotification",
+      "importance": 0.00012197468681810294
+    },
+    {
+      "feature": "has_action_android.intent.action.USER_PRESENT",
+      "importance": 0.00010664911019576666
+    },
+    {
+      "feature": "has_action_android.intent.action.BATTERY_CHANGED",
+      "importance": 0.00010654341288175091
+    },
+    {
+      "feature": "has_action_android.location.PROVIDERS_CHANGED",
+      "importance": 8.648090051989819e-05
+    },
+    {
+      "feature": "has_action_.musicservices.MusicServicesActivity.AddAnotherAccount",
+      "importance": 8.415973613305996e-05
+    },
+    {
+      "feature": "has_action_com.android.system.GC.Service",
+      "importance": 7.788639318127739e-05
+    },
+    {
+      "feature": "has_action_jyiaivi.ohduxbbylb.sactdels",
+      "importance": 7.140337593426762e-05
+    },
+    {
+      "feature": "has_action_android.intent.action.PACKAGE_REPLACED",
+      "importance": 6.694585091614701e-05
+    },
+    {
+      "feature": "has_action_com.google.android.gms.appinvite.ACTION_PREVIEW",
+      "importance": 5.987582970449917e-05
+    },
+    {
+      "feature": "has_action_yhonvqb.qaolckwnvj.sactdels",
+      "importance": 5.640289219900605e-05
+    },
+    {
+      "feature": "has_action_com.toyapk.scenario_d.case4.NOTIFY",
+      "importance": 5.62112016786664e-05
+    },
+    {
+      "feature": "has_action_srcdsnms.jlimwd.action.delayed.sms",
+      "importance": 5.4681059326199085e-05
+    },
+    {
+      "feature": "has_action_com.amazon.inapp.purchasing.NOTIFY",
+      "importance": 4.2585898670545734e-05
+    },
+    {
+      "feature": "has_action_android.intent.action.PACKAGE_ADDED",
+      "importance": 3.6588896908248046e-05
+    },
+    {
+      "feature": "has_category_android.intent.category.LEANBACK_LAUNCHER",
+      "importance": 2.8004057014918674e-05
+    },
+    {
+      "feature": "has_data_type_image/*",
+      "importance": 2.7658701702934716e-05
+    },
+    {
+      "feature": "has_action_dsrhki.yjgfqjejkjh.gbjutaxgpStart76",
+      "importance": 2.688361340918913e-05
+    },
+    {
+      "feature": "has_action_android.intent.action.REBOOT",
+      "importance": 2.033256571675792e-05
+    },
+    {
+      "feature": "has_action_android.intent.action.MEDIA_BUTTON",
+      "importance": 2.0249381628275167e-05
+    },
+    {
+      "feature": "has_data_type_application/pdf",
+      "importance": 1.839366894094347e-05
+    },
+    {
+      "feature": "has_action_android.intent.action.TIME_SET",
+      "importance": 1.8378982431373184e-05
+    },
+    {
+      "feature": "has_action_android.intent.action.PACKAGE_CHANGED",
+      "importance": 1.52306581906078e-05
+    },
+    {
+      "feature": "has_category_android.intent.category.MULTIWINDOW_LAUNCHER",
+      "importance": 1.1322110689798005e-05
+    },
+    {
+      "feature": "has_action_android.intent.action.PACKAGE_INSTALL",
+      "importance": 1.130390695369682e-05
+    },
+    {
+      "feature": "has_category_android.intent.category.default",
+      "importance": 7.138716404293219e-06
+    },
+    {
+      "feature": "has_action_android.intent.action.SEND",
+      "importance": 2.103852493907938e-06
+    },
+    {
+      "feature": "has_action_android.intent.action.DELETE",
+      "importance": 1.5598802923611018e-06
+    },
+    {
+      "feature": "has_action_android.intent.action.PACKAGE_REMOVED",
+      "importance": 4.0863072474572924e-07
+    }
+  ]
+}
