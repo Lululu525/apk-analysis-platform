@@ -1,0 +1,2 @@
+claim_id,population_id,unit_count,apk_count,metric_name,metric_value,evaluation_design,gold_role,claim_scope,artifact_path,artifact_sha256,json_pointer,notes
+replace-me,replace-population,0,0,replace_metric,0,descriptive,not_applicable,descriptive,experiments/replace.json,replace-with-64-character-lowercase-sha256,/replace/json/pointer,replace this example before running the audit

@@ -36,3 +36,5 @@
 
 - `toy_apk_sources/` 資料夾存放 Android Studio 原始碼，不進 git
 - 只有 build 出來的 `.apk` 檔案進 git（存放在本資料夾下）
+- 研究指標進入簡報或前端前，應使用 [`research_evidence_audit`](../docs/research_evidence_audit.md)
+  綁定母體、評估設計、Gold 角色、原始 JSON pointer 與 SHA-256。
