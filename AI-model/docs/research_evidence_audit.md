@@ -31,6 +31,31 @@ Gold 的結果，也不得標成獨立泛化成績。`linked` 只能表示靜態
 
 ## 執行
 
+`dataset/authz_v2/research_claims_20261019.csv` 已把 10/19 進度包中的九項主要結果轉成
+可稽核宣告。它保留原始完整精度，不使用簡報四捨五入後的 `0.519`、`0.695`、`0.797`
+取代 JSON 原值。將 Drive 附件完整下載／解壓後，資料夾應保留以下相對位置：
+
+```text
+<artifact-root>/
+  原始結果/
+    候選與特徵/training_pool_summary.json
+    規則與瓶頸/rule_baselines.json
+    規則與瓶頸/bottleneck_analysis.json
+    模型/model_eval_gold.json
+    Linkage/linkage_eval.json
+```
+
+對 10/19 證據包執行：
+
+```powershell
+python -m app.tools.research_evidence_audit `
+  --claims dataset/authz_v2/research_claims_20261019.csv `
+  --artifact-root C:\path\to\1019-evidence-package `
+  --out C:\path\to\1019-evidence-package\research_claims_audit.json
+```
+
+一般用途則可從 `dataset/authz_v2/research_claims_template.csv` 建立新的 manifest：
+
 在 `AI-model` 目錄執行：
 
 ```powershell

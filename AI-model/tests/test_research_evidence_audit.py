@@ -9,6 +9,9 @@ import pytest
 from app.tools import research_evidence_audit as audit
 
 
+REPO_ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
+
+
 FIELDS = [
     "claim_id", "population_id", "unit_count", "apk_count", "metric_name",
     "metric_value", "evaluation_design", "gold_role", "claim_scope",
@@ -104,3 +107,23 @@ def test_missing_schema_fields_fail_closed(tmp_path):
     claims.write_text("claim_id,population_id\na,b\n", encoding="utf-8")
     with pytest.raises(ValueError, match="缺少必要欄位"):
         audit.audit_claims(claims, tmp_path)
+
+
+def test_20261019_manifest_preserves_reported_populations_and_boundaries():
+    manifest = REPO_ROOT / "dataset" / "authz_v2" / "research_claims_20261019.csv"
+    with manifest.open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 9
+    assert set(audit.REQUIRED_FIELDS) <= set(rows[0])
+    assert {row["population_id"] for row in rows} == {
+        "training-pool-v1-1685",
+        "reachable-gold-106",
+        "candidate-units-2121",
+        "reachable-gold-excluding-design-apks-67",
+    }
+    assert not any(row["claim_scope"] == "generalization" for row in rows)
+    same_batch = next(row for row in rows if row["evaluation_design"] == "same_batch_fit")
+    assert same_batch["claim_scope"] == "descriptive"
+    linkage = [row for row in rows if row["metric_name"].startswith("linkage_")]
+    assert linkage and all(row["claim_scope"] == "static_possible_path" for row in linkage)
+    assert all(len(row["artifact_sha256"]) == 64 for row in rows)
