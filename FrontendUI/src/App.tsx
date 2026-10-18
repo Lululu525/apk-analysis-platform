@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import ResearchProgress from "./ResearchProgress";
 
 type SampleStatus = "received" | "queued" | "running" | "finished" | "failed";
 
@@ -792,6 +793,7 @@ function UploadModal({
 }
 
 export default function App() {
+  const [activeView, setActiveView] = useState<"analysis" | "research">("analysis");
   const [samples, setSamples] = useState<SampleItem[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
@@ -1042,6 +1044,21 @@ export default function App() {
               APK Analysis Platform
             </div>
 
+            <div className="app-view-tabs" aria-label="Primary navigation">
+              <button
+                className={activeView === "analysis" ? "app-view-tab active" : "app-view-tab"}
+                onClick={() => setActiveView("analysis")}
+              >
+                APK 分析
+              </button>
+              <button
+                className={activeView === "research" ? "app-view-tab active" : "app-view-tab"}
+                onClick={() => setActiveView("research")}
+              >
+                研究進度
+              </button>
+            </div>
+
             <div
               style={{
                 display: "flex",
@@ -1053,33 +1070,41 @@ export default function App() {
             >
               <div>
                 <div style={{ fontSize: 34, fontWeight: 900, marginBottom: 8, lineHeight: 1.1 }}>
-                  Analysis Dashboard
+                  {activeView === "analysis" ? "Analysis Dashboard" : "Research Evidence"}
                 </div>
                 <div style={{ color: "#64748b", fontSize: 16 }}>
-                  Upload APK files, track async analysis progress, and review generated reports.
+                  {activeView === "analysis"
+                    ? "Upload APK files, track async analysis progress, and review generated reports."
+                    : "Track experiment populations, evidence boundaries, and reproducible result sources."}
                 </div>
               </div>
 
-              <button
-                onClick={() => setUploadModalOpen(true)}
-                style={{
-                  borderRadius: 16,
-                  border: "1px solid #dbeafe",
-                  background: "#2563eb",
-                  color: "#ffffff",
-                  padding: "12px 22px",
-                  fontWeight: 800,
-                  fontSize: 17,
-                  cursor: "pointer",
-                  boxShadow: "0 10px 24px rgba(37,99,235,0.28)",
-                }}
-              >
-                Upload
-              </button>
+              {activeView === "analysis" ? (
+                <button
+                  onClick={() => setUploadModalOpen(true)}
+                  style={{
+                    borderRadius: 16,
+                    border: "1px solid #dbeafe",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    padding: "12px 22px",
+                    fontWeight: 800,
+                    fontSize: 17,
+                    cursor: "pointer",
+                    boxShadow: "0 10px 24px rgba(37,99,235,0.28)",
+                  }}
+                >
+                  Upload
+                </button>
+              ) : null}
             </div>
           </div>
 
           <div style={{ padding: 24 }}>
+            {activeView === "research" ? (
+              <ResearchProgress />
+            ) : (
+              <>
             <div
               style={{
                 display: "flex",
@@ -1367,6 +1392,8 @@ export default function App() {
                 Next
               </button>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

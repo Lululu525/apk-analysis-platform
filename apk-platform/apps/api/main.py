@@ -31,6 +31,7 @@ from .service import (
     generate_pdf_report as _generate_pdf_report,
     ensure_directories,
 )
+from .research_progress import load_research_progress
 
 
 app = FastAPI(title="APK Analysis Platform API")
@@ -78,6 +79,14 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/v1/research/progress")
+def get_research_progress():
+    try:
+        return load_research_progress()
+    except (OSError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=503, detail=f"Research progress unavailable: {exc}") from exc
 
 
 def _row_or_404(sample_id: str):

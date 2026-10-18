@@ -68,6 +68,9 @@ dist/
 build/
 .cache/
 .vite/
+*.tsbuildinfo
+FrontendUI/vite.config.js
+FrontendUI/vite.config.d.ts
 
 # =========================
 # Env（重要）
