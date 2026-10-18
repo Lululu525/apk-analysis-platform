@@ -56,3 +56,20 @@
 
 工具會驗證 event ID、supersession chain、每個 review unit 只有一個最新版事件，
 並在摘要中記錄 authority log 與輸出 CSV 的 SHA-256。它不修改人工 review log。
+
+## 對 Golden-50 做 held-out 評估
+
+預測檔可為 CSV、JSONL 或 JSON，每筆至少包含 `review_unit_id` 與
+`predicted_label`；若有連續分數則放在 `score`。多 seed／模型可另帶
+`model_id`、`seed`：
+
+```powershell
+..\.venv\Scripts\python.exe -m app.tools.evaluate_gold_predictions `
+  --predictions path\to\predictions.csv `
+  --out output\gold_evaluation.json
+```
+
+預設要求覆蓋全部 361 筆 binary Gold，遇到未知 identity 或缺漏會失敗。
+只有預先定義的子母體分析才可明確加入 `--allow-partial`，且報告必須同時呈現
+coverage。評估器不訓練模型、不用 Gold 選 threshold，也不把 24 筆 human
+unknown 轉成 negative。
