@@ -10,6 +10,9 @@
 | `opensource_apks/` | 從 GitHub 開源 Android 專案 build 出的 APK |
 | `public_apks/` | 從 F-Droid / AndroZoo 下載的公開 APK |
 | `labels/ground_truth.csv` | 所有 APK 的 ground truth 標籤表 |
+| `authz_v2/gold_review_log.jsonl` | Golden-50 append-only 人工審查權威紀錄 |
+| `authz_v2/golden_50_labels_materialized.csv` | 由 review log 物化的每個 review unit 最新 Gold label；只供評估 |
+| `authz_v2/golden_50_labels_summary.json` | 物化來源雜湊、label/confidence 分布與評估資格摘要 |
 
 ## 標籤說明
 
@@ -38,3 +41,18 @@
 - 只有 build 出來的 `.apk` 檔案進 git（存放在本資料夾下）
 - 研究指標進入簡報或前端前，應使用 [`research_evidence_audit`](../docs/research_evidence_audit.md)
   綁定母體、評估設計、Gold 角色、原始 JSON pointer 與 SHA-256。
+- `authz_v2` Golden-50 與早期 `labels/ground_truth.csv` 是不同任務與不同
+  標籤定義，不得混用。Golden-50 固定為 `untouched_evaluation_only`，不可加入
+  Vanilla／SLB／Random Forest 訓練、特徵選擇、threshold 或規則設計。
+- `gold_authz_label=unknown` 不可轉成 negative；二元評估時必須排除並另外報告數量。
+
+## 重新物化 Golden-50 最新標籤
+
+在 `AI-model/` 目錄執行：
+
+```powershell
+..\.venv\Scripts\python.exe -m app.tools.materialize_gold_labels
+```
+
+工具會驗證 event ID、supersession chain、每個 review unit 只有一個最新版事件，
+並在摘要中記錄 authority log 與輸出 CSV 的 SHA-256。它不修改人工 review log。

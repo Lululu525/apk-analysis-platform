@@ -1,0 +1,25 @@
+{
+  "schema_version": "gold-label-materialization-v1",
+  "authority": "dataset\\authz_v2\\gold_review_log.jsonl",
+  "authority_sha256": "3dd8284d9a49365ad4c3743f063cfaeb5bd16990c196127535c852908f313d68",
+  "event_count": 386,
+  "latest_review_unit_count": 385,
+  "superseded_event_count": 1,
+  "apk_count": 37,
+  "label_counts": {
+    "negative": 303,
+    "positive": 58,
+    "unknown": 24
+  },
+  "binary_eval_unit_count": 361,
+  "unknown_excluded_from_binary_eval": 24,
+  "confidence_counts": {
+    "high": 352,
+    "low": 19,
+    "medium": 14
+  },
+  "output_csv": "dataset\\authz_v2\\golden_50_labels_materialized.csv",
+  "output_csv_sha256": "b5295d197097db8487e3a58ba3e4ecc9233476881446f574702d6d07dccb6169",
+  "gold_role": "untouched_evaluation_only",
+  "training_use_permitted": false
+}
