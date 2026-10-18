@@ -1,0 +1,49 @@
+{
+  "schema_version": "gold-population-drift-audit-v1",
+  "status": "not_reproducible",
+  "population_matches": false,
+  "raw_per_unit_predictions_available": false,
+  "comparisons": {
+    "binary_units": {
+      "archived": 348,
+      "current": 361,
+      "delta_current_minus_archived": 13,
+      "matches": false
+    },
+    "positive": {
+      "archived": 83,
+      "current": 58,
+      "delta_current_minus_archived": -25,
+      "matches": false
+    },
+    "negative": {
+      "archived": 265,
+      "current": 303,
+      "delta_current_minus_archived": 38,
+      "matches": false
+    },
+    "unknown": {
+      "archived": 36,
+      "current": 24,
+      "delta_current_minus_archived": -12,
+      "matches": false
+    }
+  },
+  "archived_source": {
+    "title": "model_eval_gold.json",
+    "drive_file_id": "1Ig9HVCM64idgqskD21MT6A-LD9sCljWY",
+    "artifact_sha256": "7141d3e5f743166e8f7744e1f193e502df94c7d5c0bc00c5e72dde87663a7e77",
+    "json_pointer": "/population_accounting"
+  },
+  "current_source": {
+    "authority": "dataset\\authz_v2\\gold_review_log.jsonl",
+    "authority_sha256": "3dd8284d9a49365ad4c3743f063cfaeb5bd16990c196127535c852908f313d68",
+    "materialized_csv_sha256": "b5295d197097db8487e3a58ba3e4ecc9233476881446f574702d6d07dccb6169"
+  },
+  "required_before_re_evaluation": [
+    "Freeze and name the intended Gold review-log revision.",
+    "Export per-unit predictions with review_unit_id, model_id, seed, predicted_label, and score.",
+    "Run evaluate_gold_predictions.py against the matching materialized Gold revision.",
+    "Do not compare metrics across mismatched Gold populations as if they were the same test set."
+  ]
+}

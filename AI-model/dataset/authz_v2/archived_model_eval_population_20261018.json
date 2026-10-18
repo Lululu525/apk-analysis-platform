@@ -1,0 +1,32 @@
+{
+  "schema_version": "archived-model-eval-population-excerpt-v1",
+  "source_title": "model_eval_gold.json",
+  "source_drive_file_id": "1Ig9HVCM64idgqskD21MT6A-LD9sCljWY",
+  "source_drive_url": "https://drive.google.com/file/d/1Ig9HVCM64idgqskD21MT6A-LD9sCljWY/view",
+  "source_artifact_sha256": "7141d3e5f743166e8f7744e1f193e502df94c7d5c0bc00c5e72dde87663a7e77",
+  "source_modified_time": "2026-10-04T14:27:05.162Z",
+  "selected_json_pointer": "/population_accounting",
+  "selected_fields_transcription": {
+    "gold_events": 385,
+    "gold_binary": 348,
+    "excluded_gold_unknown": 36,
+    "excluded_no_identity": 1,
+    "excluded_no_prediction": 0,
+    "with_identity": 384,
+    "with_prediction": 384,
+    "r_refuted": 242,
+    "reachable": 106
+  },
+  "pipeline_all_binary": {
+    "positive": 83,
+    "negative": 265,
+    "evaluated_units": 348
+  },
+  "reachable_subset": {
+    "positive": 83,
+    "negative": 23,
+    "evaluated_units": 106
+  },
+  "raw_per_unit_predictions_in_shared_package": false,
+  "note": "This is a provenance-preserving selected-field transcription, not a replacement for the source artifact."
+}
